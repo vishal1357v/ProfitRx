@@ -1,0 +1,966 @@
+/* ============================================================
+   GREEK GOD SAAS — PREMIUM DARK DESIGN SYSTEM v2.0
+   Cutting-edge analytics SaaS — Dark-first glassmorphism
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ============================================================
+   1. DESIGN TOKENS
+   ============================================================ */
+:root {
+  --gg-bg-base:        #060b18;
+  --gg-bg-deep:        #03060e;
+  --gg-surface-1:      #0d1526;
+  --gg-surface-2:      #111d35;
+  --gg-surface-3:      #172240;
+  --gg-surface-hover:  #1c2a4a;
+
+  --gg-accent-purple:  #7c3aed;
+  --gg-accent-blue:    #2563eb;
+  --gg-accent-teal:    #06b6d4;
+  --gg-accent-green:   #10b981;
+  --gg-accent-amber:   #f59e0b;
+  --gg-accent-red:     #ef4444;
+
+  --gg-gradient-brand: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  --gg-gradient-profit: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  --gg-gradient-danger: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
+  --gg-gradient-surface: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+
+  --gg-glow-blue:   0 0 20px rgba(37, 99, 235, 0.35),  0 0 40px rgba(37, 99, 235, 0.12);
+  --gg-glow-purple: 0 0 20px rgba(124, 58, 237, 0.35), 0 0 40px rgba(124, 58, 237, 0.12);
+  --gg-glow-green:  0 0 20px rgba(16, 185, 129, 0.35), 0 0 40px rgba(16, 185, 129, 0.12);
+  --gg-glow-red:    0 0 20px rgba(239, 68, 68, 0.35),  0 0 40px rgba(239, 68, 68, 0.12);
+
+  --gg-border:         rgba(255, 255, 255, 0.07);
+  --gg-border-hover:   rgba(255, 255, 255, 0.14);
+  --gg-border-accent:  rgba(37, 99, 235, 0.45);
+
+  --gg-text-primary:   #f0f4ff;
+  --gg-text-secondary: #94a3b8;
+  --gg-text-muted:     #475569;
+
+  --gg-radius-sm:  6px;
+  --gg-radius-md:  10px;
+  --gg-radius-lg:  14px;
+  --gg-radius-xl:  20px;
+
+  --gg-transition: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  --gg-transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   2. BASE RESET & TYPOGRAPHY
+   ============================================================ */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif !important;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, .gg-heading {
+  font-family: 'Outfit', 'Inter', sans-serif !important;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================
+   3. DARK THEME — BASE
+   ============================================================ */
+body.dark-theme {
+  background-color: var(--gg-bg-base) !important;
+  color: var(--gg-text-primary) !important;
+
+  /* Override Polaris tokens */
+  --p-color-bg-app:                var(--gg-bg-base);
+  --p-color-bg-surface:            var(--gg-surface-1);
+  --p-color-bg-surface-hover:      var(--gg-surface-hover);
+  --p-color-bg-surface-active:     var(--gg-surface-3);
+  --p-color-bg-surface-selected:   var(--gg-surface-2);
+  --p-color-bg-surface-secondary:  var(--gg-surface-2);
+  --p-color-bg-surface-tertiary:   var(--gg-surface-3);
+
+  --p-color-text:             var(--gg-text-primary);
+  --p-color-text-secondary:   var(--gg-text-secondary);
+  --p-color-text-subdued:     var(--gg-text-muted);
+  --p-color-text-brand:       var(--gg-accent-blue);
+
+  --p-color-border:           var(--gg-border);
+  --p-color-border-subdued:   rgba(255,255,255,0.04);
+  --p-color-border-hover:     var(--gg-border-hover);
+  --p-color-icon:             var(--gg-text-secondary);
+  --p-color-icon-hover:       var(--gg-text-primary);
+
+  --p-color-bg-surface-info:     rgba(37, 99, 235, 0.12);
+  --p-color-bg-surface-success:  rgba(16, 185, 129, 0.12);
+  --p-color-bg-surface-warning:  rgba(245, 158, 11, 0.12);
+  --p-color-bg-surface-critical: rgba(239, 68, 68, 0.12);
+}
+
+/* ============================================================
+   4. NAVIGATION — GLASS MORPHISM
+   ============================================================ */
+s-app-nav {
+  display: flex;
+  background-color: rgba(6, 11, 24, 0.88);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border-bottom: 1px solid var(--gg-border);
+  padding: 10px 20px;
+  gap: 4px;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  transition: background-color var(--gg-transition), border-color var(--gg-transition);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.4);
+}
+
+body:not(.dark-theme) s-app-nav {
+  background-color: rgba(255,255,255,0.92);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.08);
+}
+
+s-link {
+  position: relative;
+  color: var(--gg-text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  padding: 7px 14px;
+  border-radius: var(--gg-radius-md);
+  transition: color var(--gg-transition), background var(--gg-transition);
+  letter-spacing: 0.01em;
+}
+
+s-link::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--gg-gradient-brand);
+  border-radius: 2px;
+  transition: width var(--gg-transition), left var(--gg-transition);
+}
+
+s-link:hover {
+  color: var(--gg-text-primary);
+  background-color: rgba(255,255,255,0.06);
+}
+
+s-link:hover::after {
+  width: 60%;
+  left: 20%;
+}
+
+s-link[active="true"],
+s-link.active {
+  color: #a5b4fc;
+  background: rgba(124, 58, 237, 0.12);
+  font-weight: 600;
+}
+
+s-link[active="true"]::after,
+s-link.active::after {
+  width: 60%;
+  left: 20%;
+}
+
+body:not(.dark-theme) s-link {
+  color: #475569;
+}
+body:not(.dark-theme) s-link:hover {
+  color: #1e293b;
+  background-color: rgba(0,0,0,0.04);
+}
+body:not(.dark-theme) s-link[active="true"],
+body:not(.dark-theme) s-link.active {
+  color: #4f46e5;
+  background: rgba(79,70,229,0.08);
+}
+
+/* ============================================================
+   5. PAGE & POLARIS OVERRIDES
+   ============================================================ */
+body.dark-theme .Polaris-Page {
+  background-color: var(--gg-bg-base) !important;
+}
+
+body.dark-theme .Polaris-Page-Header__Title h1,
+body.dark-theme .Polaris-Text--root,
+body.dark-theme .Polaris-Text,
+body.dark-theme h1,
+body.dark-theme h2,
+body.dark-theme h3,
+body.dark-theme h4 {
+  color: var(--gg-text-primary) !important;
+  font-family: 'Outfit', 'Inter', sans-serif !important;
+}
+
+body.dark-theme .Polaris-Text--toneSubdued {
+  color: var(--gg-text-secondary) !important;
+}
+
+body.dark-theme .Polaris-Divider {
+  border-color: var(--gg-border) !important;
+}
+
+/* ============================================================
+   6. CARDS — GLASSMORPHISM PREMIUM
+   ============================================================ */
+body.dark-theme .Polaris-Card {
+  background: var(--gg-gradient-surface), var(--gg-surface-1) !important;
+  border: 1px solid var(--gg-border) !important;
+  border-radius: var(--gg-radius-lg) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 4px 24px rgba(0,0,0,0.35) !important;
+  transition: transform var(--gg-transition), box-shadow var(--gg-transition), border-color var(--gg-transition) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+body.dark-theme .Polaris-Card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  pointer-events: none;
+}
+
+body.dark-theme .Polaris-Card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gg-border-hover) !important;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 12px 36px rgba(0,0,0,0.45),
+    0 0 0 1px rgba(37,99,235,0.1) !important;
+}
+
+/* ============================================================
+   7. STAT CARD GLOW VARIANTS
+   ============================================================ */
+body.dark-theme .gg-card-revenue:hover  { box-shadow: var(--gg-glow-blue) !important; border-color: rgba(37,99,235,0.3) !important; }
+body.dark-theme .gg-card-profit:hover   { box-shadow: var(--gg-glow-green) !important; border-color: rgba(16,185,129,0.3) !important; }
+body.dark-theme .gg-card-health:hover   { box-shadow: var(--gg-glow-purple) !important; border-color: rgba(124,58,237,0.3) !important; }
+body.dark-theme .gg-card-danger:hover   { box-shadow: var(--gg-glow-red) !important; border-color: rgba(239,68,68,0.25) !important; }
+
+/* ============================================================
+   8. STAT NUMBERS — GRADIENT TEXT
+   ============================================================ */
+.gg-stat-value {
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  background: var(--gg-gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gg-stat-value-green {
+  background: var(--gg-gradient-profit);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+}
+.gg-stat-value-red {
+  background: var(--gg-gradient-danger);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+}
+.gg-stat-value-neutral {
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--gg-text-primary);
+}
+
+/* ============================================================
+   9. DARK MODE INPUTS / FORMS
+   ============================================================ */
+body.dark-theme .Polaris-TextField__Input {
+  background-color: var(--gg-bg-deep) !important;
+  color: var(--gg-text-primary) !important;
+  border-color: var(--gg-border) !important;
+  border-radius: var(--gg-radius-md) !important;
+  font-family: 'Inter', sans-serif !important;
+  transition: border-color var(--gg-transition), box-shadow var(--gg-transition) !important;
+}
+
+body.dark-theme .Polaris-TextField__Input:focus {
+  border-color: var(--gg-accent-blue) !important;
+  box-shadow: 0 0 0 2px rgba(37, 130, 246, 0.25) !important;
+}
+
+body.dark-theme .Polaris-TextField__Prefix,
+body.dark-theme .Polaris-TextField__Suffix {
+  color: var(--gg-text-muted) !important;
+  background-color: transparent !important;
+}
+
+body.dark-theme .Polaris-TextField {
+  background-color: transparent !important;
+  border: none !important;
+}
+
+body.dark-theme .Polaris-Select__Input {
+  background-color: var(--gg-bg-deep) !important;
+  color: var(--gg-text-primary) !important;
+  border-color: var(--gg-border) !important;
+}
+
+body.dark-theme .Polaris-Label__Text {
+  color: var(--gg-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+/* ============================================================
+   10. BUTTONS
+   ============================================================ */
+body.dark-theme .Polaris-Button:not(.Polaris-Button--pressable) {
+  background-color: var(--gg-surface-2) !important;
+  border: 1px solid var(--gg-border) !important;
+  color: var(--gg-text-primary) !important;
+  border-radius: var(--gg-radius-md) !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  transition: background var(--gg-transition), border-color var(--gg-transition), box-shadow var(--gg-transition) !important;
+}
+
+body.dark-theme .Polaris-Button:not(.Polaris-Button--pressable):hover {
+  background-color: var(--gg-surface-3) !important;
+  border-color: var(--gg-border-hover) !important;
+}
+
+body.dark-theme .Polaris-Button--variantPrimary {
+  background: var(--gg-gradient-brand) !important;
+  border: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
+  transition: box-shadow var(--gg-transition), transform var(--gg-transition) !important;
+}
+
+body.dark-theme .Polaris-Button--variantPrimary:hover {
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.55), 0 2px 8px rgba(124, 58, 237, 0.3) !important;
+  transform: translateY(-1px) !important;
+}
+
+body.dark-theme .Polaris-Button--variantPlain {
+  color: var(--gg-accent-blue) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body.dark-theme .Polaris-Button--variantPlain:hover {
+  color: #93c5fd !important;
+  text-decoration: underline;
+}
+
+/* ============================================================
+   11. BADGES
+   ============================================================ */
+body.dark-theme .Polaris-Badge {
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+body.dark-theme .Polaris-Badge--toneSuccess {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+}
+
+body.dark-theme .Polaris-Badge--toneCritical {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+}
+
+body.dark-theme .Polaris-Badge--toneWarning,
+body.dark-theme .Polaris-Badge--toneAttention {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #fcd34d !important;
+}
+
+body.dark-theme .Polaris-Badge--toneInfo {
+  background: rgba(37, 99, 235, 0.15) !important;
+  color: #93c5fd !important;
+}
+
+/* ============================================================
+   12. TABS — PILL STYLE
+   ============================================================ */
+body.dark-theme .Polaris-Tabs {
+  background: var(--gg-surface-2) !important;
+  border-radius: var(--gg-radius-lg) !important;
+  padding: 4px !important;
+  border: 1px solid var(--gg-border) !important;
+  display: inline-flex !important;
+  gap: 2px !important;
+}
+
+body.dark-theme .Polaris-Tabs__Tab {
+  border-radius: var(--gg-radius-md) !important;
+  transition: background var(--gg-transition), color var(--gg-transition) !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--gg-text-secondary) !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+body.dark-theme .Polaris-Tabs__Tab--selected,
+body.dark-theme .Polaris-Tabs__Tab:hover {
+  background: var(--gg-surface-hover) !important;
+  color: var(--gg-text-primary) !important;
+}
+
+body.dark-theme .Polaris-Tabs__Tab--selected {
+  background: var(--gg-gradient-brand) !important;
+  color: #fff !important;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.4) !important;
+}
+
+body.dark-theme .Polaris-Tabs__Panel {
+  background: transparent !important;
+}
+
+/* ============================================================
+   13. DATA TABLE
+   ============================================================ */
+body.dark-theme .Polaris-DataTable__Table {
+  background: transparent !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+body.dark-theme .Polaris-DataTable__Cell {
+  background: transparent !important;
+  color: var(--gg-text-secondary) !important;
+  border-bottom: 1px solid var(--gg-border) !important;
+  font-size: 13px !important;
+  transition: background var(--gg-transition), color var(--gg-transition) !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+body.dark-theme .Polaris-DataTable__Cell--header {
+  color: var(--gg-text-muted) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.07em !important;
+  text-transform: uppercase !important;
+  border-bottom: 1px solid var(--gg-border-hover) !important;
+  background: transparent !important;
+}
+
+body.dark-theme .Polaris-DataTable__TableRow:hover .Polaris-DataTable__Cell {
+  background: rgba(255,255,255,0.025) !important;
+  color: var(--gg-text-primary) !important;
+}
+
+/* ============================================================
+   14. PROGRESS BARS
+   ============================================================ */
+body.dark-theme .Polaris-ProgressBar {
+  background: rgba(255,255,255,0.06) !important;
+  border-radius: 100px !important;
+  overflow: hidden !important;
+}
+
+body.dark-theme .Polaris-ProgressBar__Progress {
+  background: var(--gg-gradient-brand) !important;
+  border-radius: 100px !important;
+  position: relative !important;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+body.dark-theme .Polaris-ProgressBar__Progress::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%);
+  animation: shimmer-bar 2s infinite;
+}
+
+body.dark-theme .Polaris-ProgressBar--toneSuccess .Polaris-ProgressBar__Progress {
+  background: var(--gg-gradient-profit) !important;
+}
+
+body.dark-theme .Polaris-ProgressBar--toneCritical .Polaris-ProgressBar__Progress {
+  background: var(--gg-gradient-danger) !important;
+}
+
+/* ============================================================
+   15. BANNERS
+   ============================================================ */
+body.dark-theme .Polaris-Banner {
+  border-radius: var(--gg-radius-md) !important;
+  border: 1px solid var(--gg-border) !important;
+}
+
+body.dark-theme .Polaris-Banner--toneSuccess {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+body.dark-theme .Polaris-Banner--toneWarning,
+body.dark-theme .Polaris-Banner--toneAttention {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+body.dark-theme .Polaris-Banner--toneCritical {
+  background: rgba(239, 68, 68, 0.08) !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+/* ============================================================
+   16. SVG CHARTS — DARK MODE
+   ============================================================ */
+body.dark-theme svg text {
+  fill: var(--gg-text-muted) !important;
+  font-family: 'Inter', sans-serif !important;
+  transition: fill var(--gg-transition);
+}
+
+body.dark-theme svg line {
+  stroke: var(--gg-border) !important;
+}
+
+body.dark-theme svg circle {
+  stroke: var(--gg-surface-1) !important;
+}
+
+/* ============================================================
+   17. CUSTOM COMPONENTS
+   ============================================================ */
+
+/* ── Stat Icon Badge ─────────────────────────────────────── */
+.gg-stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--gg-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.gg-stat-icon--blue   { background: rgba(37,99,235,0.15);  }
+.gg-stat-icon--green  { background: rgba(16,185,129,0.15); }
+.gg-stat-icon--purple { background: rgba(124,58,237,0.15); }
+.gg-stat-icon--red    { background: rgba(239,68,68,0.15);  }
+.gg-stat-icon--amber  { background: rgba(245,158,11,0.15); }
+
+/* ── Live Pulse Dot ──────────────────────────────────────── */
+.gg-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gg-accent-green);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  animation: gg-pulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* ── Trend Badge ─────────────────────────────────────────── */
+.gg-trend-up {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gg-accent-green);
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-family: 'Inter', sans-serif;
+}
+.gg-trend-down {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gg-accent-red);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-family: 'Inter', sans-serif;
+}
+.gg-trend-neutral {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gg-text-muted);
+  background: rgba(255,255,255,0.05);
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Channel Color Dot ───────────────────────────────────── */
+.gg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ── Section Header Label ────────────────────────────────── */
+.gg-section-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gg-text-muted);
+  margin-bottom: 2px;
+}
+
+/* ── Custom Table (AI Channel / Search) ─────────────────── */
+.gg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+}
+
+.gg-table thead tr {
+  border-bottom: 1px solid var(--gg-border-hover);
+}
+
+.gg-table th {
+  padding: 11px 10px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--gg-text-muted);
+}
+
+.gg-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--gg-border);
+  color: var(--gg-text-secondary);
+  transition: background var(--gg-transition), color var(--gg-transition);
+}
+
+.gg-table tbody tr:hover td {
+  background: rgba(255,255,255,0.025);
+  color: var(--gg-text-primary);
+}
+
+.gg-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Alert Row (Alerts page) ─────────────────────────────── */
+.gg-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: var(--gg-radius-md);
+  border: 1px solid var(--gg-border);
+  border-left-width: 4px;
+  background: var(--gg-surface-2);
+  transition: background var(--gg-transition), transform var(--gg-transition);
+  animation: slide-in 0.35s ease both;
+}
+
+.gg-alert-row:hover {
+  background: var(--gg-surface-hover);
+  transform: translateX(2px);
+}
+
+.gg-alert-row--critical { border-left-color: var(--gg-accent-red); }
+.gg-alert-row--warning  { border-left-color: var(--gg-accent-amber); }
+.gg-alert-row--success  { border-left-color: var(--gg-accent-green); }
+
+/* ── Wizard Step Card ────────────────────────────────────── */
+.gg-wizard-step {
+  padding: 14px;
+  border-radius: var(--gg-radius-md);
+  border: 1px solid var(--gg-border);
+  background: var(--gg-surface-2);
+  transition: border-color var(--gg-transition), background var(--gg-transition);
+}
+
+.gg-wizard-step--complete {
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.gg-wizard-step-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.gg-wizard-step-check--done {
+  background: var(--gg-gradient-profit);
+  color: white;
+}
+
+.gg-wizard-step-check--pending {
+  background: var(--gg-surface-3);
+  color: var(--gg-text-muted);
+  border: 1px solid var(--gg-border);
+}
+
+/* ── Gauge Glow ─────────────────────────────────────────── */
+.gg-gauge-glow-green  { filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6)); }
+.gg-gauge-glow-blue   { filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.6)); }
+.gg-gauge-glow-amber  { filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)); }
+.gg-gauge-glow-red    { filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.6)); }
+.gg-gauge-glow-purple { filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.6)); }
+
+/* ── KPI Card ───────────────────────────────────────────── */
+.gg-kpi-card {
+  padding: 16px;
+  border-radius: var(--gg-radius-md);
+  border: 1px solid var(--gg-border);
+  background: var(--gg-surface-2);
+  transition: border-color var(--gg-transition), box-shadow var(--gg-transition), transform var(--gg-transition);
+}
+
+.gg-kpi-card:hover {
+  border-color: var(--gg-border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* ── Recommendation Card ─────────────────────────────────── */
+.gg-rec-card {
+  position: relative;
+  padding: 16px 16px 16px 20px;
+  border-radius: var(--gg-radius-md);
+  border: 1px solid var(--gg-border);
+  background: var(--gg-surface-2);
+  overflow: hidden;
+  transition: transform var(--gg-transition), box-shadow var(--gg-transition);
+}
+
+.gg-rec-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+}
+
+.gg-rec-card--critical::before { background: var(--gg-gradient-danger); }
+.gg-rec-card--warning::before  { background: linear-gradient(180deg, #f59e0b, #ef4444); }
+.gg-rec-card--success::before  { background: var(--gg-gradient-profit); }
+
+.gg-rec-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* ── Dark mode toggle ────────────────────────────────────── */
+.gg-dark-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--gg-radius-md);
+  border: 1px solid var(--gg-border);
+  background: var(--gg-surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background var(--gg-transition), border-color var(--gg-transition), transform var(--gg-transition);
+}
+
+.gg-dark-toggle:hover {
+  background: var(--gg-surface-3);
+  border-color: var(--gg-border-hover);
+  transform: rotate(15deg) scale(1.05);
+}
+
+/* ── Page Entrance Animation ─────────────────────────────── */
+.gg-page-enter {
+  animation: gg-fade-up 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ============================================================
+   18. CUSTOM SCROLLBARS
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.5);
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* ============================================================
+   19. SKELETON LOADING — SHIMMER WAVE
+   ============================================================ */
+.skeleton-container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: gg-fade-up 0.3s ease both;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+}
+
+.skeleton-pulse {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 0%,
+    rgba(255,255,255,0.09) 50%,
+    rgba(255,255,255,0.04) 100%
+  );
+  background-size: 200% 100%;
+  border-radius: var(--gg-radius-md);
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+body:not(.dark-theme) .skeleton-pulse {
+  background: linear-gradient(
+    90deg,
+    #e2e8f0 0%,
+    #f1f5f9 50%,
+    #e2e8f0 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+.skeleton-card  { height: 120px; flex: 1; }
+.skeleton-chart { height: 260px; width: 100%; }
+.skeleton-line  { height: 18px; width: 100%; }
+
+/* ============================================================
+   20. KEYFRAME ANIMATIONS
+   ============================================================ */
+@keyframes gg-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gg-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes shimmer-bar {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes draw-in {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes gauge-in {
+  from { stroke-dashoffset: 283; }
+}
+
+/* ============================================================
+   21. UTILITY CLASSES
+   ============================================================ */
+.gg-font-heading { font-family: 'Outfit', sans-serif !important; }
+.gg-font-body    { font-family: 'Inter', sans-serif !important; }
+
+.gg-text-xs  { font-size: 11px !important; }
+.gg-text-sm  { font-size: 13px !important; }
+.gg-text-md  { font-size: 15px !important; }
+.gg-text-lg  { font-size: 18px !important; }
+.gg-text-xl  { font-size: 24px !important; }
+.gg-text-2xl { font-size: 32px !important; }
+
+.gg-text-muted    { color: var(--gg-text-muted) !important; }
+.gg-text-secondary { color: var(--gg-text-secondary) !important; }
+.gg-text-primary  { color: var(--gg-text-primary) !important; }
+.gg-text-green    { color: var(--gg-accent-green) !important; }
+.gg-text-red      { color: var(--gg-accent-red) !important; }
+.gg-text-amber    { color: var(--gg-accent-amber) !important; }
+.gg-text-blue     { color: var(--gg-accent-blue) !important; }
+.gg-text-purple   { color: var(--gg-accent-purple) !important; }
+
+.gg-fw-400 { font-weight: 400 !important; }
+.gg-fw-500 { font-weight: 500 !important; }
+.gg-fw-600 { font-weight: 600 !important; }
+.gg-fw-700 { font-weight: 700 !important; }
+
+.gg-flex       { display: flex !important; }
+.gg-flex-col   { flex-direction: column !important; }
+.gg-items-center { align-items: center !important; }
+.gg-justify-between { justify-content: space-between !important; }
+.gg-gap-1 { gap: 4px !important; }
+.gg-gap-2 { gap: 8px !important; }
+.gg-gap-3 { gap: 12px !important; }
+.gg-gap-4 { gap: 16px !important; }
+
+.gg-overflow-x { overflow-x: auto !important; }
+
+/* theme-text-primary backward compat */
+.theme-text-primary { transition: color var(--gg-transition); }
+body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; }

@@ -1,0 +1,308 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// SESSION - Stores Shopify OAuth sessions
+// ============================================
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String?
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean?
+  locale              String?
+  collaborator        Boolean?
+  emailVerified       Boolean?
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+  expiresAt           DateTime?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@map("sessions")
+}
+
+// ============================================
+// ORDER - Stores Shopify orders
+// ============================================
+model Order {
+  id                String   @id
+  shop              String
+  orderNumber       Int
+  totalPrice        Float
+  subtotalPrice     Float
+  totalTax          Float
+  shippingPrice     Float
+  discountAmount    Float    @default(0)   // From totalDiscountsSet
+  isCOD             Boolean  @default(false) // Derived from gateway
+  createdAt         DateTime
+  processedAt       DateTime
+  financialStatus   String
+  fulfillmentStatus String
+  productId         String?  // First line item product id
+  gateway           String?  // Payment gateway (COD / prepaid)
+  channelType       String?  // e.g. "AI_CHAT", "SEARCH", "WEBSITE"
+  channelAttribution String? // e.g. "Gemini", "ChatGPT", "Copilot", "Website"
+  customerId        String?
+  customerName      String?
+  customerEmail     String?
+  // Shipping address (for Pincode RTO heatmap)
+  pincode           String?
+  city              String?
+  province          String?
+
+  @@index([shop, createdAt])
+  @@index([shop, pincode])
+  @@index([shop, isCOD])
+  @@map("orders")
+}
+
+// ============================================
+// PRODUCT COGS - Cost of Goods Sold per product
+// ============================================
+model ProductCOGS {
+  id        String   @id @default(cuid())
+  shop      String
+  productId String
+  cogs      Float    // Cost of Goods Sold in ₹
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, productId])
+  @@index([shop, productId])
+  @@map("product_cogs")
+}
+
+// ============================================
+// AI SEARCH QUERY - Stores AI search visibilities
+// ============================================
+model AISearchQuery {
+  id          String   @id @default(cuid())
+  shop        String
+  query       String
+  productName String
+  rank        Int      // Visibility rank in AI search (1st, 2nd, etc.)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  ctr         Float    @default(0.0)
+  channel     String   // "ChatGPT", "Copilot", "Gemini"
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([shop])
+  @@map("ai_search_queries")
+}
+
+// ============================================
+// RTO/COD TRACKING - Your Moat Feature
+// ============================================
+model RTOEvent {
+  id          String   @id @default(cuid())
+  shop        String
+  orderId     String
+  orderNumber Int
+  eventType   String   // "RTO", "COD_FAILURE", "DELIVERY_FAILED"
+  reason      String?
+  amount      Float    // Loss amount in ₹
+  status      String   // "PENDING", "CONFIRMED", "RESOLVED"
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+
+  @@index([shop, createdAt])
+  @@index([orderId])
+  @@map("rto_events")
+}
+
+// ============================================
+// PINCODE STATS - Aggregated RTO data per pincode
+// ============================================
+model PincodeStats {
+  id            String   @id @default(cuid())
+  shop          String
+  pincode       String
+  city          String?
+  province      String?
+  totalOrders   Int      @default(0)
+  codOrders     Int      @default(0)
+  rtoCount      Int      @default(0)
+  totalLoss     Float    @default(0)  // Total ₹ lost to RTO
+  rtoRate       Float    @default(0)  // rtoCount / codOrders × 100
+  riskLevel     String   @default("LOW")  // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, pincode])
+  @@index([shop])
+  @@index([shop, rtoRate])
+  @@map("pincode_stats")
+}
+
+// ============================================
+// CUSTOMER PROFILE - Cached customer LTV data
+// ============================================
+model CustomerProfile {
+  id              String   @id @default(cuid())
+  shop            String
+  customerId      String
+  customerName    String?
+  customerEmail   String?
+  firstOrderDate  DateTime?
+  lastOrderDate   DateTime?
+  orderCount      Int      @default(0)
+  totalRevenue    Float    @default(0)
+  totalProfit     Float    @default(0)
+  ltv             Float    @default(0)  // Lifetime value
+  aov             Float    @default(0)  // Average order value
+  repeatRate      Float    @default(0)  // % of months with purchase
+  cohortMonth     String?  // "2025-01" format for cohort analysis
+  channelSource   String?  // First acquisition channel
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, customerId])
+  @@index([shop])
+  @@index([shop, cohortMonth])
+  @@map("customer_profiles")
+}
+
+// ============================================
+// AD SPEND - Manual ad spend input (ROAS fallback)
+// ============================================
+model AdSpend {
+  id         String   @id @default(cuid())
+  shop       String
+  month      String   // "2025-01" format
+  channel    String   // "Meta", "Google", "Influencer", "Other"
+  amount     Float    // Total spend in ₹
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, month, channel])
+  @@index([shop])
+  @@index([shop, month])
+  @@map("ad_spend")
+}
+
+// ============================================
+// PROFIT SNAPSHOT - Daily profit intelligence
+// (Replaces HealthScore for Profit Health AI)
+// ============================================
+model ProfitSnapshot {
+  id               String   @id @default(cuid())
+  shop             String
+  date             DateTime
+  // Core metrics
+  revenue          Float    @default(0)
+  profit           Float    @default(0)
+  margin           Float    @default(0)
+  cogs             Float    @default(0)
+  fees             Float    @default(0)
+  // Profit leaks
+  rtoLoss          Float    @default(0)
+  shippingOverage  Float    @default(0)
+  discountLoss     Float    @default(0)
+  codFailureLoss   Float    @default(0)
+  totalLeak        Float    @default(0)
+  // RTO
+  rtoRate          Float    @default(0)
+  codRate          Float    @default(0)
+  // Health AI status
+  healthStatus     String   @default("UNKNOWN")  // "HEALTHY", "WARNING", "CRITICAL"
+  healthReasons    Json?    // Array of reason strings
+  createdAt        DateTime @default(now())
+
+  @@unique([shop, date])
+  @@index([shop])
+  @@index([shop, date])
+  @@map("profit_snapshots")
+}
+
+// ============================================
+// ALERTS - Store health alerts
+// ============================================
+model Alert {
+  id          String   @id @default(cuid())
+  shop        String
+  type        String   // "PROFIT_DROP", "HIGH_RTO", "LOW_MARGIN"
+  severity    String   // "INFO", "WARNING", "CRITICAL"
+  message     String
+  data        Json?    // Additional context
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  @@index([shop])
+  @@index([isRead])
+  @@map("alerts")
+}
+
+// ============================================
+// SUBSCRIPTION - Billing & Plans
+// ============================================
+model Subscription {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+  plan            String   // "STARTER", "GROWTH", "PRO"
+  status          String   // "ACTIVE", "CANCELED", "EXPIRED"
+  shopifyChargeId String?  // Shopify Billing API charge ID
+  trialEndsAt     DateTime?
+  expiresAt       DateTime?
+  orderLimit      Int?     // 500, 2000, null for Pro
+  ordersUsed      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("subscriptions")
+}
+
+// ============================================
+// STORE SETTINGS - Per-store configuration
+// ============================================
+model StoreSettings {
+  id              String   @id @default(cuid())
+  shop            String   @unique
+  currency        String   @default("INR")
+  timezone        String   @default("Asia/Kolkata")
+  defaultCOGSPct  Float    @default(40)
+  alertEmail      String?
+  rtoThreshold    Float    @default(10)
+  marginThreshold Float    @default(15)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("store_settings")
+}
+
+// ============================================
+// HEALTH SCORE - Kept for backward compat (deprecated)
+// ============================================
+model HealthScore {
+  id              String   @id @default(cuid())
+  shop            String
+  date            DateTime @default(now())
+  score           Int      // 0-100
+  profitMargin    Float
+  rtoRate         Float
+  aov             Float
+  repeatRate      Float
+  adCostPercent   Float
+  discountPercent Float
+  createdAt       DateTime @default(now())
+
+  @@unique([shop, date])
+  @@index([shop])
+  @@index([date])
+  @@map("health_scores")
+}
