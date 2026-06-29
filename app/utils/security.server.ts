@@ -108,7 +108,10 @@ export function validateEmail(email: string): boolean {
  */
 export function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("origin") || "";
-  const allowedOrigins = [/\.myshopify\.com$/, /^http:\/\/localhost(:\d+)?$/];
+  const allowedOrigins: (RegExp | string)[] = [/\.myshopify\.com$/, /^http:\/\/localhost(:\d+)?$/];
+  if (process.env.SHOPIFY_APP_URL) {
+    allowedOrigins.push(process.env.SHOPIFY_APP_URL);
+  }
   const isAllowed = allowedOrigins.some((pattern) => {
     if (typeof pattern === "string") return pattern === origin;
     return pattern.test(origin);
