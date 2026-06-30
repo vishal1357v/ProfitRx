@@ -99,6 +99,30 @@ body.dark-theme {
 }
 
 /* ============================================================
+   3.5 LIGHT THEME — BASE OVERRIDES
+   ============================================================ */
+body:not(.dark-theme) {
+  background-color: #f6f8fa !important;
+  color: #1f2328 !important;
+
+  --gg-bg-base:        #f6f8fa;
+  --gg-bg-deep:        #eaeef2;
+  --gg-surface-1:      #ffffff;
+  --gg-surface-2:      #f6f8fa;
+  --gg-surface-3:      #eaeef2;
+  --gg-surface-hover:  #d0d7de;
+
+  --gg-border:         rgba(31, 35, 40, 0.08);
+  --gg-border-hover:   rgba(31, 35, 40, 0.16);
+
+  --gg-text-primary:   #1f2328;
+  --gg-text-secondary: #57606a;
+  --gg-text-muted:     #6e7781;
+
+  --gg-gradient-surface: linear-gradient(145deg, rgba(0,0,0,0.01) 0%, rgba(0,0,0,0.02) 100%);
+}
+
+/* ============================================================
    4. NAVIGATION — GLASS MORPHISM
    ============================================================ */
 s-app-nav {

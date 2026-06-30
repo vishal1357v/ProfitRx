@@ -347,7 +347,7 @@ export default function COGSPage() {
                 
                 {/* Custom Styled Bulk CSV File Upload */}
                 <div style={{ display: "inline-block" }}>
-                  <label htmlFor="csv-file-picker" style={{ display: "inline-block", padding: "6px 12px", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", fontWeight: 500, color: "#334155", cursor: "pointer" }}>
+                  <label htmlFor="csv-file-picker" style={{ display: "inline-block", padding: "6px 12px", backgroundColor: "var(--gg-surface-2)", border: "1px solid var(--gg-border)", borderRadius: "6px", fontSize: "13px", fontWeight: 500, color: "var(--gg-text-primary)", cursor: "pointer" }}>
                     📥 Bulk Import CSV
                   </label>
                   <input

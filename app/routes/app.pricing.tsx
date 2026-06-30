@@ -175,7 +175,7 @@ export default function Pricing() {
                         <Badge tone="success">Most Popular</Badge>
                       )}
                     </InlineStack>
-
+ 
                     <InlineStack gap="100" blockAlign="baseline">
                       <Text variant="heading3xl" as="p">
                         {plan.price}
@@ -184,11 +184,11 @@ export default function Pricing() {
                         / month
                       </Text>
                     </InlineStack>
-
+ 
                     <Text variant="bodyMd" as="p" tone="subdued">
                       {plan.description}
                     </Text>
-
+ 
                     <Form method="POST">
                       <input type="hidden" name="plan" value={plan.name} />
                       <Button
@@ -200,7 +200,7 @@ export default function Pricing() {
                         {activePlan === plan.name ? "Current Plan" : "Start 14-Day Trial"}
                       </Button>
                     </Form>
-
+ 
                     <BlockStack gap="200">
                       <Text variant="headingSm" as="h4">
                         What's included:
@@ -216,6 +216,86 @@ export default function Pricing() {
               </Grid.Cell>
             ))}
           </Grid>
+        </Layout.Section>
+
+        <Layout.Section>
+          <div style={{ marginTop: "30px", marginBottom: "20px" }}>
+            <Card>
+              <BlockStack gap="400">
+                <Text variant="headingMd" as="h2">
+                  Plan Feature Comparison
+                </Text>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="gg-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "40%" }}>Feature</th>
+                        <th style={{ width: "20%" }}>Starter ($19)</th>
+                        <th style={{ width: "20%" }}>Growth ($39)</th>
+                        <th style={{ width: "20%" }}>Pro ($79)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Order limit / month</strong></td>
+                        <td>Up to 500 orders</td>
+                        <td>Up to 2,000 orders</td>
+                        <td><strong>Unlimited orders</strong></td>
+                      </tr>
+                      <tr>
+                        <td>True Profit Dashboard</td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Store Health Score</td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Basic RTO Tracking</td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>RTO Heatmap & COD Risk Score</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>AI Channel Attribution</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>LTV & Cohort Retention Analysis</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Blended ROAS & Ad Spend Metrics</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Priority Support & Beta Features</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </BlockStack>
+            </Card>
+          </div>
         </Layout.Section>
       </Layout>
     </Page>
