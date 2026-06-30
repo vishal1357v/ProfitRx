@@ -52,8 +52,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (error instanceof Response) {
       throw error;
     }
+    
+    let detailedMessage = error instanceof Error ? error.message : "Failed to initiate subscription trial";
+    if (error.errorData && Array.isArray(error.errorData)) {
+      const details = error.errorData.map((e: any) => e.message || JSON.stringify(e)).join(", ");
+      detailedMessage = `${detailedMessage}: ${details}`;
+    }
+    
     return Response.json(
-      { error: error instanceof Error ? error.message : "Failed to initiate subscription trial" },
+      { error: detailedMessage },
       { status: 500 }
     );
   }
