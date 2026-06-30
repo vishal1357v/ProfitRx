@@ -147,7 +147,8 @@ body:not(.dark-theme) s-app-nav {
   box-shadow: 0 1px 0 rgba(0,0,0,0.06), 0 4px 20px rgba(0,0,0,0.08);
 }
 
-s-link {
+s-link,
+.gg-nav-link {
   position: relative;
   color: var(--gg-text-muted);
   text-decoration: none;
@@ -160,7 +161,8 @@ s-link {
   letter-spacing: 0.01em;
 }
 
-s-link::after {
+s-link::after,
+.gg-nav-link::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -172,38 +174,48 @@ s-link::after {
   transition: width var(--gg-transition), left var(--gg-transition);
 }
 
-s-link:hover {
+s-link:hover,
+.gg-nav-link:hover {
   color: var(--gg-text-primary);
   background-color: rgba(255,255,255,0.06);
 }
 
-s-link:hover::after {
+s-link:hover::after,
+.gg-nav-link:hover::after {
   width: 60%;
   left: 20%;
 }
 
 s-link[active="true"],
-s-link.active {
+s-link.active,
+.gg-nav-link[active="true"],
+.gg-nav-link.active {
   color: #a5b4fc;
   background: rgba(124, 58, 237, 0.12);
   font-weight: 600;
 }
 
 s-link[active="true"]::after,
-s-link.active::after {
+s-link.active::after,
+.gg-nav-link[active="true"]::after,
+.gg-nav-link.active::after {
   width: 60%;
   left: 20%;
 }
 
-body:not(.dark-theme) s-link {
+body:not(.dark-theme) s-link,
+body:not(.dark-theme) .gg-nav-link {
   color: #475569;
 }
-body:not(.dark-theme) s-link:hover {
+body:not(.dark-theme) s-link:hover,
+body:not(.dark-theme) .gg-nav-link:hover {
   color: #1e293b;
   background-color: rgba(0,0,0,0.04);
 }
 body:not(.dark-theme) s-link[active="true"],
-body:not(.dark-theme) s-link.active {
+body:not(.dark-theme) s-link.active,
+body:not(.dark-theme) .gg-nav-link[active="true"],
+body:not(.dark-theme) .gg-nav-link.active {
   color: #4f46e5;
   background: rgba(79,70,229,0.08);
 }

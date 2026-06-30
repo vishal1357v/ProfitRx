@@ -1,8 +1,25 @@
 import { useState, useEffect } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation } from "react-router";
+import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import enTranslations from "@shopify/polaris/locales/en.json";
+
+function RemixLink({ url, children, external, ...props }: any) {
+  if (external || !url || /^https?:\/\//.test(url)) {
+    return (
+      <a href={url} target="_top" {...props}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <ReactRouterLink to={url} {...props}>
+      {children}
+    </ReactRouterLink>
+  );
+}
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -133,6 +150,7 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
+      <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
       {/* ── Premium Nav ───────────────────────────────────── */}
       <s-app-nav>
         {/* Brand wordmark */}
@@ -160,14 +178,14 @@ export default function App() {
         </div>
 
         {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => (
-          <s-link
+          <ReactRouterLink
             key={item.href}
-            href={`${item.href}${searchStr}`}
-            {...(isActive(item.href) ? { "active": "true" } : {})}
+            to={`${item.href}${searchStr}`}
+            className={`gg-nav-link ${isActive(item.href) ? "active" : ""}`}
           >
             <span style={{ marginRight: 5, fontSize: 13 }}>{item.icon}</span>
             {item.label}
-          </s-link>
+          </ReactRouterLink>
         ))}
 
         {/* Spacer */}
@@ -217,6 +235,7 @@ export default function App() {
           </div>
         )}
       </div>
+      </PolarisProvider>
     </AppProvider>
   );
 }

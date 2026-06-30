@@ -22,9 +22,12 @@ import prisma from "../db.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const subscription = await getSubscription(session.shop);
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
 
   return {
     shop: session.shop,
+    host,
     plan: subscription.plan,
     status: subscription.status,
     orderLimit: subscription.orderLimit,
@@ -69,7 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { plan, status, orderLimit, ordersUsed } = useLoaderData<typeof loader>();
+  const { shop, host, plan, status, orderLimit, ordersUsed } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -165,7 +168,7 @@ export default function BillingPage() {
                       Change tiers, update billing information, or review transaction histories inside Shopify Billing portal.
                     </Text>
                     <BlockStack gap="200">
-                      <Button url="/app/pricing" variant="primary" fullWidth>
+                      <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" fullWidth>
                         Change Plan Tier
                       </Button>
                       {plan !== "STARTER" && (
