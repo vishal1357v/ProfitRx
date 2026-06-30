@@ -16,16 +16,17 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { ProfitService } from "../services/profit.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  let settings = await prisma.storeSettings.findUnique({
+  let rawSettings = await prisma.storeSettings.findUnique({
     where: { shop },
   });
-  if (!settings) {
-    settings = await prisma.storeSettings.create({
+  if (!rawSettings) {
+    rawSettings = await prisma.storeSettings.create({
       data: {
         shop,
         defaultCOGSPct: 40,
@@ -42,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
+  const settings = ProfitService.getSettings(rawSettings);
   return { settings };
 };
 

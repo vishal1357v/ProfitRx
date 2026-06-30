@@ -60,13 +60,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   const productMap = new Map(products.map((p) => [p.id, p.title]));
 
-  const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-    defaultForwardShipping: 60,
-    defaultReturnShipping: 70,
-    defaultCODHandling: 40,
-    defaultPackaging: 10,
-    defaultGatewayFeePct: 2,
-  };
+  const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+  const settings = ProfitService.getSettings(rawSettings);
 
   const revenue = orders.reduce((sum: number, o: any) => sum + o.totalPrice, 0);
   const orderCount = orders.length;

@@ -143,13 +143,8 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-      defaultForwardShipping: 60,
-      defaultReturnShipping: 70,
-      defaultCODHandling: 40,
-      defaultPackaging: 10,
-      defaultGatewayFeePct: 2,
-    };
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
 
     const now = new Date();
     const last7 = new Date(now.getTime() - 7 * 86400000);
@@ -216,13 +211,8 @@ export class ProfitIntelligenceService {
       dailyLeaks[dateStr] = { date: dateStr.substring(8) + "/" + dateStr.substring(5, 7), rto: 0, shipping: 0, discount: 0 };
     }
 
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-      defaultForwardShipping: 60,
-      defaultReturnShipping: 70,
-      defaultCODHandling: 40,
-      defaultPackaging: 10,
-      defaultGatewayFeePct: 2,
-    };
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
 
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
@@ -296,13 +286,8 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const adSpends = await (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { month: "desc" }, take: 12 });
 
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-      defaultForwardShipping: 60,
-      defaultReturnShipping: 70,
-      defaultCODHandling: 40,
-      defaultPackaging: 10,
-      defaultGatewayFeePct: 2,
-    };
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
 
     const totalRevenue = orders.reduce((s: number, o: any) => s + o.totalPrice, 0);
     const totalAdSpend = adSpends.reduce((s: number, a: any) => s + a.amount, 0);
@@ -364,13 +349,8 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-      defaultForwardShipping: 60,
-      defaultReturnShipping: 70,
-      defaultCODHandling: 40,
-      defaultPackaging: 10,
-      defaultGatewayFeePct: 2,
-    };
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
 
     const cogsMap = await prisma.productCOGS.findMany({ where: { shop } });
     const cogsDict: Record<string, number> = {};

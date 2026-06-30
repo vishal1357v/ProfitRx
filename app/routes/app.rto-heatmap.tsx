@@ -35,13 +35,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const prepaidRevenue = prepaidOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
 
   // Fetch COGS and settings for profit calculation
-  const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-    defaultForwardShipping: 60,
-    defaultReturnShipping: 70,
-    defaultCODHandling: 40,
-    defaultPackaging: 10,
-    defaultGatewayFeePct: 2,
-  };
+  const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+  const settings = ProfitService.getSettings(rawSettings);
   const cogsMap = await ProfitService.getCOGS(shop);
   const calcProfit = (orderList: typeof orders) =>
     orderList.reduce((s: number, o: any) => {

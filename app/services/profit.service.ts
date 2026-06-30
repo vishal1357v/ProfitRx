@@ -24,6 +24,24 @@ export interface ProfitSummary {
 
 export class ProfitService {
   /**
+   * Centralized mapping helper to prevent null/undefined database columns from returning NaN in math.
+   */
+  static getSettings(settings: any) {
+    return {
+      defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
+      defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
+      defaultReturnShipping: settings?.defaultReturnShipping ?? 70,
+      defaultCODHandling: settings?.defaultCODHandling ?? 40,
+      defaultPackaging: settings?.defaultPackaging ?? 10,
+      defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
+      rtoDetectionPattern: settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
+      rtoThreshold: settings?.rtoThreshold ?? 10,
+      marginThreshold: settings?.marginThreshold ?? 15,
+      alertEmail: settings?.alertEmail || "",
+    };
+  }
+
+  /**
    * Centralized formula to calculate profit for a single order.
    * Profit = Revenue - COGS - (Tax + Shipping + Gateway Fees + COD Handling Fees)
    */
@@ -66,13 +84,8 @@ export class ProfitService {
     });
 
     // Fetch logistics settings defaults
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
-      defaultForwardShipping: 60,
-      defaultReturnShipping: 70,
-      defaultCODHandling: 40,
-      defaultPackaging: 10,
-      defaultGatewayFeePct: 2,
-    };
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = this.getSettings(rawSettings);
 
     // Calculate profit per order
     const results: ProfitOrder[] = [];
