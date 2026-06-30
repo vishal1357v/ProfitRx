@@ -23,8 +23,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await (prisma as any).order.updateMany({
         where: { shop: shopName, customerId },
         data: {
-          customerName: "Redacted Customer",
-          customerEmail: "redacted@example.com",
+          customerName: null,
+          customerEmail: null,
         },
       });
     }

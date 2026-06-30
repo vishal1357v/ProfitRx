@@ -33,19 +33,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
   if (intent === "cancel_subscription") {
-    // Revert subscription back to Starter with Starter limits, or set canceled status
+    const subscription = await prisma.subscription.findUnique({
+      where: { shop: session.shop },
+    });
+
+    if (subscription?.shopifyChargeId) {
+      try {
+        await billing.cancel({
+          subscriptionId: subscription.shopifyChargeId,
+          isTest: true,
+        });
+      } catch (err) {
+        console.error("Failed to cancel Shopify subscription:", err);
+      }
+    }
+
     await prisma.subscription.update({
       where: { shop: session.shop },
       data: {
         plan: "STARTER",
-        status: "ACTIVE", // Downgrade to active starter tier
+        status: "CANCELED",
         orderLimit: 500,
-        ordersUsed: 0,
         shopifyChargeId: null,
       },
     });

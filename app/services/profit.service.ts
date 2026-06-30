@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
+import { logDev, logInfo } from "../utils/logger";
 
 export interface ProfitOrder {
   orderId: string;
@@ -26,7 +27,7 @@ export class ProfitService {
    * Calculate profit for all orders of a store
    */
   static async calculate(shop: string, limit: number = 100) {
-    console.log(`[ProfitService.calculate] Initiating calculation for shop: ${shop}, limit: ${limit}`);
+    logDev(`[ProfitService.calculate] Initiating calculation for shop: ${shop}, limit: ${limit}`);
     
     // Fetch orders from database
     const orders = await prisma.order.findMany({
@@ -34,13 +35,13 @@ export class ProfitService {
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    console.log(`[ProfitService.calculate] Fetched ${orders.length} orders from database`);
+    logDev(`[ProfitService.calculate] Fetched ${orders.length} orders from database`);
 
     // Fetch COGS for this store
     const cogsRecords = await prisma.productCOGS.findMany({
       where: { shop },
     });
-    console.log(`[ProfitService.calculate] Fetched ${cogsRecords.length} COGS records`);
+    logDev(`[ProfitService.calculate] Fetched ${cogsRecords.length} COGS records`);
 
     const cogsMap = new Map<string, number>();
     cogsRecords.forEach((record: any) => {
@@ -86,7 +87,7 @@ export class ProfitService {
       avgMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
       orderCount: orders.length,
     };
-    console.log(`[ProfitService.calculate] Summary calculated:`, summary);
+    logDev(`[ProfitService.calculate] Summary calculated:`, summary);
 
     return {
       orders: results,
@@ -98,7 +99,7 @@ export class ProfitService {
    * Save COGS for a product
    */
   static async saveCOGS(shop: string, productId: string, cogs: number) {
-    console.log(`[ProfitService.saveCOGS] Saving COGS: shop=${shop}, productId=${productId}, cogs=${cogs}`);
+    logInfo(`[ProfitService.saveCOGS] Saving COGS: shop=${shop}, productId=${productId}, cogs=${cogs}`);
     if (cogs < 0) throw new Error('COGS cannot be negative');
 
     const id = `${shop}_${productId}`;
@@ -117,7 +118,7 @@ export class ProfitService {
         updatedAt: new Date(),
       },
     });
-    console.log(`[ProfitService.saveCOGS] Successfully saved COGS: id=${record.id}, cogs=${record.cogs}`);
+    logInfo(`[ProfitService.saveCOGS] Successfully saved COGS: id=${record.id}, cogs=${record.cogs}`);
     return record;
   }
 
@@ -125,7 +126,7 @@ export class ProfitService {
    * Get all COGS for a store
    */
   static async getCOGS(shop: string) {
-    console.log(`[ProfitService.getCOGS] Fetching all COGS mappings for shop: ${shop}`);
+    logDev(`[ProfitService.getCOGS] Fetching all COGS mappings for shop: ${shop}`);
     const records = await prisma.productCOGS.findMany({
       where: { shop },
     });
@@ -133,7 +134,7 @@ export class ProfitService {
     records.forEach((r: any) => {
       map[r.productId] = r.cogs;
     });
-    console.log(`[ProfitService.getCOGS] Mapped ${records.length} COGS records`);
+    logDev(`[ProfitService.getCOGS] Mapped ${records.length} COGS records`);
     return map;
   }
 
@@ -141,7 +142,7 @@ export class ProfitService {
    * Sync orders from Shopify to database
    */
   static async syncOrders(shop: string, orders: any[]) {
-    console.log(`[ProfitService.syncOrders] Syncing ${orders.length} orders for shop: ${shop}`);
+    logInfo(`[ProfitService.syncOrders] Syncing ${orders.length} orders for shop: ${shop}`);
     let count = 0;
     for (const order of orders) {
       const existing = await prisma.order.findUnique({
@@ -167,7 +168,7 @@ export class ProfitService {
         count++;
       }
     }
-    console.log(`[ProfitService.syncOrders] Sync completed. Created ${count} new orders.`);
+    logInfo(`[ProfitService.syncOrders] Sync completed. Created ${count} new orders.`);
     return count;
   }
 }

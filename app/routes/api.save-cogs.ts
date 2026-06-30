@@ -70,18 +70,15 @@ export async function action({ request }: { request: Request }) {
       const result = await withDbRetry(async () => {
         return await prisma.productCOGS.upsert({
           where: {
-            id: `${session.shop}_${productId}`,
+            shop_productId: { shop: session.shop, productId },
           },
           update: {
             cogs: cogs,
-            updatedAt: new Date(),
           },
           create: {
-            id: `${session.shop}_${productId}`,
             shop: session.shop,
             productId: productId,
             cogs: cogs,
-            updatedAt: new Date(),
           },
         });
       });

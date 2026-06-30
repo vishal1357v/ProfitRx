@@ -26,21 +26,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  let shop = "";
-  
-  try {
-    // Try to authenticate request
-    const { session } = await authenticate.admin(request);
-    shop = session.shop;
-  } catch (err) {
-    if (err instanceof Response) {
-      throw err;
-    }
-    // Catch redirect/error and fall back to query parameter for local testing/Sidekick proxy
-    const url = new URL(request.url);
-    shop = url.searchParams.get("shop") || "greek-god-wvwt8ptt.myshopify.com";
-    console.log(`[Sidekick API] Admin auth failed, falling back to shop: ${shop}`);
-  }
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
   const url = new URL(request.url);
   const query = url.searchParams.get("query") || "summary";

@@ -39,6 +39,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function IndexRoute() {
   const { isInstalled } = useLoaderData<typeof loader>();
 
+  const handleStartTrial = () => {
+    const shop = prompt("Enter your store domain (e.g., mystore.myshopify.com):");
+    if (shop) {
+      window.location.href = `/auth/login?shop=${encodeURIComponent(shop)}`;
+    }
+  };
+
   if (isInstalled) {
     return (
       <Page>
@@ -91,12 +98,7 @@ export default function IndexRoute() {
                   variant="primary"
                   size="large"
                   icon={ProductIcon}
-                  onClick={() => {
-                    const shop = prompt("Enter your store domain (e.g., mystore.myshopify.com):");
-                    if (shop) {
-                      window.location.href = `/auth/login?shop=${encodeURIComponent(shop)}`;
-                    }
-                  }}
+                  onClick={handleStartTrial}
                 >
                   Install Now – Free 14-Day Trial
                 </Button>
@@ -234,7 +236,7 @@ export default function IndexRoute() {
                         <List.Item>Health Score</List.Item>
                         <List.Item>3 alerts/month</List.Item>
                       </List>
-                      <Button variant="primary" fullWidth>
+                      <Button variant="primary" fullWidth onClick={handleStartTrial}>
                         Start Trial
                       </Button>
                     </BlockStack>
@@ -263,7 +265,7 @@ export default function IndexRoute() {
                         <List.Item>Ad sync (Meta Ads)</List.Item>
                         <List.Item>RTO tracking</List.Item>
                       </List>
-                      <Button variant="primary" fullWidth>
+                      <Button variant="primary" fullWidth onClick={handleStartTrial}>
                         Start Trial
                       </Button>
                     </BlockStack>
@@ -290,7 +292,7 @@ export default function IndexRoute() {
                         <List.Item>Priority support</List.Item>
                         <List.Item>Custom reports</List.Item>
                       </List>
-                      <Button variant="primary" fullWidth>
+                      <Button variant="primary" fullWidth onClick={handleStartTrial}>
                         Start Trial
                       </Button>
                     </BlockStack>

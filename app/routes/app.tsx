@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 import { getFeatureList, getSubscription } from "../services/feature-access.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -23,6 +24,52 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         throw shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
       },
     });
+  }
+
+  // Sync billing state from Shopify to local DB
+  const billingCheck = await billing.check({
+    plans: ["Starter", "Growth", "Pro"],
+    isTest: true,
+  });
+
+  const activeSubscription = billingCheck.appSubscriptions.find(
+    (sub) => sub.status === "ACTIVE"
+  );
+
+  if (activeSubscription) {
+    await prisma.subscription.upsert({
+      where: { shop: session.shop },
+      update: {
+        plan: activeSubscription.name.toUpperCase(),
+        status: "ACTIVE",
+        shopifyChargeId: activeSubscription.id,
+        orderLimit: activeSubscription.name === "Pro" ? null : activeSubscription.name === "Growth" ? 2000 : 500,
+      },
+      create: {
+        shop: session.shop,
+        plan: activeSubscription.name.toUpperCase(),
+        status: "ACTIVE",
+        shopifyChargeId: activeSubscription.id,
+        orderLimit: activeSubscription.name === "Pro" ? null : activeSubscription.name === "Growth" ? 2000 : 500,
+        ordersUsed: 0,
+      },
+    });
+  } else {
+    if (!isDev) {
+      await prisma.subscription.upsert({
+        where: { shop: session.shop },
+        update: {
+          status: "CANCELED",
+        },
+        create: {
+          shop: session.shop,
+          plan: "STARTER",
+          status: "CANCELED",
+          orderLimit: 500,
+          ordersUsed: 0,
+        },
+      });
+    }
   }
 
   const features = await getFeatureList(session.shop);

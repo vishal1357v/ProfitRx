@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { logDev, logInfo } from "../utils/logger";
 import { ProfitService } from "./profit.service";
 
 export class HealthScoreService {
@@ -6,7 +7,7 @@ export class HealthScoreService {
    * Calculate 5 KPIs and persist daily Health Score snapshot
    */
   static async calculateAndSave(shop: string) {
-    console.log(`[HealthScoreService.calculateAndSave] Calculating KPIs for shop: ${shop}`);
+    logDev(`[HealthScoreService.calculateAndSave] Calculating KPIs for shop: ${shop}`);
 
     // Fetch orders
     const orders = await prisma.order.findMany({
@@ -110,7 +111,7 @@ export class HealthScoreService {
       },
     });
 
-    console.log(`[HealthScoreService] Successfully saved Health Score snapshot for ${shop} on ${date.toISOString().split('T')[0]}: Score=${score}`);
+    logInfo(`[HealthScoreService] Successfully saved Health Score snapshot for ${shop} on ${date.toISOString().split('T')[0]}: Score=${score}`);
     return record;
   }
 }
