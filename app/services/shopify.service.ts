@@ -255,10 +255,19 @@ export class ShopifyService {
       }
     }
 
-    const orders = await this.getOrders(admin, 100);
+    const orders = await this.getOrders(admin, 250);
 
     let count = 0;
+    let newOrdersCount = 0;
     for (const order of orders) {
+      const existing = await prisma.order.findUnique({
+        where: { id: order.id },
+        select: { id: true },
+      });
+      if (!existing) {
+        newOrdersCount++;
+      }
+
       await (prisma.order as any).upsert({
         where: { id: order.id },
         update: {
@@ -320,10 +329,10 @@ export class ShopifyService {
     await this.seedSearchQueriesIfEmpty(admin, session.shop);
 
     // Update ordersUsed count in subscription
-    if (subscription) {
+    if (subscription && newOrdersCount > 0) {
       await prisma.subscription.update({
         where: { shop: session.shop },
-        data: { ordersUsed: { increment: count } },
+        data: { ordersUsed: { increment: newOrdersCount } },
       });
     }
 
@@ -333,7 +342,7 @@ export class ShopifyService {
   // ── Sync Orders For Shop (Cron / Offline) ─────────────────
   static async syncOrdersForShop(shop: string): Promise<{ count: number }> {
     const { admin, session } = await unauthenticated.admin(shop);
-    const orders = await this.getOrders(admin, 100);
+    const orders = await this.getOrders(admin, 250);
 
     let count = 0;
     for (const order of orders) {

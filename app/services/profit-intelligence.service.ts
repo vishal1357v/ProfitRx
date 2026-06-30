@@ -229,19 +229,21 @@ export class ProfitIntelligenceService {
     const cohortMap: Record<string, {
       customers: string[];
       revenue: number;
-      secondPurchasers: number;
-      thirdPurchasers: number;
+      purchasers2: number; // 2 or more orders (30-day repeat proxy)
+      purchasers3: number; // 3 or more orders (60-day repeat proxy)
+      purchasers4: number; // 4 or more orders (90-day repeat proxy)
     }> = {};
 
     for (const p of profiles) {
       const cohort = p.cohortMonth || "Unknown";
       if (!cohortMap[cohort]) {
-        cohortMap[cohort] = { customers: [], revenue: 0, secondPurchasers: 0, thirdPurchasers: 0 };
+        cohortMap[cohort] = { customers: [], revenue: 0, purchasers2: 0, purchasers3: 0, purchasers4: 0 };
       }
       cohortMap[cohort].customers.push(p.customerId);
       cohortMap[cohort].revenue += p.totalRevenue;
-      if (p.orderCount >= 2) cohortMap[cohort].secondPurchasers++;
-      if (p.orderCount >= 3) cohortMap[cohort].thirdPurchasers++;
+      if (p.orderCount >= 2) cohortMap[cohort].purchasers2++;
+      if (p.orderCount >= 3) cohortMap[cohort].purchasers3++;
+      if (p.orderCount >= 4) cohortMap[cohort].purchasers4++;
     }
 
     return Object.entries(cohortMap)
@@ -252,9 +254,9 @@ export class ProfitIntelligenceService {
           customers,
           revenue: Math.round(data.revenue),
           avgRevenue: customers > 0 ? Math.round(data.revenue / customers) : 0,
-          repeat30: customers > 0 ? Math.round((data.secondPurchasers / customers) * 100) : 0,
-          repeat60: customers > 0 ? Math.round((data.secondPurchasers / customers) * 80) : 0,
-          repeat90: customers > 0 ? Math.round((data.thirdPurchasers / customers) * 100) : 0,
+          repeat30: customers > 0 ? Math.round((data.purchasers2 / customers) * 100) : 0,
+          repeat60: customers > 0 ? Math.round((data.purchasers3 / customers) * 100) : 0,
+          repeat90: customers > 0 ? Math.round((data.purchasers4 / customers) * 100) : 0,
         };
       })
       .sort((a, b) => b.cohortMonth.localeCompare(a.cohortMonth))

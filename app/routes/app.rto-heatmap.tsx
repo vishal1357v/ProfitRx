@@ -13,6 +13,8 @@ import { canAccessFeature } from "../services/feature-access.service";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
 
   const hasAccess = await canAccessFeature(shop, "rto_heatmap");
   if (!hasAccess) {
@@ -103,6 +105,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
     pendingCODWithRisk,
     totalOrders: orders.length,
+    shop,
+    host,
   };
 };
 
@@ -136,7 +140,7 @@ function StatCard({ icon, label, value, sub, color }: {
 }
 
 export default function RTOHeatmapRoute() {
-  const { pincodeStats, codStats, prepaidStats, pendingCODWithRisk, totalOrders } = useLoaderData<typeof loader>();
+  const { shop, host, pincodeStats, codStats, prepaidStats, pendingCODWithRisk, totalOrders } = useLoaderData<typeof loader>();
 
   const maxRto = Math.max(...pincodeStats.map((p: any) => p.rtoRate), 1);
 
@@ -154,7 +158,15 @@ export default function RTOHeatmapRoute() {
   });
 
   return (
-    <Page title="RTO & COD Intelligence">
+    <Page
+      title="RTO & COD Intelligence"
+      secondaryActions={[
+        {
+          content: "📋 Manage RTO Events",
+          url: `/app/rto?shop=${shop}&host=${host}`,
+        }
+      ]}
+    >
       <Layout>
 
         {/* ── Section: Prepaid vs COD ───────────────────── */}

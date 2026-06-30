@@ -108,7 +108,7 @@ function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: numb
           const y = padT + (1 - p) * (height - padT - padB);
           return (
             <g key={idx}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 5" />
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="var(--gg-border)" strokeDasharray="3 5" />
               <text x={padL - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#475569">
                 ₹{Math.round(p * maxVal / 1000)}k
               </text>
