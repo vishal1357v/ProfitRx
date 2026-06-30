@@ -13,7 +13,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
 
   // Bypass billing checks in development to allow testing dashboard, COGS, and RTO features
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NODE_ENV === "development" || process.env.BYPASS_BILLING === "true";
   const host = url.searchParams.get("host") || "";
 
   if (!isDev && !url.pathname.includes("/app/pricing")) {

@@ -40,12 +40,13 @@ export async function getSubscription(shop: string) {
 
   // If no subscription exists in database, default to STARTER for demo/first run
   if (!subscription) {
+    const isBypass = process.env.BYPASS_BILLING === "true" || process.env.NODE_ENV === "development";
     subscription = await prisma.subscription.create({
       data: {
         shop,
-        plan: "STARTER",
+        plan: isBypass ? "PRO" : "STARTER",
         status: "ACTIVE",
-        orderLimit: 500,
+        orderLimit: isBypass ? null : 500,
         ordersUsed: 0,
       },
     });

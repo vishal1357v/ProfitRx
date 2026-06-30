@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData, redirect } from "react-router";
 import {
   Page,
   Layout,
@@ -14,6 +14,7 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing } = await authenticate.admin(request);
@@ -34,12 +35,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 type BillingPlan = "Starter" | "Growth" | "Pro";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const plan = formData.get("plan") as BillingPlan;
 
   if (!["Starter", "Growth", "Pro"].includes(plan)) {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
+  }
+
+  const isBypass = process.env.BYPASS_BILLING === "true";
+
+  if (isBypass) {
+    await prisma.subscription.upsert({
+      where: { shop: session.shop },
+      update: {
+        plan: plan.toUpperCase(),
+        status: "ACTIVE",
+        shopifyChargeId: "mock_charge_" + Math.random().toString(36).substring(2, 10),
+        orderLimit: plan === "Pro" ? null : plan === "Growth" ? 2000 : 500,
+      },
+      create: {
+        shop: session.shop,
+        plan: plan.toUpperCase(),
+        status: "ACTIVE",
+        shopifyChargeId: "mock_charge_" + Math.random().toString(36).substring(2, 10),
+        orderLimit: plan === "Pro" ? null : plan === "Growth" ? 2000 : 500,
+        ordersUsed: 0,
+      },
+    });
+
+    const url = new URL(request.url);
+    const host = url.searchParams.get("host") || "";
+    throw redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
   }
 
   try {
