@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData } from "react-router";
+import { Form, useLoaderData, useActionData } from "react-router";
 import {
   Page,
   Layout,
@@ -11,6 +11,7 @@ import {
   Grid,
   List,
   Badge,
+  Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 
@@ -38,18 +39,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const plan = formData.get("plan") as BillingPlan;
 
   if (!["Starter", "Growth", "Pro"].includes(plan)) {
-    return { error: "Invalid plan selected" };
+    return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
-  // Request subscription charge
-  return await billing.request({
-    plan,
-    isTest: true,
-  });
+  try {
+    return await billing.request({
+      plan,
+      isTest: true,
+    });
+  } catch (error: any) {
+    console.error("[Pricing Action Error]:", error);
+    if (error instanceof Response) {
+      throw error;
+    }
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Failed to initiate subscription trial" },
+      { status: 500 }
+    );
+  }
 };
 
 export default function Pricing() {
   const { activePlan } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ error?: string }>();
 
   const plans = [
     {
@@ -96,6 +108,14 @@ export default function Pricing() {
   return (
     <Page title="Select a Subscription Plan">
       <Layout>
+        {actionData?.error && (
+          <Layout.Section>
+            <Banner tone="critical" title="Plan Selection Failed">
+              <p>{actionData.error}</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         <Layout.Section>
           <div style={{ marginBottom: "20px", textAlign: "center" }}>
             <Text variant="headingLg" as="h1">
