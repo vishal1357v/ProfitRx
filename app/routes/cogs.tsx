@@ -341,9 +341,14 @@ export default function COGSPage() {
           <Card>
             <BlockStack gap="400">
               <InlineStack align="space-between">
-                <Text variant="headingMd" as="h2">
-                  Product Catalog Cost Sheet ({filteredProducts.length} items)
-                </Text>
+                <BlockStack gap="050">
+                  <Text variant="headingMd" as="h2">
+                    Product Catalog Cost Sheet ({filteredProducts.length} items)
+                  </Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    💡 Cost rules are set at the product level and apply to all variants of the product.
+                  </Text>
+                </BlockStack>
                 
                 {/* Custom Styled Bulk CSV File Upload */}
                 <div style={{ display: "inline-block" }}>

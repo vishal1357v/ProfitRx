@@ -34,12 +34,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const codRevenue = codOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
   const prepaidRevenue = prepaidOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
 
-  // Fetch COGS for profit calculation
+  // Fetch COGS and settings for profit calculation
+  const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+    defaultForwardShipping: 60,
+    defaultReturnShipping: 70,
+    defaultCODHandling: 40,
+    defaultPackaging: 10,
+    defaultGatewayFeePct: 2,
+  };
   const cogsMap = await ProfitService.getCOGS(shop);
   const calcProfit = (orderList: typeof orders) =>
     orderList.reduce((s: number, o: any) => {
       const c = cogsMap[o.productId || ""] ?? o.totalPrice * 0.4;
-      return s + (o.totalPrice - c - o.totalTax - o.shippingPrice);
+      const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
+      return s + profit;
     }, 0);
 
   const codProfit = calcProfit(codOrders);
@@ -47,9 +55,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const codMargin = codRevenue > 0 ? (codProfit / codRevenue) * 100 : 0;
   const prepaidMargin = prepaidRevenue > 0 ? (prepaidProfit / prepaidRevenue) * 100 : 0;
 
-  // RTO events
+  // RTO events (manual events + auto-detected fulfillment status orders)
   const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
-  const codRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
+  const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
+  const codRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length + autoRtoCount;
   const codRtoRate = codOrders.length > 0 ? (codRtoCount / codOrders.length) * 100 : 0;
 
   const codAOV = codOrders.length > 0 ? codRevenue / codOrders.length : 0;

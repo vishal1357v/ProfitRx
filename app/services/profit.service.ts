@@ -24,6 +24,23 @@ export interface ProfitSummary {
 
 export class ProfitService {
   /**
+   * Centralized formula to calculate profit for a single order.
+   * Profit = Revenue - COGS - (Tax + Shipping + Gateway Fees + COD Handling Fees)
+   */
+  static calculateOrderProfit(
+    order: { totalPrice: number; isCOD: boolean; totalTax: number; shippingPrice: number },
+    cogs: number,
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number }
+  ): { profit: number; fees: number; margin: number } {
+    const gatewayFee = order.isCOD ? 0 : order.totalPrice * (settings.defaultGatewayFeePct / 100);
+    const codFee = order.isCOD ? settings.defaultCODHandling : 0;
+    const fees = order.totalTax + order.shippingPrice + gatewayFee + codFee;
+    const profit = order.totalPrice - cogs - fees;
+    const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
+    return { profit, fees, margin };
+  }
+
+  /**
    * Calculate profit for all orders of a store
    */
   static async calculate(shop: string, limit: number = 100) {
@@ -48,6 +65,15 @@ export class ProfitService {
       cogsMap.set(record.productId, record.cogs);
     });
 
+    // Fetch logistics settings defaults
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+      defaultForwardShipping: 60,
+      defaultReturnShipping: 70,
+      defaultCODHandling: 40,
+      defaultPackaging: 10,
+      defaultGatewayFeePct: 2,
+    };
+
     // Calculate profit per order
     const results: ProfitOrder[] = [];
     let totalRevenue = 0;
@@ -58,9 +84,7 @@ export class ProfitService {
     for (const order of orders) {
       // Get COGS (fallback to 40% of revenue if not set)
       const cogs = cogsMap.get(order.productId || '') ?? order.totalPrice * 0.4;
-      const fees = order.totalTax + order.shippingPrice;
-      const profit = order.totalPrice - cogs - fees;
-      const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
+      const { profit, fees, margin } = this.calculateOrderProfit(order, cogs, settings);
 
       results.push({
         orderId: order.id,

@@ -111,6 +111,7 @@ const NAV_ITEMS = [
   { href: "/app/alerts",        label: "Alerts",        icon: "🔔" },
   { href: "/app/billing",       label: "Billing",       icon: "💳" },
   { href: "/app/pricing",       label: "Plans",         icon: "🚀" },
+  { href: "/app/settings",      label: "Settings",      icon: "⚙️" },
 ];
 
 export default function App() {

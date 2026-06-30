@@ -271,16 +271,22 @@ model Subscription {
 // STORE SETTINGS - Per-store configuration
 // ============================================
 model StoreSettings {
-  id              String   @id @default(cuid())
-  shop            String   @unique
-  currency        String   @default("INR")
-  timezone        String   @default("Asia/Kolkata")
-  defaultCOGSPct  Float    @default(40)
-  alertEmail      String?
-  rtoThreshold    Float    @default(10)
-  marginThreshold Float    @default(15)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  shop                   String   @unique
+  currency               String   @default("INR")
+  timezone               String   @default("Asia/Kolkata")
+  defaultCOGSPct         Float    @default(40)
+  defaultForwardShipping Float    @default(60)
+  defaultReturnShipping  Float    @default(70)
+  defaultCODHandling     Float    @default(40)
+  defaultPackaging       Float    @default(10)
+  defaultGatewayFeePct   Float    @default(2)
+  rtoDetectionPattern    String   @default("rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender")
+  alertEmail             String?
+  rtoThreshold           Float    @default(10)
+  marginThreshold        Float    @default(15)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@map("store_settings")
 }

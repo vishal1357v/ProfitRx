@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
+import { ProfitService } from "./profit.service";
 
 // ── COD Risk Score ────────────────────────────────────────
 export interface CODRiskResult {
@@ -36,6 +37,7 @@ export interface ROASData {
   blendedROAS: number;
   trueCACRaw: number;  // Ad spend / total customers
   profitAdjustedROAS: number;
+  cacPaybackOrders: number; // True CAC / Average Profit per Order
   byChannel: Array<{
     channel: string;
     spend: number;
@@ -141,6 +143,14 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+      defaultForwardShipping: 60,
+      defaultReturnShipping: 70,
+      defaultCODHandling: 40,
+      defaultPackaging: 10,
+      defaultGatewayFeePct: 2,
+    };
+
     const now = new Date();
     const last7 = new Date(now.getTime() - 7 * 86400000);
     const prev7Start = new Date(now.getTime() - 14 * 86400000);
@@ -155,17 +165,20 @@ export class ProfitIntelligenceService {
     const recentRtoLoss = recentRTO.reduce((s: number, e: any) => s + e.amount, 0);
     const prevRtoLoss = prevRTO.reduce((s: number, e: any) => s + e.amount, 0);
 
-    // Also count unfulfilled/returned orders automatically
-    const autoRtoOrders = orders.filter((o: any) =>
-      o.fulfillmentStatus?.toLowerCase().includes("returned") ||
-      o.fulfillmentStatus?.toLowerCase().includes("failed")
-    );
-    const autoRtoLoss = autoRtoOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
+    // Also count unfulfilled/returned orders automatically using courier RTO costs
+    const autoRtoOrders = orders.filter((o: any) => o.fulfillmentStatus === "RTO");
+    const autoRtoLoss = autoRtoOrders.reduce((s: number, o: any) => {
+      const forward = settings.defaultForwardShipping;
+      const ret = settings.defaultReturnShipping;
+      const pkg = settings.defaultPackaging;
+      const cod = o.isCOD ? settings.defaultCODHandling : 0;
+      return s + (forward + ret + pkg + cod);
+    }, 0);
 
     // Shipping Overage — total shipping collected vs avg baseline
     const totalShipping = orders.reduce((s: number, o: any) => s + o.shippingPrice, 0);
     const avgShipping = orders.length > 0 ? totalShipping / orders.length : 0;
-    const baselineShipping = 60; // ₹60 baseline per order
+    const baselineShipping = settings.defaultForwardShipping;
     const shippingOverage = Math.max(0, avgShipping - baselineShipping) * orders.length;
 
     const recentShipping = recentOrders.reduce((s: number, o: any) => s + Math.max(0, o.shippingPrice - baselineShipping), 0);
@@ -203,6 +216,14 @@ export class ProfitIntelligenceService {
       dailyLeaks[dateStr] = { date: dateStr.substring(8) + "/" + dateStr.substring(5, 7), rto: 0, shipping: 0, discount: 0 };
     }
 
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+      defaultForwardShipping: 60,
+      defaultReturnShipping: 70,
+      defaultCODHandling: 40,
+      defaultPackaging: 10,
+      defaultGatewayFeePct: 2,
+    };
+
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
@@ -210,7 +231,14 @@ export class ProfitIntelligenceService {
       const ds = o.createdAt.toISOString().split("T")[0];
       if (dailyLeaks[ds]) {
         dailyLeaks[ds].discount += (o as any).discountAmount || 0;
-        dailyLeaks[ds].shipping += Math.max(0, o.shippingPrice - 60);
+        dailyLeaks[ds].shipping += Math.max(0, o.shippingPrice - settings.defaultForwardShipping);
+        if (o.fulfillmentStatus === "RTO") {
+          const forward = settings.defaultForwardShipping;
+          const ret = settings.defaultReturnShipping;
+          const pkg = settings.defaultPackaging;
+          const cod = o.isCOD ? settings.defaultCODHandling : 0;
+          dailyLeaks[ds].rto += (forward + ret + pkg + cod);
+        }
       }
     });
 
@@ -268,6 +296,14 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const adSpends = await (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { month: "desc" }, take: 12 });
 
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+      defaultForwardShipping: 60,
+      defaultReturnShipping: 70,
+      defaultCODHandling: 40,
+      defaultPackaging: 10,
+      defaultGatewayFeePct: 2,
+    };
+
     const totalRevenue = orders.reduce((s: number, o: any) => s + o.totalPrice, 0);
     const totalAdSpend = adSpends.reduce((s: number, a: any) => s + a.amount, 0);
     const blendedROAS = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
@@ -276,9 +312,21 @@ export class ProfitIntelligenceService {
     const uniqueCustomers = new Set(orders.map((o: any) => o.customerId || o.id)).size;
     const trueCACRaw = uniqueCustomers > 0 && totalAdSpend > 0 ? totalAdSpend / uniqueCustomers : 0;
 
-    // Profit-adjusted (estimate 25% margin)
-    const estimatedProfit = totalRevenue * 0.25;
-    const profitAdjustedROAS = totalAdSpend > 0 ? estimatedProfit / totalAdSpend : 0;
+    // Profit-adjusted using actual order-by-order profit (with COGS + fees + gateway % + COD handling)
+    const cogsMap = await prisma.productCOGS.findMany({ where: { shop } });
+    const cogsDict: Record<string, number> = {};
+    cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
+
+    let totalProfit = 0;
+    for (const o of orders) {
+      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
+      totalProfit += profit;
+    }
+
+    const profitAdjustedROAS = totalAdSpend > 0 ? totalProfit / totalAdSpend : 0;
+    const avgProfitPerOrder = orders.length > 0 ? totalProfit / orders.length : 0;
+    const cacPaybackOrders = avgProfitPerOrder > 0 ? trueCACRaw / avgProfitPerOrder : 0;
 
     // By channel
     const byChannelMap: Record<string, { spend: number; revenue: number }> = {};
@@ -306,23 +354,44 @@ export class ProfitIntelligenceService {
       blendedROAS: Math.round(blendedROAS * 10) / 10,
       trueCACRaw: Math.round(trueCACRaw),
       profitAdjustedROAS: Math.round(profitAdjustedROAS * 10) / 10,
+      cacPaybackOrders: Math.round(cacPaybackOrders * 10) / 10,
       byChannel,
     };
   }
 
-  // ── Profit Health AI ──────────────────────────────────────
+  // ── Profit Health Score ──────────────────────────────────
   static async getProfitHealthStatus(shop: string): Promise<ProfitHealthStatus> {
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+      defaultForwardShipping: 60,
+      defaultReturnShipping: 70,
+      defaultCODHandling: 40,
+      defaultPackaging: 10,
+      defaultGatewayFeePct: 2,
+    };
+
+    const cogsMap = await prisma.productCOGS.findMany({ where: { shop } });
+    const cogsDict: Record<string, number> = {};
+    cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
+
     const revenue = orders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-    const totalCogs = orders.reduce((s: number, o: any) => s + o.totalPrice * 0.4, 0); // fallback 40%
-    const totalFees = orders.reduce((s: number, o: any) => s + o.totalTax + o.shippingPrice, 0);
+
+    let totalCogs = 0;
+    let totalFees = 0;
+    for (const o of orders) {
+      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
+      totalCogs += c;
+      totalFees += fees;
+    }
+
     const profit = revenue - totalCogs - totalFees;
     const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
-    const codOrders = orders.filter((o: any) => (o as any).isCOD || isCodGateway(o.gateway));
-    const rtoCount = rtoEvents.length;
+    const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
+    const rtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length + orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
     const rtoRate = codOrders.length > 0 ? (rtoCount / codOrders.length) * 100 : 0;
 
     // Week-over-week margin trend
@@ -332,11 +401,25 @@ export class ProfitIntelligenceService {
     const prevOrders = orders.filter((o: any) => o.createdAt >= prev7 && o.createdAt < last7);
 
     const recentRevenue = recentOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-    const recentProfit = recentRevenue - recentOrders.reduce((s: number, o: any) => s + o.totalPrice * 0.4, 0) - recentOrders.reduce((s: number, o: any) => s + o.totalTax + o.shippingPrice, 0);
+    let recentCogs = 0, recentFees = 0;
+    for (const o of recentOrders) {
+      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
+      recentCogs += c;
+      recentFees += fees;
+    }
+    const recentProfit = recentRevenue - recentCogs - recentFees;
     const recentMargin = recentRevenue > 0 ? (recentProfit / recentRevenue) * 100 : 0;
 
     const prevRevenue = prevOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-    const prevProfit = prevRevenue - prevOrders.reduce((s: number, o: any) => s + o.totalPrice * 0.4, 0) - prevOrders.reduce((s: number, o: any) => s + o.totalTax + o.shippingPrice, 0);
+    let prevCogs = 0, prevFees = 0;
+    for (const o of prevOrders) {
+      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
+      prevCogs += c;
+      prevFees += fees;
+    }
+    const prevProfit = prevRevenue - prevCogs - prevFees;
     const prevMargin = prevRevenue > 0 ? (prevProfit / prevRevenue) * 100 : 0;
     const marginChange = recentMargin - prevMargin;
 

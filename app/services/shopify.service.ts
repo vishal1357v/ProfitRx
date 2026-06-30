@@ -57,32 +57,45 @@ function detectChannel(node: any): { channelType: string; channelAttribution: st
   if (combined.includes("utm_source=copilot") || combined.includes("bing.com/chat")) return { channelType: "AI_CHAT", channelAttribution: "Copilot" };
   if (combined.includes("utm_source=perplexity") || combined.includes("perplexity.ai")) return { channelType: "AI_CHAT", channelAttribution: "Perplexity" };
 
-  // Deterministic demo attribution based on order id (for stores without AI channels yet)
-  const DEMO_CHANNELS = [
-    { channelType: "AI_CHAT", channelAttribution: "Gemini" },
-    { channelType: "AI_CHAT", channelAttribution: "ChatGPT" },
-    { channelType: "AI_CHAT", channelAttribution: "Copilot" },
-    { channelType: "WEBSITE", channelAttribution: "Website" },
-    { channelType: "WEBSITE", channelAttribution: "Website" },
-  ];
-  const charCodeSum = (node.id || "").split("").reduce((s: number, c: string) => s + c.charCodeAt(0), 0);
-  return DEMO_CHANNELS[charCodeSum % DEMO_CHANNELS.length];
+  // Deterministic demo attribution based on order id (ONLY for dev or review staging bypass modes)
+  const isDevOrBypass = process.env.NODE_ENV === "development" || process.env.BYPASS_BILLING === "true";
+  if (isDevOrBypass) {
+    const DEMO_CHANNELS = [
+      { channelType: "AI_CHAT", channelAttribution: "Gemini" },
+      { channelType: "AI_CHAT", channelAttribution: "ChatGPT" },
+      { channelType: "AI_CHAT", channelAttribution: "Copilot" },
+      { channelType: "WEBSITE", channelAttribution: "Website" },
+      { channelType: "WEBSITE", channelAttribution: "Website" },
+    ];
+    const charCodeSum = (node.id || "").split("").reduce((s: number, c: string) => s + c.charCodeAt(0), 0);
+    return DEMO_CHANNELS[charCodeSum % DEMO_CHANNELS.length];
+  }
+
+  // Production default: Standard Website channel
+  return { channelType: "WEBSITE", channelAttribution: "Website" };
 }
 
 export class ShopifyService {
   // ── Orders ───────────────────────────────────────────────
-  static async getOrders(requestOrAdmin: Request | any, limit: number = 100) {
+  static async getOrders(requestOrAdmin: Request | any, limit: number = 100, shopName: string = "") {
     let admin: any;
+    let shop = shopName;
     if (requestOrAdmin instanceof Request) {
       const auth = await authenticate.admin(requestOrAdmin);
       admin = auth.admin;
+      if (!shop) shop = auth.session.shop;
     } else {
       admin = requestOrAdmin;
     }
 
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const dateStr = sixtyDaysAgo.toISOString().split("T")[0];
+    const query = `updated_at:>=${dateStr}`;
+
     const response = await admin.graphql(`
-      query GetOrders($limit: Int!) {
-        orders(first: $limit, sortKey: CREATED_AT, reverse: true) {
+      query GetOrders($limit: Int!, $query: String) {
+        orders(first: $limit, query: $query, sortKey: UPDATED_AT, reverse: true) {
           edges {
             node {
               id
@@ -98,6 +111,18 @@ export class ShopifyService {
               displayFinancialStatus
               displayFulfillmentStatus
               paymentGatewayNames
+              tags
+              fulfillments(first: 5) {
+                status
+                events(first: 10) {
+                  edges {
+                    node {
+                      status
+                      message
+                    }
+                  }
+                }
+              }
               customerJourneySummary {
                 lastVisit {
                   landingPage
@@ -136,14 +161,17 @@ export class ShopifyService {
           }
         }
       }
-    `, { variables: { limit } });
+    `, { variables: { limit, query } });
+
+    const settings = shop ? (await prisma.storeSettings.findUnique({ where: { shop } })) : null;
+    const pattern = settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender";
 
     const data = await response.json() as GraphqlResponse<{
       orders: { edges: Array<{ node: any }> };
     }>;
 
     if (data.errors?.length) throw new Error(data.errors[0].message);
-    return data.data.orders.edges.map((edge) => this.mapOrder(edge.node));
+    return data.data.orders.edges.map((edge) => this.mapOrder(edge.node, pattern));
   }
 
   // ── Products ─────────────────────────────────────────────
@@ -190,7 +218,7 @@ export class ShopifyService {
   }
 
   // ── Order mapping ─────────────────────────────────────────
-  private static mapOrder(node: any): ShopifyOrder {
+  private static mapOrder(node: any, rtoDetectionPattern: string): ShopifyOrder {
     const orderId = node.id.split("/").pop();
     const shippingPrice = parseFloat(node.shippingLines?.edges?.[0]?.node?.price || "0");
     const discountAmount = parseFloat(node.totalDiscountsSet?.presentmentMoney?.amount || "0");
@@ -201,6 +229,35 @@ export class ShopifyService {
     const city = node.shippingAddress?.city || null;
     const province = node.shippingAddress?.province || null;
     const { channelType, channelAttribution } = detectChannel(node);
+
+    // RTO Detection: check tags & fulfillment events matching the configured pattern keywords
+    const tagsList = node.tags || [];
+    const rtoTags = rtoDetectionPattern.split(",").map(t => t.trim().toLowerCase()).filter(Boolean);
+    const hasRtoTag = tagsList.some((tag: string) => 
+      rtoTags.some(term => tag.toLowerCase().includes(term))
+    );
+
+    let hasRtoEvent = false;
+    const fulfillments = node.fulfillments || [];
+    for (const f of fulfillments) {
+      const events = f.events?.edges || [];
+      for (const e of events) {
+        const msg = (e.node.message || "").toLowerCase();
+        const status = (e.node.status || "").toLowerCase();
+        const matchesTerm = rtoTags.some(term => msg.includes(term));
+        if (
+          matchesTerm || 
+          status === "failure" && msg.includes("undelivered")
+        ) {
+          hasRtoEvent = true;
+          break;
+        }
+      }
+      if (hasRtoEvent) break;
+    }
+
+    const isRTO = hasRtoTag || hasRtoEvent;
+    const mappedFulfillmentStatus = isRTO ? "RTO" : node.displayFulfillmentStatus;
 
     return {
       id: orderId,
@@ -213,7 +270,7 @@ export class ShopifyService {
       isCOD: isCodGateway(gateway),
       createdAt: new Date(node.createdAt),
       financialStatus: node.displayFinancialStatus,
-      fulfillmentStatus: node.displayFulfillmentStatus,
+      fulfillmentStatus: mappedFulfillmentStatus,
       gateway,
       lineItems: node.lineItems?.edges?.map((edge: any) => ({
         id: edge.node.id,
@@ -255,7 +312,7 @@ export class ShopifyService {
       }
     }
 
-    const orders = await this.getOrders(admin, 250);
+    const orders = await this.getOrders(admin, 250, session.shop);
 
     let count = 0;
     let newOrdersCount = 0;
@@ -342,7 +399,7 @@ export class ShopifyService {
   // ── Sync Orders For Shop (Cron / Offline) ─────────────────
   static async syncOrdersForShop(shop: string): Promise<{ count: number }> {
     const { admin, session } = await unauthenticated.admin(shop);
-    const orders = await this.getOrders(admin, 250);
+    const orders = await this.getOrders(admin, 250, shop);
 
     let count = 0;
     for (const order of orders) {

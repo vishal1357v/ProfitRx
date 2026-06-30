@@ -60,26 +60,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   const productMap = new Map(products.map((p) => [p.id, p.title]));
 
+  const settings = await prisma.storeSettings.findUnique({ where: { shop } }) || {
+    defaultForwardShipping: 60,
+    defaultReturnShipping: 70,
+    defaultCODHandling: 40,
+    defaultPackaging: 10,
+    defaultGatewayFeePct: 2,
+  };
+
   const revenue = orders.reduce((sum: number, o: any) => sum + o.totalPrice, 0);
   const orderCount = orders.length;
 
-  const totalCOGS = orders.reduce((sum: number, o: any) => {
+  let totalCOGS = 0;
+  let totalFees = 0;
+  for (const o of orders) {
     const cost = cogsMap[o.productId || ""] ?? o.totalPrice * 0.4;
-    return sum + cost;
-  }, 0);
+    const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
+    totalCOGS += cost;
+    totalFees += fees;
+  }
 
-  const totalFees = orders.reduce((sum: number, o: any) => sum + o.totalTax + o.shippingPrice, 0);
   const profit = revenue - totalCOGS - totalFees;
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
   const netProfit = profit - leaks.rtoLoss;
   const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
 
-  const codOrders = orders.filter((o: any) => isCodGateway(o.gateway));
+  const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
   const codCount = codOrders.length;
   const codRate = orders.length > 0 ? (codCount / orders.length) * 100 : 0;
 
-  const rtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
+  const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
+  const manualRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
+  const rtoCount = autoRtoCount + manualRtoCount;
   const rtoRate = codCount > 0 ? (rtoCount / codCount) * 100 : 0;
 
   let healthScore = 100;
@@ -118,8 +131,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       existing.revenue += order.totalPrice;
       existing.volume += 1;
       const c = cogsMap[productId] ?? order.totalPrice * 0.4;
-      const f = order.totalTax + order.shippingPrice;
-      existing.profit += (order.totalPrice - c - f);
+      const { profit } = ProfitService.calculateOrderProfit(order, c, settings);
+      existing.profit += profit;
       productMargins[productId] = existing;
     }
   }
@@ -165,8 +178,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     metric.revenue += order.totalPrice;
     metric.orderCount += 1;
     const cogs = cogsMap[order.productId || ""] ?? order.totalPrice * 0.4;
-    const fees = order.totalTax + order.shippingPrice;
-    metric.profit += (order.totalPrice - cogs - fees);
+    const { profit } = ProfitService.calculateOrderProfit(order, cogs, settings);
+    metric.profit += profit;
     if (isCodGateway(order.gateway)) metric.codCount += 1;
     const cId = (order as any).customerId || (order as any).customerEmail || `anon_${order.id}`;
     customerOrdersMap[attr][cId] = (customerOrdersMap[attr][cId] || 0) + 1;
@@ -233,12 +246,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ctr: sq.ctr, channel: sq.channel,
   }));
 
+  const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
+  const isAttributionActive = aiOrdersCount >= 5 || process.env.BYPASS_BILLING === "true" || process.env.NODE_ENV === "development";
+
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
     netProfit, netMargin: Math.round(netMargin * 10) / 10,
     healthScore, alertsList, orderCount, topProducts: finalTopProducts,
     rtoRate: Math.round(rtoRate * 10) / 10, codRate: Math.round(codRate * 10) / 10,
     aiChannelMetrics: Object.values(aiChannelMetrics), aiReadinessScore,
+    isAttributionActive,
     chartData, searchQueries: mappedQueries,
     products: products.map((p) => ({ id: p.id, title: p.title })),
     leaks, leakTrend,
@@ -1110,7 +1127,29 @@ export default function DashboardRoute() {
 
               {/* ══ TAB 1: AI Channel Attribution ══════════ */}
               {selectedTab === 1 && data.features.includes("ai_attribution") && (
-                <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
+                !data.isAttributionActive ? (
+                  <Card>
+                    <div style={{ padding: "40px 0" }}>
+                      <BlockStack gap="400" align="center" inlineAlign="center">
+                        <div style={{ fontSize: 64, filter: "drop-shadow(0 0 10px rgba(124, 58, 237, 0.3))" }}>🤖</div>
+                        <BlockStack gap="100" align="center">
+                          <div style={{ textAlign: "center" }}>
+                            <Text variant="headingLg" as="h2">AI Channel Attribution is Coming Soon</Text>
+                          </div>
+                          <div style={{ textAlign: "center", maxWidth: "600px", margin: "0 auto" }}>
+                            <Text variant="bodyMd" as="p" tone="subdued">
+                              This dashboard tracks purchases made by customers using buyer AI search agents (e.g. Gemini, ChatGPT, Perplexity).
+                            </Text>
+                            <Text variant="bodyMd" as="p" tone="subdued">
+                              To activate, your store must be indexed for <strong>Shopify Agentic Storefronts</strong>.
+                            </Text>
+                          </div>
+                        </BlockStack>
+                      </BlockStack>
+                    </div>
+                  </Card>
+                ) : (
+                  <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
                   <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
                     <Card>
                       <BlockStack gap="300">
@@ -1178,7 +1217,7 @@ export default function DashboardRoute() {
                     </Card>
                   </Grid.Cell>
                 </Grid>
-              )}
+              ))}
 
               {selectedTab === 1 && !data.features.includes("ai_attribution") && (
                 <div style={{ padding: "48px 24px", textAlign: "center", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(25, 20, 45, 0.4)", backdropFilter: "blur(20px)" }}>

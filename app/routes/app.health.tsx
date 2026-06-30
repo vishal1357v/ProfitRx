@@ -51,9 +51,9 @@ export default function ProfitHealthRoute() {
   const currentTheme = statusColors[healthStatus.status] || statusColors.HEALTHY;
 
   return (
-    <Page title="Profit Health AI">
+    <Page title="Profit Health Assessment">
       <Layout>
-        {/* Main AI Agent Status Box */}
+        {/* Main Status Box */}
         <Layout.Section>
           <div style={{
             background: currentTheme.bg,
@@ -67,7 +67,7 @@ export default function ProfitHealthRoute() {
                 <InlineStack gap="200" blockAlign="center">
                   <span style={{ fontSize: 32 }}>{healthStatus.emoji}</span>
                   <BlockStack gap="050">
-                    <span className="gg-section-label" style={{ color: currentTheme.text, fontWeight: 700 }}>AI PLATFORM HEALTH</span>
+                    <span className="gg-section-label" style={{ color: currentTheme.text, fontWeight: 700 }}>PROFIT HEALTH STATUS</span>
                     <Text variant="headingXl" as="h1">
                       System Status: {healthStatus.status}
                     </Text>
@@ -79,7 +79,7 @@ export default function ProfitHealthRoute() {
               <Divider />
 
               <BlockStack gap="200">
-                <Text variant="headingMd" as="h2">🤖 Greek God AI Assessment</Text>
+                <Text variant="headingMd" as="h2">📊 Greek God Profit Health Assessment</Text>
                 <p style={{
                   fontSize: 16,
                   color: "var(--gg-text-primary)",
@@ -186,12 +186,12 @@ export default function ProfitHealthRoute() {
           </Card>
         </Layout.Section>
 
-        {/* AI Customer Quality Score Section */}
+        {/* Customer Quality Score Section */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">👥 AI Customer Channel Quality</Text>
+                <Text variant="headingMd" as="h2">👥 Customer Channel Quality Analysis</Text>
                 <Text variant="bodySm" as="p" tone="subdued">
                   Comparing LTV and customer quality metrics across various discovery channels
                 </Text>
