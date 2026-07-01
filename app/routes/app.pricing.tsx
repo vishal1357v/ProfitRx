@@ -80,52 +80,55 @@ export default function Pricing() {
     {
       name: "Free",
       price: "₹0 ($0)",
-      description: "Basic dashboard and health insights for first-time store setups.",
+      description: "New stores",
+      tagline: "Perfect for new stores starting out.",
       features: [
-        "Up to 50 orders tracked",
-        "True Profit Dashboard",
-        "Health Score Metric",
-        "Upgrade prompt on lockscreens",
-        "Forever Free tier",
+        "Up to 50 orders/month",
+        "Real Profit Dashboard",
+        "Store Health Score",
+        "Basic alerts",
       ],
     },
     {
       name: "Starter",
-      price: "₹1,500 ($19)",
-      description: "Essential analytics tools for growing storefronts.",
+      price: "₹999 ($12)",
+      description: "Small stores",
+      tagline: "Perfect for stores starting to track real profits.",
       features: [
-        "Up to 500 orders/month",
-        "Everything in Free Plan",
-        "Basic RTO tracking lists",
-        "Full margin metrics",
-        "14-day free trial",
+        "Up to 500 orders",
+        "Profit calculations",
+        "Product cost tracking",
+        "Basic COD/RTO insights",
+        "Weekly WhatsApp report",
       ],
     },
     {
       name: "Growth",
-      price: "₹3,000 ($39)",
-      description: "Scale storefront efficiency with deep RTO heatmap maps and risk scores.",
+      price: "₹2,499 ($29)",
+      description: "Growing stores",
+      tagline: "Best for stores losing money to COD & RTO.",
       features: [
-        "Up to 2,000 orders/month",
-        "Everything in Starter Plan",
-        "AI Channel Attribution",
-        "RTO Pincode Heatmap",
-        "COD Risk Scoring Engine",
-        "14-day free trial",
+        "Up to 2,000 orders",
+        "COD Risk Score",
+        "High-Risk COD Areas",
+        "AI Profit Recommendations",
+        "Advanced alerts",
+        "Priority support",
       ],
       popular: true,
     },
     {
       name: "Pro",
-      price: "₹6,000 ($79)",
-      description: "Full suite access for high-volume stores needing cohort retention and blended metrics.",
+      price: "₹4,999 ($59)",
+      description: "Established brands",
+      tagline: "Built for brands scaling beyond ₹20L/month.",
       features: [
-        "Unlimited orders/month",
-        "Everything in Growth Plan",
-        "LTV & Cohort Retention Analysis",
-        "Blended ROAS & ad spends",
-        "Priority Support & Beta access",
-        "14-day free trial",
+        "Unlimited orders",
+        "LTV & Cohort Analysis",
+        "ROAS & Ad Spend",
+        "Multi-store support",
+        "Beta features",
+        "Dedicated onboarding",
       ],
     },
   ];
@@ -146,9 +149,11 @@ export default function Pricing() {
             <Text variant="headingLg" as="h1">
               Select Your Plan
             </Text>
-            <Text variant="bodyMd" as="p" tone="subdued">
-              Upgrade to unlock full features. Start with a 14-day free trial on any paid plan.
-            </Text>
+            <div style={{ marginTop: "8px" }}>
+              <Text variant="bodyMd" as="p" tone="subdued" fontWeight="medium">
+                💡 Try any paid plan free for 14 days. No credit card required.
+              </Text>
+            </div>
           </div>
         </Layout.Section>
 
@@ -159,9 +164,14 @@ export default function Pricing() {
                 <Card>
                   <BlockStack gap="400">
                     <InlineStack align="space-between">
-                      <Text variant="headingLg" as="h3">
-                        {plan.name}
-                      </Text>
+                      <BlockStack gap="050">
+                        <Text variant="headingLg" as="h3">
+                          {plan.name}
+                        </Text>
+                        <Text variant="bodyXs" as="span" tone="subdued">
+                          {plan.description}
+                        </Text>
+                      </BlockStack>
                       {plan.popular && (
                         <Badge tone="success">Popular</Badge>
                       )}
@@ -176,13 +186,14 @@ export default function Pricing() {
                       </Text>
                     </InlineStack>
 
-                    <Text variant="bodyMd" as="p" tone="subdued">
-                      {plan.description}
-                    </Text>
+                    <div style={{ fontStyle: "italic", fontSize: "13px" }}>
+                      <Text variant="bodyMd" as="p" tone="subdued">
+                        {plan.tagline}
+                      </Text>
+                    </div>
 
                     {plan.name === "Free" ? (
                       <Button
-                        variant="secondary"
                         disabled={currentPlan === "Free"}
                         fullWidth
                       >
@@ -192,12 +203,12 @@ export default function Pricing() {
                       <Form method="POST">
                         <input type="hidden" name="plan" value={plan.name} />
                         <Button
-                          variant={plan.popular ? "primary" : "secondary"}
+                          variant={plan.popular ? "primary" : undefined}
                           submit
                           fullWidth
                           disabled={currentPlan === plan.name}
                         >
-                          {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Trial"}
+                          {currentPlan === plan.name ? "Current Plan" : "Start Free Trial"}
                         </Button>
                       </Form>
                     )}
@@ -246,7 +257,7 @@ export default function Pricing() {
                         <td><strong>Unlimited orders</strong></td>
                       </tr>
                       <tr>
-                        <td>True Profit Dashboard</td>
+                        <td>Real Profit Dashboard</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
@@ -260,21 +271,35 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Basic RTO Tracking</td>
+                        <td>Product Cost Tracking & Profit Calc</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>RTO Heatmap & COD Risk Score</td>
+                        <td>Basic COD/RTO Insights</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Weekly WhatsApp Digest</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>COD Risk Score & High-Risk COD Areas</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>AI Channel Attribution</td>
+                        <td>AI Profit Recommendations</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
@@ -288,7 +313,7 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Blended ROAS & Ad Spend Metrics</td>
+                        <td>ROAS & Ad Spend Metrics</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>

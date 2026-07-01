@@ -14,7 +14,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const hasAccess = await canAccessFeature(shop, "blended_roas");
+  const hasAccess = await canAccessFeature(shop, "roas_adspend");
   if (!hasAccess) {
     return redirect("/app/pricing?upgrade=pro");
   }

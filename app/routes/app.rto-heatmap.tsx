@@ -16,7 +16,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
 
-  const hasAccess = await canAccessFeature(shop, "rto_heatmap");
+  const hasAccess = await canAccessFeature(shop, "high_risk_areas");
   if (!hasAccess) {
     return redirect("/app/pricing?upgrade=growth");
   }
