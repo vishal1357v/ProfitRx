@@ -12,6 +12,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (session) {
     await db.session.deleteMany({ where: { shop } });
   }
+  await db.subscription.updateMany({
+    where: { shop },
+    data: { status: "CANCELED" },
+  });
 
   return new Response();
 };

@@ -48,11 +48,11 @@ export class ProfitService {
   static calculateOrderProfit(
     order: { totalPrice: number; isCOD: boolean; totalTax: number; shippingPrice: number },
     cogs: number,
-    settings: { defaultGatewayFeePct: number; defaultCODHandling: number }
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number }
   ): { profit: number; fees: number; margin: number } {
     const gatewayFee = order.isCOD ? 0 : order.totalPrice * (settings.defaultGatewayFeePct / 100);
     const codFee = order.isCOD ? settings.defaultCODHandling : 0;
-    const fees = order.totalTax + order.shippingPrice + gatewayFee + codFee;
+    const fees = order.totalTax + settings.defaultForwardShipping + gatewayFee + codFee;
     const profit = order.totalPrice - cogs - fees;
     const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
     return { profit, fees, margin };

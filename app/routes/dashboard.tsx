@@ -244,6 +244,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
   const isAttributionActive = aiOrdersCount >= 5 || process.env.BYPASS_BILLING === "true" || process.env.NODE_ENV === "development";
 
+  const missingCogsCount = products.filter((p: any) => {
+    const cleanId = p.id.split("/").pop() || "";
+    return cogsMap[cleanId] === undefined;
+  }).length;
+
+  const hasZeroLogisticsDefaults = settings.defaultForwardShipping === 0 || settings.defaultReturnShipping === 0 || settings.defaultPackaging === 0;
+  const isColdStart = orders.length < 50;
+
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
     netProfit, netMargin: Math.round(netMargin * 10) / 10,
@@ -255,6 +263,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products: products.map((p) => ({ id: p.id, title: p.title })),
     leaks, leakTrend,
     features,
+    missingCogsCount,
+    hasZeroLogisticsDefaults,
+    isColdStart,
   };
 };
 
@@ -794,6 +805,34 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
+        {/* Warning & Cold-Start Banners */}
+        {data.missingCogsCount > 0 && (
+          <Layout.Section>
+            <Banner tone="warning">
+              ⚠️ Your profit calculations are currently <strong>estimates</strong> because <strong>{data.missingCogsCount} products</strong> are missing COGS costs. 
+              Please <a href={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</a> for accurate figures.
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {data.hasZeroLogisticsDefaults && (
+          <Layout.Section>
+            <Banner tone="warning">
+              ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0. 
+              Please <a href={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in Settings</a> to get accurate RTO loss figures.
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {data.isColdStart && (
+          <Layout.Section>
+            <Banner tone="info">
+              ℹ️ <strong>COD Risk Score Cold Start:</strong> Risk score accuracy improves as your order history builds. 
+              Currently based on limited data (fewer than 50 orders synced).
+            </Banner>
+          </Layout.Section>
+        )}
+
         {/* ── AI Onboarding Wizard ─────────────────────── */}
         {!wizardDismissed && (
           <Layout.Section>
@@ -903,7 +942,10 @@ export default function DashboardRoute() {
                               </Tooltip>
                             </InlineStack>
                             <BlockStack gap="050">
-                              <span className="gg-section-label">Net Profit</span>
+                              <InlineStack gap="100">
+                                <span className="gg-section-label">Net Profit</span>
+                                {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est.</Badge>}
+                              </InlineStack>
                               <StatNumber
                                 value={Math.round(Math.abs(data.netProfit))}
                                 prefix={data.netProfit < 0 ? "-₹" : "₹"}
@@ -928,8 +970,11 @@ export default function DashboardRoute() {
                               <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
                             </Tooltip>
                           </InlineStack>
-                          <BlockStack gap="050">
-                            <span className="gg-section-label">Net Margin</span>
+                           <BlockStack gap="050">
+                            <InlineStack gap="100">
+                              <span className="gg-section-label">Net Margin</span>
+                              {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est.</Badge>}
+                            </InlineStack>
                             <StatNumber
                               value={Math.round(data.netMargin)}
                               suffix="%"

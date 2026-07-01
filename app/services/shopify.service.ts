@@ -77,7 +77,7 @@ function detectChannel(node: any): { channelType: string; channelAttribution: st
 
 export class ShopifyService {
   // ── Orders ───────────────────────────────────────────────
-  static async getOrders(requestOrAdmin: Request | any, limit: number = 100, shopName: string = "") {
+  static async getOrders(requestOrAdmin: Request | any, limit: number = 250, shopName: string = "") {
     let admin: any;
     let shop = shopName;
     if (requestOrAdmin instanceof Request) {
@@ -93,9 +93,18 @@ export class ShopifyService {
     const dateStr = sixtyDaysAgo.toISOString().split("T")[0];
     const query = `updated_at:>=${dateStr}`;
 
-    const response = await admin.graphql(`
-      query GetOrders($limit: Int!, $query: String) {
-        orders(first: $limit, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    const settings = shop ? (await prisma.storeSettings.findUnique({ where: { shop } })) : null;
+    const pattern = settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender";
+
+    const allOrders: any[] = [];
+    let hasNextPage = true;
+    let endCursor: string | null = null;
+    let pageCount = 0;
+    const maxPages = 4; // Cap manual/background sync at 1000 orders total to prevent timeouts
+
+    const graphQlQuery = `
+      query GetOrders($limit: Int!, $query: String, $cursor: String) {
+        orders(first: $limit, query: $query, after: $cursor, sortKey: UPDATED_AT, reverse: true) {
           edges {
             node {
               id
@@ -159,19 +168,34 @@ export class ShopifyService {
               }
             }
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
       }
-    `, { variables: { limit, query } });
+    `;
 
-    const settings = shop ? (await prisma.storeSettings.findUnique({ where: { shop } })) : null;
-    const pattern = settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender";
+    while (hasNextPage && pageCount < maxPages) {
+      const response = await admin.graphql(graphQlQuery, {
+        variables: { limit: Math.min(limit, 250), query, cursor: endCursor },
+      });
 
-    const data = await response.json() as GraphqlResponse<{
-      orders: { edges: Array<{ node: any }> };
-    }>;
+      const data = await response.json() as any;
+      if (data.errors?.length) throw new Error(data.errors[0].message);
 
-    if (data.errors?.length) throw new Error(data.errors[0].message);
-    return data.data.orders.edges.map((edge) => this.mapOrder(edge.node, pattern));
+      const edges = data.data.orders.edges || [];
+      allOrders.push(...edges.map((edge: any) => this.mapOrder(edge.node, pattern)));
+
+      const pageInfo = data.data.orders.pageInfo || {};
+      hasNextPage = pageInfo.hasNextPage || false;
+      endCursor = pageInfo.endCursor || null;
+      pageCount++;
+
+      if (edges.length === 0) break;
+    }
+
+    return allOrders;
   }
 
   // ── Products ─────────────────────────────────────────────

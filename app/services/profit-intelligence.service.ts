@@ -7,6 +7,7 @@ export interface CODRiskResult {
   score: number;       // 0-100 (100 = certain RTO)
   level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   reasons: string[];
+  isColdStart?: boolean;
 }
 
 export interface ProfitLeaks {
@@ -96,9 +97,26 @@ export class ProfitIntelligenceService {
         if (pincodeData.rtoRate >= 30) reasons.push(`PIN ${pincode} has ${pincodeData.rtoRate.toFixed(0)}% RTO history`);
         else if (pincodeData.rtoRate >= 15) reasons.push(`PIN ${pincode} has elevated ${pincodeData.rtoRate.toFixed(0)}% RTO rate`);
       } else {
-        // Unknown pincode — moderate risk
-        score += 15;
-        reasons.push(`PIN ${pincode} has no delivery history`);
+        // Try regional fallback (first 2 digits matching, which represent the region in India)
+        const prefix = pincode.substring(0, 2);
+        if (prefix && prefix.length === 2 && !isNaN(parseInt(prefix))) {
+          const regionalPincodes = await (prisma as any).pincodeStats.findMany({
+            where: { shop, pincode: { startsWith: prefix } }
+          });
+          if (regionalPincodes && regionalPincodes.length > 0) {
+            const avgRegionalRto = regionalPincodes.reduce((sum: number, p: any) => sum + p.rtoRate, 0) / regionalPincodes.length;
+            const pincodeRisk = Math.min(40, avgRegionalRto * 2);
+            score += pincodeRisk;
+            reasons.push(`Regional fallback: PINs starting with ${prefix} average ${avgRegionalRto.toFixed(0)}% RTO`);
+          } else {
+            // Unknown pincode with no regional history — moderate default risk
+            score += 15;
+            reasons.push(`PIN ${pincode} has no local or regional delivery history`);
+          }
+        } else {
+          score += 15;
+          reasons.push(`PIN ${pincode} has no delivery history`);
+        }
       }
     } else {
       score += 20;
@@ -131,11 +149,15 @@ export class ProfitIntelligenceService {
       reasons.push("Guest checkout — no customer history");
     }
 
+    // Cold start check (< 50 orders)
+    const totalOrders = await prisma.order.count({ where: { shop } });
+    const isColdStart = totalOrders < 50;
+
     score = Math.max(0, Math.min(100, score));
     const level: CODRiskResult["level"] =
       score >= 70 ? "CRITICAL" : score >= 50 ? "HIGH" : score >= 30 ? "MEDIUM" : "LOW";
 
-    return { score, level, reasons };
+    return { score, level, reasons, isColdStart };
   }
 
   // ── Profit Leaks ──────────────────────────────────────────
