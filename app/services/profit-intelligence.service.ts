@@ -325,14 +325,17 @@ export class ProfitIntelligenceService {
     cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
 
     let totalProfit = 0;
+    let profitOrdersCount = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const c = cogsDict[o.productId || ""];
+      if (c === undefined) continue;
       const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
       totalProfit += profit;
+      profitOrdersCount++;
     }
 
     const profitAdjustedROAS = totalAdSpend > 0 ? totalProfit / totalAdSpend : 0;
-    const avgProfitPerOrder = orders.length > 0 ? totalProfit / orders.length : 0;
+    const avgProfitPerOrder = profitOrdersCount > 0 ? totalProfit / profitOrdersCount : 0;
     const cacPaybackOrders = avgProfitPerOrder > 0 ? trueCACRaw / avgProfitPerOrder : 0;
 
     // By channel
@@ -378,19 +381,20 @@ export class ProfitIntelligenceService {
     const cogsDict: Record<string, number> = {};
     cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
 
-    const revenue = orders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-
     let totalCogs = 0;
     let totalFees = 0;
+    let profitRevenue = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const c = cogsDict[o.productId || ""];
+      if (c === undefined) continue;
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       totalCogs += c;
       totalFees += fees;
+      profitRevenue += o.totalPrice;
     }
 
-    const profit = revenue - totalCogs - totalFees;
-    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const profit = profitRevenue - totalCogs - totalFees;
+    const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
 
     const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
     const rtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length + orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
@@ -402,24 +406,28 @@ export class ProfitIntelligenceService {
     const recentOrders = orders.filter((o: any) => o.createdAt >= last7);
     const prevOrders = orders.filter((o: any) => o.createdAt >= prev7 && o.createdAt < last7);
 
-    const recentRevenue = recentOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
+    let recentRevenue = 0;
     let recentCogs = 0, recentFees = 0;
     for (const o of recentOrders) {
-      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const c = cogsDict[o.productId || ""];
+      if (c === undefined) continue;
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       recentCogs += c;
       recentFees += fees;
+      recentRevenue += o.totalPrice;
     }
     const recentProfit = recentRevenue - recentCogs - recentFees;
     const recentMargin = recentRevenue > 0 ? (recentProfit / recentRevenue) * 100 : 0;
 
-    const prevRevenue = prevOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
+    let prevRevenue = 0;
     let prevCogs = 0, prevFees = 0;
     for (const o of prevOrders) {
-      const c = cogsDict[o.productId || ""] ?? o.totalPrice * 0.4;
+      const c = cogsDict[o.productId || ""];
+      if (c === undefined) continue;
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       prevCogs += c;
       prevFees += fees;
+      prevRevenue += o.totalPrice;
     }
     const prevProfit = prevRevenue - prevCogs - prevFees;
     const prevMargin = prevRevenue > 0 ? (prevProfit / prevRevenue) * 100 : 0;

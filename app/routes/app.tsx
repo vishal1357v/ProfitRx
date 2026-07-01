@@ -29,11 +29,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session, redirect: shopifyRedirect } = await authenticate.admin(request);
   const url = new URL(request.url);
 
-  // Bypass billing checks in development to allow testing dashboard, COGS, and RTO features
-  const isDev = process.env.NODE_ENV === "development" || process.env.BYPASS_BILLING === "true";
   const host = url.searchParams.get("host") || "";
 
-  if (!isDev && !url.pathname.includes("/app/pricing")) {
+  // Get local subscription
+  let localSub = await prisma.subscription.findUnique({
+    where: { shop: session.shop },
+  });
+
+  if (!localSub) {
+    localSub = await prisma.subscription.create({
+      data: {
+        shop: session.shop,
+        plan: "FREE",
+        status: "ACTIVE",
+        orderLimit: 50,
+        ordersUsed: 0,
+      },
+    });
+  }
+
+  const isFreePlan = localSub.plan === "FREE" && localSub.status === "ACTIVE";
+
+  // Require billing only if they are not on the FREE plan and not on the pricing page
+  if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
     await billing.require({
       plans: ["Starter", "Growth", "Pro"],
       isTest: true,
@@ -54,7 +72,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   if (activeSubscription) {
-    await prisma.subscription.upsert({
+    localSub = await prisma.subscription.upsert({
       where: { shop: session.shop },
       update: {
         plan: activeSubscription.name.toUpperCase(),
@@ -72,18 +90,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     });
   } else {
-    if (!isDev) {
-      await prisma.subscription.upsert({
+    // If they cancel their Shopify active plan but they are not on FREE, reset them to FREE
+    if (localSub.plan !== "FREE") {
+      localSub = await prisma.subscription.update({
         where: { shop: session.shop },
-        update: {
-          status: "CANCELED",
-        },
-        create: {
-          shop: session.shop,
-          plan: "STARTER",
-          status: "CANCELED",
-          orderLimit: 500,
-          ordersUsed: 0,
+        data: {
+          plan: "FREE",
+          status: "ACTIVE",
+          orderLimit: 50,
         },
       });
     }

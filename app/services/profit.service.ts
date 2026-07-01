@@ -38,6 +38,7 @@ export class ProfitService {
       rtoThreshold: settings?.rtoThreshold ?? 10,
       marginThreshold: settings?.marginThreshold ?? 15,
       alertEmail: settings?.alertEmail || "",
+      syncCapped: settings?.syncCapped ?? false,
     };
   }
 
@@ -94,9 +95,12 @@ export class ProfitService {
     let totalFees = 0;
     let totalProfit = 0;
 
+    let profitOrdersCount = 0;
     for (const order of orders) {
-      // Get COGS (fallback to 40% of revenue if not set)
-      const cogs = cogsMap.get(order.productId || '') ?? order.totalPrice * 0.4;
+      // Get COGS (exclude if not set)
+      const cogs = cogsMap.get(order.productId || '');
+      if (cogs === undefined) continue;
+      
       const { profit, fees, margin } = this.calculateOrderProfit(order, cogs, settings);
 
       results.push({
@@ -114,6 +118,7 @@ export class ProfitService {
       totalCOGS += cogs;
       totalFees += fees;
       totalProfit += profit;
+      profitOrdersCount++;
     }
 
     const summary: ProfitSummary = {
@@ -122,7 +127,7 @@ export class ProfitService {
       totalFees,
       totalProfit,
       avgMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
-      orderCount: orders.length,
+      orderCount: profitOrdersCount,
     };
     logDev(`[ProfitService.calculate] Summary calculated:`, summary);
 

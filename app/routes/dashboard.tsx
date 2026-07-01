@@ -24,7 +24,7 @@ import prisma from "../db.server";
 import { ProfitService } from "../services/profit.service";
 import { ShopifyService } from "../services/shopify.service";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
-import { getFeatureList } from "../services/feature-access.service";
+import { getFeatureList, getSubscription } from "../services/feature-access.service";
 
 // Helper to check for COD gateways
 const isCodGateway = (gateway: string | null) => {
@@ -38,6 +38,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+  const subscription = await getSubscription(shop);
+  const isFreeTier = subscription?.plan === "FREE" && subscription?.status === "ACTIVE";
+  const ordersUsed = subscription?.ordersUsed || 0;
+  const ordersLimit = subscription?.orderLimit || 50;
 
   const features = await getFeatureList(shop);
 
@@ -68,18 +72,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let totalCOGS = 0;
   let totalFees = 0;
+  let profitRevenue = 0;
+  let excludedOrdersCount = 0;
   for (const o of orders) {
-    const cost = cogsMap[o.productId || ""] ?? o.totalPrice * 0.4;
+    const cleanId = o.productId || "";
+    const hasCogs = cogsMap[cleanId] !== undefined;
+    if (!hasCogs) {
+      excludedOrdersCount++;
+      continue;
+    }
+    const cost = cogsMap[cleanId];
     const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
+    profitRevenue += o.totalPrice;
     totalCOGS += cost;
     totalFees += fees;
   }
 
-  const profit = revenue - totalCOGS - totalFees;
-  const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+  const profit = profitRevenue - totalCOGS - totalFees;
+  const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
 
   const netProfit = profit - leaks.rtoLoss;
-  const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+  const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
 
   const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
   const codCount = codOrders.length;
@@ -117,34 +130,63 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  const productMargins: Record<string, { title: string; revenue: number; profit: number; volume: number }> = {};
+  const productMargins: Record<string, { title: string; revenue: number; profit: number; volume: number; rtoCount: number }> = {};
   for (const order of orders) {
     const productId = order.productId;
     if (productId) {
+      const cleanId = productId.split("/").pop() || "";
+      const hasCogs = cogsMap[cleanId] !== undefined;
+      if (!hasCogs) continue; // Exclude orders missing COGS
       const title = productMap.get(productId) || `Product ID: ${productId}`;
-      const existing = productMargins[productId] || { title, revenue: 0, profit: 0, volume: 0 };
+      const existing = productMargins[productId] || { title, revenue: 0, profit: 0, volume: 0, rtoCount: 0 };
       existing.revenue += order.totalPrice;
       existing.volume += 1;
-      const c = cogsMap[productId] ?? order.totalPrice * 0.4;
+      
+      const isRto = order.fulfillmentStatus === "RTO" || rtoEvents.some((e: any) => e.orderId === order.id && e.eventType === "RTO");
+      if (isRto) {
+        existing.rtoCount += 1;
+      }
+      
+      const c = cogsMap[cleanId];
       const { profit } = ProfitService.calculateOrderProfit(order, c, settings);
       existing.profit += profit;
       productMargins[productId] = existing;
     }
   }
 
+  const toxicAlerts: any[] = [];
   const topProducts = Object.values(productMargins)
-    .map((p) => ({
-      name: p.title,
-      revenue: p.revenue,
-      profit: p.profit,
-      volume: p.volume,
-      margin: p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0,
-    }))
+    .map((p) => {
+      const rtoRate = p.volume > 0 ? Math.round((p.rtoCount / p.volume) * 100) : 0;
+      const trueMargin = p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0;
+      const isToxic = trueMargin < 0;
+
+      if (isToxic) {
+        toxicAlerts.push({
+          id: `toxic-product-${p.title.replace(/\s+/g, "-")}`,
+          message: `Toxic Product Alert: "${p.title}" has a negative true profit (True margin: ${trueMargin}%, RTO rate: ${rtoRate}%). Recommended: Disable COD on this item.`,
+          severity: "Critical",
+          tone: "critical",
+        });
+      }
+
+      return {
+        name: p.title,
+        revenue: p.revenue,
+        profit: p.profit,
+        volume: p.volume,
+        rtoRate,
+        margin: trueMargin,
+        isToxic,
+      };
+    })
     .sort((a, b) => b.profit - a.profit)
     .slice(0, 5);
 
+  alertsList.push(...toxicAlerts);
+
   const finalTopProducts = topProducts.length > 0 ? topProducts : [
-    { name: "No products synced yet", revenue: 0, profit: 0, volume: 0, margin: 0 },
+    { name: "No products synced yet", revenue: 0, profit: 0, volume: 0, rtoRate: 0, margin: 0, isToxic: false },
   ];
 
   const aiChannels = ["Gemini", "ChatGPT", "Copilot", "Website"];
@@ -163,6 +205,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   for (const order of orders) {
+    const cleanId = order.productId || "";
+    const cogs = cogsMap[cleanId];
+    if (cogs === undefined) continue; // Exclude orders missing COGS from attribution metrics to keep margins exact
+
     const attr = (order as any).channelAttribution || "Website";
     if (!aiChannelMetrics[attr]) {
       aiChannelMetrics[attr] = { name: attr, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
@@ -172,7 +218,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const metric = aiChannelMetrics[attr];
     metric.revenue += order.totalPrice;
     metric.orderCount += 1;
-    const cogs = cogsMap[order.productId || ""] ?? order.totalPrice * 0.4;
     const { profit } = ProfitService.calculateOrderProfit(order, cogs, settings);
     metric.profit += profit;
     if (isCodGateway(order.gateway)) metric.codCount += 1;
@@ -242,7 +287,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }));
 
   const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
-  const isAttributionActive = aiOrdersCount >= 5 || process.env.BYPASS_BILLING === "true" || process.env.NODE_ENV === "development";
+  const isAttributionActive = aiOrdersCount >= 5 || process.env.NODE_ENV === "development";
 
   const missingCogsCount = products.filter((p: any) => {
     const cleanId = p.id.split("/").pop() || "";
@@ -251,6 +296,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const hasZeroLogisticsDefaults = settings.defaultForwardShipping === 0 || settings.defaultReturnShipping === 0 || settings.defaultPackaging === 0;
   const isColdStart = orders.length < 50;
+
+  const configuredCogsCount = products.filter((p: any) => {
+    const cleanId = p.id.split("/").pop() || "";
+    return cogsMap[cleanId] !== undefined;
+  }).length;
 
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
@@ -266,6 +316,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     missingCogsCount,
     hasZeroLogisticsDefaults,
     isColdStart,
+    excludedOrdersCount,
+    syncCapped: settings.syncCapped,
+    isFreeTier,
+    ordersUsed,
+    ordersLimit,
+    configuredCogsCount,
   };
 };
 
@@ -700,6 +756,7 @@ export default function DashboardRoute() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
+  const [whatsappSubscribed, setWhatsappSubscribed] = useState(false);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -742,19 +799,47 @@ export default function DashboardRoute() {
     document.body.removeChild(link);
   };
 
-  const isCogsSetup = data.aiReadinessScore > 50;
-  const isAttributionActive = data.orderCount > 0 && data.aiChannelMetrics.some(m => m.name !== "Website" && m.orderCount > 0);
-  const isSearchActive = data.searchQueries.length > 0;
+  const isCogsSetup = data.configuredCogsCount > 0;
+  const isSynced = data.orderCount > 0;
+  const onboardingComplete = isCogsSetup && isSynced;
 
   const wizardSteps = [
-    { label: "Sync Catalog with AI Agents",    icon: "📦", status: data.products.length > 0 ? "complete" : "pending", desc: "Catalog indexed for AI discovery." },
-    { label: "Configure COGS Pricing Rules",   icon: "💰", status: isCogsSetup ? "complete" : "pending",             desc: "Set target margins on Costs tab." },
-    { label: "Enable AI Storefront Attribution", icon: "🤖", status: isAttributionActive ? "complete" : "pending",   desc: "Track Gemini, ChatGPT & Copilot." },
-    { label: "Verify Search Intelligence",     icon: "🔍", status: isSearchActive ? "complete" : "pending",          desc: "Monitor CTR and keyword ranks." },
+    { 
+      label: "Add your first product cost", 
+      icon: "💰", 
+      status: isCogsSetup ? "complete" : "pending", 
+      desc: "Configure pricing targets on the Costs tab.",
+      actionText: "Configure Costs",
+      actionUrl: `/app/cogs?shop=${data.shop}&host=${data.host}`
+    },
+    { 
+      label: "Sync your orders", 
+      icon: "⟳", 
+      status: isSynced ? "complete" : "pending", 
+      desc: "Download transactions from Shopify.",
+      actionText: "Sync Orders",
+      actionClick: handleSyncOrders
+    },
+    { 
+      label: "View your profit dashboard", 
+      icon: "⚡", 
+      status: onboardingComplete ? "complete" : "pending", 
+      desc: "Inspect true margins and leaks.",
+      actionText: "View Profit",
+      actionClick: () => setSelectedTab(0)
+    },
   ];
 
   const completedSteps = wizardSteps.filter(s => s.status === "complete").length;
   const wizardProgress = (completedSteps / wizardSteps.length) * 100;
+
+  let accuracyScore = 30;
+  if (data.configuredCogsCount > 0) accuracyScore += 30;
+  if (!data.hasZeroLogisticsDefaults) {
+    accuracyScore += 40;
+  } else {
+    accuracyScore += 20;
+  }
 
   const tabs = [
     { id: "store-profitability",   content: "⚡ Store Profitability",     panelID: "tab-0" },
@@ -764,13 +849,21 @@ export default function DashboardRoute() {
   ];
 
   const productRows = data.topProducts.map((p) => [
-    <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, color: "var(--gg-text-primary)" }}>{p.name}</span>,
-    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-secondary)" }}>{p.volume}</span>,
-    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>₹{p.revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>,
-    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: p.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
+    <BlockStack gap="050" key={p.name}>
+      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, color: p.isToxic ? "var(--gg-accent-red)" : "var(--gg-text-primary)" }}>
+        {p.name}
+      </span>
+      {p.isToxic && <Badge tone="critical" size="small">Toxic Product (Loss-making)</Badge>}
+    </BlockStack>,
+    <span key={`${p.name}-vol`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-secondary)" }}>{p.volume}</span>,
+    <span key={`${p.name}-rev`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>₹{p.revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>,
+    <span key={`${p.name}-prof`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: p.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
       ₹{p.profit.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
     </span>,
-    <Badge key={p.name} tone={p.margin > 30 ? "success" : p.margin > 15 ? "warning" : "critical"}>{`${p.margin}%`}</Badge>,
+    <span key={`${p.name}-rto`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: p.rtoRate > 15 ? "var(--gg-accent-red)" : "var(--gg-text-secondary)" }}>
+      {p.rtoRate}% RTO
+    </span>,
+    <Badge key={`${p.name}-marg`} tone={p.margin > 30 ? "success" : p.margin > 15 ? "warning" : "critical"}>{`${p.margin}%`}</Badge>,
   ]);
 
   const productsWithQueries = new Set(data.searchQueries.map((sq: any) => sq.productName.toLowerCase()));
@@ -806,11 +899,26 @@ export default function DashboardRoute() {
         )}
 
         {/* Warning & Cold-Start Banners */}
+        {data.isFreeTier && (
+          <Layout.Section>
+            <Banner 
+              tone="warning" 
+              title={`You're on the Free plan — tracking ${data.ordersUsed}/${data.ordersLimit} orders`}
+              action={{
+                content: "Upgrade Plan",
+                url: `/app/pricing?shop=${data.shop}&host=${data.host}`,
+              }}
+            >
+              <p>Greek God is free forever up to 50 synced orders. Upgrade your plan to track more orders and unlock AI Channel Attribution, RTO Pincode Heatmaps, and COD Risk Scoring engines!</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {data.missingCogsCount > 0 && (
           <Layout.Section>
             <Banner tone="warning">
-              ⚠️ Your profit calculations are currently <strong>estimates</strong> because <strong>{data.missingCogsCount} products</strong> are missing COGS costs. 
-              Please <a href={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</a> for accurate figures.
+              ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS. 
+              Please <a href={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</a> to include them in calculations.
             </Banner>
           </Layout.Section>
         )}
@@ -829,6 +937,14 @@ export default function DashboardRoute() {
             <Banner tone="info">
               ℹ️ <strong>COD Risk Score Cold Start:</strong> Risk score accuracy improves as your order history builds. 
               Currently based on limited data (fewer than 50 orders synced).
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {data.syncCapped && (
+          <Layout.Section>
+            <Banner tone="warning">
+              ⚠️ <strong>Sync capped at 1,000 orders:</strong> Your metrics cover your most recent 1,000 orders. Older orders in the 60-day window are not reflected.
             </Banner>
           </Layout.Section>
         )}
@@ -873,10 +989,10 @@ export default function DashboardRoute() {
                 <Divider />
 
                 {/* Wizard steps grid */}
-                <Grid columns={{ xs: 1, sm: 2, md: 4, lg: 4 }}>
+                <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
                   {wizardSteps.map((step, idx) => (
                     <Grid.Cell key={idx}>
-                      <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`}>
+                      <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
                             <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
@@ -886,6 +1002,22 @@ export default function DashboardRoute() {
                           </InlineStack>
                           <Text variant="bodySm" as="p" fontWeight="semibold">{step.label}</Text>
                           <Text variant="bodyXs" as="p" tone="subdued">{step.desc}</Text>
+                          <div style={{ marginTop: "10px" }}>
+                            {step.actionUrl ? (
+                              <Button variant="secondary" url={step.actionUrl} size="slim">
+                                {step.actionText} →
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="secondary" 
+                                onClick={step.actionClick} 
+                                size="slim"
+                                disabled={step.status === "complete" && idx === 2}
+                              >
+                                {step.actionText}
+                              </Button>
+                            )}
+                          </div>
                         </BlockStack>
                       </div>
                     </Grid.Cell>
@@ -904,6 +1036,124 @@ export default function DashboardRoute() {
               {/* ══ TAB 0: Store Profitability ══════════════ */}
               {selectedTab === 0 && (
                 <BlockStack gap="400">
+
+                  {/* Onboarding Accuracy and WhatsApp Digest Grid */}
+                  <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
+                    {/* Left: Weekly WhatsApp Profit Digest Card (spans 2 columns) */}
+                    <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+                      <Card>
+                        <BlockStack gap="300">
+                          <InlineStack align="space-between" blockAlign="center">
+                            <BlockStack gap="100">
+                              <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
+                              <Text variant="bodySm" as="p" tone="subdued">
+                                Get weekly summaries and actionable optimizations delivered to your WhatsApp.
+                              </Text>
+                            </BlockStack>
+                            <Button 
+                              variant={whatsappSubscribed ? "secondary" : "primary"}
+                              onClick={() => {
+                                setWhatsappSubscribed(!whatsappSubscribed);
+                                setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
+                                setSyncSuccess(true);
+                              }}
+                            >
+                              {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
+                            </Button>
+                          </InlineStack>
+
+                          {/* WhatsApp Chat Preview Bubble */}
+                          <div style={{
+                            background: "#e5ddd5",
+                            borderRadius: "8px",
+                            padding: "16px",
+                            fontFamily: "sans-serif",
+                            position: "relative",
+                            border: "1px solid rgba(0,0,0,0.1)"
+                          }}>
+                            <div style={{
+                              background: "#fff",
+                              borderRadius: "7px",
+                              padding: "10px 14px",
+                              maxWidth: "85%",
+                              boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
+                              fontSize: "13px",
+                              lineHeight: "1.4",
+                              position: "relative",
+                              color: "#303030"
+                            }}>
+                              <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> GREEK GOD PROFIT DIGEST</div>
+                              <div>📅 <strong>Monday Morning Summary:</strong></div>
+                              <div style={{ marginBlock: "6px" }}>
+                                • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
+                                • <strong>Net Margin:</strong> {data.netMargin}% <br />
+                                • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
+                              </div>
+                              <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
+                                🎯 <strong>Your 3 Actions This Week:</strong>
+                              </div>
+                              <div style={{ marginTop: "4px" }}>
+                                1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
+                                2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
+                                3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
+                              </div>
+                              <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
+                              <div style={{ clear: "both" }} />
+                            </div>
+                          </div>
+                        </BlockStack>
+                      </Card>
+                    </Grid.Cell>
+
+                    {/* Right: Profit Data Accuracy Score Card (spans 1 column) */}
+                    <Grid.Cell>
+                      <Card>
+                        <BlockStack gap="400">
+                          <BlockStack gap="100">
+                            <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
+                            <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
+                          </BlockStack>
+
+                          {/* Progress bar accuracy */}
+                          <BlockStack gap="200">
+                            <InlineStack align="space-between">
+                              <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
+                                {accuracyScore}% Accuracy
+                              </span>
+                            </InlineStack>
+                            <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
+                          </BlockStack>
+
+                          {/* Setup Tasks Checklist */}
+                          <BlockStack gap="200">
+                            <InlineStack gap="150" blockAlign="center">
+                              <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
+                              <BlockStack gap="0">
+                                <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
+                                <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
+                              </BlockStack>
+                            </InlineStack>
+
+                            <InlineStack gap="150" blockAlign="center">
+                              <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
+                              <BlockStack gap="0">
+                                <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
+                                <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
+                              </BlockStack>
+                            </InlineStack>
+
+                            <InlineStack gap="150" blockAlign="center">
+                              <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
+                              <BlockStack gap="0">
+                                <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
+                                <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
+                              </BlockStack>
+                            </InlineStack>
+                          </BlockStack>
+                        </BlockStack>
+                      </Card>
+                    </Grid.Cell>
+                  </Grid>
 
                   {/* Metric Cards */}
                   <Grid columns={{ xs: 1, sm: 2, md: 5, lg: 5 }}>
@@ -944,7 +1194,7 @@ export default function DashboardRoute() {
                             <BlockStack gap="050">
                               <InlineStack gap="100">
                                 <span className="gg-section-label">Net Profit</span>
-                                {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est.</Badge>}
+                                {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
                               </InlineStack>
                               <StatNumber
                                 value={Math.round(Math.abs(data.netProfit))}
@@ -973,7 +1223,7 @@ export default function DashboardRoute() {
                            <BlockStack gap="050">
                             <InlineStack gap="100">
                               <span className="gg-section-label">Net Margin</span>
-                              {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est.</Badge>}
+                              {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
                             </InlineStack>
                             <StatNumber
                               value={Math.round(data.netMargin)}
@@ -1096,8 +1346,8 @@ export default function DashboardRoute() {
                         <Button variant="plain" onClick={handleExportCSV}>Export CSV</Button>
                       </InlineStack>
                       <DataTable
-                        columnContentTypes={["text", "numeric", "numeric", "numeric", "text"]}
-                        headings={["Product Name", "Units Sold", "Revenue", "Net Profit", "Margin"]}
+                        columnContentTypes={["text", "numeric", "numeric", "numeric", "numeric", "text"]}
+                        headings={["Product Name", "Units Sold", "Revenue", "Net Profit", "Product RTO", "Margin"]}
                         rows={productRows}
                       />
                     </BlockStack>
@@ -1111,7 +1361,12 @@ export default function DashboardRoute() {
                         <div>
                           <InlineStack align="space-between">
                             <div>
-                              <span className="gg-section-label">Return to Origin Rate</span>
+                              <InlineStack gap="100" blockAlign="center">
+                                <span className="gg-section-label">Return to Origin Rate</span>
+                                <Tooltip content="Percentage of COD orders returned back to warehouse.">
+                                  <span style={{ cursor: "help", fontSize: 11, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                                </Tooltip>
+                              </InlineStack>
                               <br />
                               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 700, color: data.rtoRate > 10 ? "var(--gg-accent-red)" : "var(--gg-accent-green)" }}>
                                 {data.rtoRate.toFixed(1)}%
@@ -1129,7 +1384,12 @@ export default function DashboardRoute() {
                         <div>
                           <InlineStack align="space-between">
                             <div>
-                              <span className="gg-section-label">COD Share of Orders</span>
+                              <InlineStack gap="100" blockAlign="center">
+                                <span className="gg-section-label">COD Share of Orders</span>
+                                <Tooltip content="Percentage of orders paid via Cash on Delivery vs Prepaid.">
+                                  <span style={{ cursor: "help", fontSize: 11, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                                </Tooltip>
+                              </InlineStack>
                               <br />
                               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 700, color: data.codRate > 25 ? "var(--gg-accent-amber)" : "var(--gg-accent-green)" }}>
                                 {data.codRate.toFixed(1)}%

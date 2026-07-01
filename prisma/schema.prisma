@@ -285,6 +285,7 @@ model StoreSettings {
   alertEmail             String?
   rtoThreshold           Float    @default(10)
   marginThreshold        Float    @default(15)
+  syncCapped             Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

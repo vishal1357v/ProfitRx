@@ -38,15 +38,14 @@ export async function getSubscription(shop: string) {
     where: { shop },
   });
 
-  // If no subscription exists in database, default to STARTER for demo/first run
+  // If no subscription exists in database, default to FREE tier
   if (!subscription) {
-    const isBypass = process.env.BYPASS_BILLING === "true" || process.env.NODE_ENV === "development";
     subscription = await prisma.subscription.create({
       data: {
         shop,
-        plan: isBypass ? "PRO" : "STARTER",
+        plan: "FREE",
         status: "ACTIVE",
-        orderLimit: isBypass ? null : 500,
+        orderLimit: 50,
         ordersUsed: 0,
       },
     });

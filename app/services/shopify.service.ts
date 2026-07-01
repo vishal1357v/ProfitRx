@@ -57,9 +57,9 @@ function detectChannel(node: any): { channelType: string; channelAttribution: st
   if (combined.includes("utm_source=copilot") || combined.includes("bing.com/chat")) return { channelType: "AI_CHAT", channelAttribution: "Copilot" };
   if (combined.includes("utm_source=perplexity") || combined.includes("perplexity.ai")) return { channelType: "AI_CHAT", channelAttribution: "Perplexity" };
 
-  // Deterministic demo attribution based on order id (ONLY for dev or review staging bypass modes)
-  const isDevOrBypass = process.env.NODE_ENV === "development" || process.env.BYPASS_BILLING === "true";
-  if (isDevOrBypass) {
+  // Deterministic demo attribution based on order id (ONLY for dev mode)
+  const isDev = process.env.NODE_ENV === "development";
+  if (isDev) {
     const DEMO_CHANNELS = [
       { channelType: "AI_CHAT", channelAttribution: "Gemini" },
       { channelType: "AI_CHAT", channelAttribution: "ChatGPT" },
@@ -193,6 +193,14 @@ export class ShopifyService {
       pageCount++;
 
       if (edges.length === 0) break;
+    }
+
+    const isSyncCapped = hasNextPage && pageCount >= maxPages;
+    if (shop) {
+      await (prisma as any).storeSettings.updateMany({
+        where: { shop },
+        data: { syncCapped: isSyncCapped }
+      });
     }
 
     return allOrders;

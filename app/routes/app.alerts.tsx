@@ -30,6 +30,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       data: {
         shop: session.shop,
         defaultCOGSPct: 40,
+        defaultForwardShipping: 60,
+        defaultReturnShipping: 70,
+        defaultCODHandling: 40,
+        defaultPackaging: 10,
+        defaultGatewayFeePct: 2,
+        rtoDetectionPattern: "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
         rtoThreshold: 10,
         marginThreshold: 15,
         alertEmail: (session as any).email || "",
