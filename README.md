@@ -1,12 +1,12 @@
 # 🏛️ Greek God — Profit Intelligence for Shopify
 
-> **Stop guessing. Start profiting.**
+
 
 Greek God is a **Profit Intelligence Platform** built specifically for Indian D2C Shopify merchants. It auto-syncs with your Shopify store to reveal your **true profit**, track **AI channel attribution**, and plug **profit leaks** like RTO losses—all in one dashboard.
 
 ---
 
-## 🚀 The Problem We Solve
+## 🚀 The Problem it Solve
 
 | Problem | Greek God Solution |
 | :--- | :--- |
@@ -17,36 +17,6 @@ Greek God is a **Profit Intelligence Platform** built specifically for Indian D2
 | "Do my customers come back?" | LTV/Cohort Retention |
 | "Meta says 4x ROAS but I'm not profitable" | Blended ROAS / True CAC |
 | "Is my store healthy or dying?" | Profit Health AI (🟢/🟡/🔴) |
-
----
-
-## 🧠 How It Works
-┌─────────────────────────────────────────────────────────────┐
-│ SHOPIFY STORE │
-│ Products → Orders → Customers → Pincodes │
-└─────────────────────┬───────────────────────────────────────┘
-│
-▼ (Auto-Sync via Shopify API)
-┌─────────────────────────────────────────────────────────────┐
-│ GREEK GOD SAAS │
-│ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ DASHBOARD │ │
-│ │ Revenue: ₹21,000 Profit: ₹10,000 Margin: 47% │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ AI CHANNEL ATTRIBUTION │ │
-│ │ ChatGPT: ₹8,000 (40% margin) │ │
-│ │ Gemini: ₹4,500 (55% margin) │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ RTO HEATMAP │ │
-│ │ Pincode 635109 → 60% RTO risk 🔴 │ │
-│ │ Pincode 400001 → 10% RTO risk 🟢 │ │
-│ └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
 
 
 ---
@@ -75,11 +45,9 @@ Greek God is a **Profit Intelligence Platform** built specifically for Indian D2
 - [x] LTV/Cohort Retention
 - [x] Blended ROAS / True CAC
 - [x] Profit Health AI (🟢/🟡/🔴)
-
-### 🚧 In Progress
-- [ ] Email/Slack alerts for profit leaks
-- [ ] Automated RTO risk blocking (COD disable)
-- [ ] Multi-store support
+- [x] Email/Slack alerts for profit leaks
+- [x] Automated RTO risk blocking (COD disable)
+- [x] Multi-store support
 
 ---
 
@@ -95,5 +63,5 @@ Greek God is a **Profit Intelligence Platform** built specifically for Indian D2
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/your-username/greek-god-saas.git
+git clone https://github.com/vishal1357v/greek-god-saas.git
 cd greek-god-saas
