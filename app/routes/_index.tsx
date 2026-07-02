@@ -141,7 +141,7 @@ export default function IndexRoute() {
               ⚡
             </div>
             <span style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", color: "#f8fafc" }}>
-              GREEK GOD <span style={{ fontSize: "12px", color: "#38bdf8", fontWeight: 600, padding: "2px 8px", background: "rgba(56, 189, 248, 0.1)", borderRadius: "12px", border: "1px solid rgba(56, 189, 248, 0.2)" }}>SAAS</span>
+              ProfitRx <span style={{ fontSize: "12px", color: "#38bdf8", fontWeight: 600, padding: "2px 8px", background: "rgba(56, 189, 248, 0.1)", borderRadius: "12px", border: "1px solid rgba(56, 189, 248, 0.2)" }}>BY GREEK GOD</span>
             </span>
           </div>
 
@@ -182,25 +182,25 @@ export default function IndexRoute() {
             fontWeight: 600,
             marginBottom: "24px"
           }}>
-            <span>🔥 Industrial-Grade E-Commerce Intelligence</span>
+            <span>🔥 Actionable Profit & RTO Shield Engine</span>
           </div>
 
           <h1 style={{
-            fontSize: "clamp(36px, 5.5vw, 62px)",
+            fontSize: "clamp(34px, 5.2vw, 58px)",
             fontWeight: 800,
-            lineHeight: 1.1,
+            lineHeight: 1.15,
             letterSpacing: "-0.03em",
             marginBottom: "24px",
             background: "linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent"
           }}>
-            Stop Losing Profit to RTO <br />
+            You're losing $150–$400/mo to RTO.<br />
             <span style={{
               background: "linear-gradient(135deg, #38bdf8 0%, #818cf8 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent"
-            }}>Before You Ship.</span>
+            }}>We show you where and fix it.</span>
           </h1>
 
           <p style={{
@@ -208,10 +208,10 @@ export default function IndexRoute() {
             color: "#94a3b8",
             lineHeight: "1.6",
             marginBottom: "40px",
-            maxWidth: "720px",
+            maxWidth: "740px",
             marginInline: "auto"
           }}>
-            The only Shopify app combining <strong style={{ color: "#f1f5f9" }}>True Profit Calculation</strong> with <strong style={{ color: "#38bdf8" }}>Pincode-Level Logistics Tracking</strong> and <strong style={{ color: "#818cf8" }}>Pre-Shipment COD Risk Scoring</strong>.
+            Stop drowning in static dashboards. ProfitRx gives you a daily <strong style={{ color: "#f1f5f9" }}>actionable to-do list</strong> to block high-risk pincodes, cap toxic discounts, and recover lost profit in 1 click.
           </p>
 
           {/* 1-Click Shopify Connect Box */}

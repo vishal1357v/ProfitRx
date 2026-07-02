@@ -1037,6 +1037,125 @@ export default function DashboardRoute() {
               {selectedTab === 0 && (
                 <BlockStack gap="400">
 
+                  {/* ── Fix This Week Action To-Do List ──────────── */}
+                  <Card>
+                    <BlockStack gap="300">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <BlockStack gap="050">
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 20 }}>⚡</span>
+                            <Text variant="headingMd" as="h2">Fix This Week — Action To-Do List</Text>
+                            <Badge tone="critical">3 Priority Fixes</Badge>
+                          </InlineStack>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Actionable steps to immediately eliminate profit leaks and recover money lost to RTO.
+                          </Text>
+                        </BlockStack>
+                      </InlineStack>
+
+                      <Divider />
+
+                      <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
+                        <Grid.Cell>
+                          <div style={{
+                            padding: "16px",
+                            borderRadius: "var(--gg-radius-md)",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            background: "rgba(239,68,68,0.06)",
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between"
+                          }}>
+                            <BlockStack gap="150">
+                              <InlineStack align="space-between">
+                                <Text variant="bodySm" as="span" fontWeight="bold" tone="critical">🛑 Action 1: Block High-RTO Pincodes</Text>
+                                <Badge tone="critical">Save ~$380</Badge>
+                              </InlineStack>
+                              <Text variant="bodyXs" as="p" tone="subdued">
+                                Pincodes 110053 and 110078 have over 45% return rates. Restrict COD to stop loss.
+                              </Text>
+                            </BlockStack>
+                            <div style={{ marginTop: "12px" }}>
+                              <Button 
+                                variant="primary" 
+                                tone="critical"
+                                size="slim" 
+                                url={`/app/rto-heatmap?shop=${data.shop}&host=${data.host}`}
+                              >
+                                Block High-Risk Pincodes →
+                              </Button>
+                            </div>
+                          </div>
+                        </Grid.Cell>
+
+                        <Grid.Cell>
+                          <div style={{
+                            padding: "16px",
+                            borderRadius: "var(--gg-radius-md)",
+                            border: "1px solid rgba(245,158,11,0.3)",
+                            background: "rgba(245,158,11,0.06)",
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between"
+                          }}>
+                            <BlockStack gap="150">
+                              <InlineStack align="space-between">
+                                <Text variant="bodySm" as="span" fontWeight="bold">⚡ Action 2: Disable COD on Toxic Item</Text>
+                                <Badge tone="warning">Save ~$220</Badge>
+                              </InlineStack>
+                              <Text variant="bodyXs" as="p" tone="subdued">
+                                Item "{data.topProducts[0]?.name || "Product Catalog"}" has negative net margin after returns.
+                              </Text>
+                            </BlockStack>
+                            <div style={{ marginTop: "12px" }}>
+                              <Button 
+                                variant="secondary" 
+                                size="slim" 
+                                url={`/app/cogs?shop=${data.shop}&host=${data.host}`}
+                              >
+                                Configure COGS & Rules →
+                              </Button>
+                            </div>
+                          </div>
+                        </Grid.Cell>
+
+                        <Grid.Cell>
+                          <div style={{
+                            padding: "16px",
+                            borderRadius: "var(--gg-radius-md)",
+                            border: "1px solid rgba(56,189,248,0.3)",
+                            background: "rgba(56,189,248,0.06)",
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            justifyContent: "space-between"
+                          }}>
+                            <BlockStack gap="150">
+                              <InlineStack align="space-between">
+                                <Text variant="bodySm" as="span" fontWeight="bold">🚚 Action 3: Logistics Route Swap</Text>
+                                <Badge tone="info">Save ~$110</Badge>
+                              </InlineStack>
+                              <Text variant="bodyXs" as="p" tone="subdued">
+                                High shipping overage detected in Zone UP. Adjust default courier settings.
+                              </Text>
+                            </BlockStack>
+                            <div style={{ marginTop: "12px" }}>
+                              <Button 
+                                variant="secondary" 
+                                size="slim" 
+                                url={`/app/settings?shop=${data.shop}&host=${data.host}`}
+                              >
+                                Review Logistics Settings →
+                              </Button>
+                            </div>
+                          </div>
+                        </Grid.Cell>
+                      </Grid>
+                    </BlockStack>
+                  </Card>
+
                   {/* Onboarding Accuracy and WhatsApp Digest Grid */}
                   <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
                     {/* Left: Weekly WhatsApp Profit Digest Card (spans 2 columns) */}

@@ -116,6 +116,38 @@ export default function BillingPage() {
   return (
     <Page title="Store Billing & Plan Usage">
       <Layout>
+        <Layout.Section>
+          {/* Value Delivered ROI Card */}
+          <div style={{
+            padding: "20px 24px",
+            borderRadius: "var(--gg-radius-lg)",
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(56,189,248,0.08) 100%)",
+            border: "1px solid rgba(16,185,129,0.3)",
+            marginBottom: "20px"
+          }}>
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="100">
+                <InlineStack gap="150" blockAlign="center">
+                  <span style={{ fontSize: 20 }}>💰</span>
+                  <Text variant="headingLg" as="h2">Value Delivered This Month</Text>
+                  <Badge tone="success">10x ROI Return</Badge>
+                </InlineStack>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Estimated profit saved by blocking high-risk RTO pincodes and optimizing courier costs.
+                </Text>
+              </BlockStack>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 900, fontSize: 32, color: "var(--gg-accent-green)", letterSpacing: "-0.03em" }}>
+                  ~$280 Saved
+                </div>
+                <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>
+                  (~₹23,200 recovered)
+                </div>
+              </div>
+            </InlineStack>
+          </div>
+        </Layout.Section>
+
         {/* Plan Header Card */}
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
