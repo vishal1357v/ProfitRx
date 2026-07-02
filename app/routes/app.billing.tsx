@@ -83,40 +83,34 @@ export default function BillingPage() {
   const progressTone = usedPercent > 90 ? "critical" : usedPercent > 70 ? "warning" : "success";
 
   // Detailed features list per plan
+  const normalizedPlan = (plan || "").toUpperCase();
   const planInfo = {
-    FREE: {
-      name: "Free Plan",
-      price: "$0/mo",
+    BASIC: {
+      name: "Basic Plan",
+      price: "$15/mo",
       color: "info",
-      includes: ["Up to 50 orders/mo", "Real Profit Dashboard", "Store Health Score", "Basic Alerts"],
-      lacks: ["COD Risk Score", "RTO Heatmap", "Weekly WhatsApp Report", "LTV & Cohort Analysis", "ROAS & Ad Spend"],
-    },
-    STARTER: {
-      name: "Starter Plan",
-      price: "$12/mo",
-      color: "info",
-      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "Basic COD/RTO Insights", "Weekly WhatsApp Report"],
-      lacks: ["COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend"],
-    },
-    GROWTH: {
-      name: "Growth Plan",
-      price: "$29/mo",
-      color: "attention",
-      includes: ["Up to 2,000 orders/mo", "COD Risk Score", "RTO Pincode Heatmap", "AI Profit Recommendations", "Advanced Alerts", "Priority Support"],
-      lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend", "Multi-store Support"],
+      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking (COGS)", "Basic RTO & COD Insights", "Weekly WhatsApp Report"],
+      lacks: ["COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
     },
     PRO: {
       name: "Pro Plan",
-      price: "$59/mo",
+      price: "$29/mo",
+      color: "attention",
+      includes: ["Up to 2,000 orders/mo", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "AI Profit Recommendations", "Advanced Email Alerts", "Priority Support"],
+      lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support"],
+    },
+    ADVANCE: {
+      name: "Advance Plan",
+      price: "$45/mo",
       color: "success",
-      includes: ["Unlimited orders/mo", "LTV & Cohort Analysis", "ROAS & Ad Spend", "RTO Pincode Heatmap", "COD Risk Scoring", "Multi-store Support", "Priority Support & Dedicated Onboarding"],
+      includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "RTO Pincode Heatmap", "COD Risk Scoring", "Multi-store Support", "Dedicated Onboarding Support"],
       lacks: [],
     },
-  }[plan.toUpperCase() as "FREE" | "STARTER" | "GROWTH" | "PRO"] || {
-    name: "Free Plan",
-    price: "$0/mo",
+  }[normalizedPlan as "BASIC" | "PRO" | "ADVANCE"] || {
+    name: "Basic Plan",
+    price: "$15/mo",
     color: "info",
-    includes: ["Up to 50 orders/mo", "Real Profit Dashboard", "Store Health Score", "Basic Alerts"],
+    includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "Basic RTO & COD Insights"],
     lacks: [],
   };
 

@@ -39,7 +39,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const subscription = await getSubscription(shop);
-  const isFreeTier = subscription?.plan === "FREE" && subscription?.status === "ACTIVE";
+  const isBasicTier = (subscription?.plan || "BASIC") === "BASIC" || (subscription?.plan || "") === "FREE" || (subscription?.plan || "") === "STARTER";
+  const planName = subscription?.plan === "ADVANCE" ? "Advance" : subscription?.plan === "PRO" ? "Pro" : "Basic";
   const ordersUsed = subscription?.ordersUsed || 0;
   const ordersLimit = subscription?.orderLimit || 50;
 
@@ -318,7 +319,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isColdStart,
     excludedOrdersCount,
     syncCapped: settings.syncCapped,
-    isFreeTier,
+    isBasicTier,
+    planName,
     ordersUsed,
     ordersLimit,
     configuredCogsCount,
@@ -898,18 +900,18 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
-        {/* Warning & Cold-Start Banners */}
-        {data.isFreeTier && (
+        {/* Warning & Plan Banners */}
+        {data.isBasicTier && (
           <Layout.Section>
             <Banner 
-              tone="warning" 
-              title={`You're on the Free plan — tracking ${data.ordersUsed}/${data.ordersLimit} orders`}
+              tone="info" 
+              title={`Basic Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 500} orders this month`}
               action={{
-                content: "Upgrade Plan",
+                content: "Upgrade to Pro",
                 url: `/app/pricing?shop=${data.shop}&host=${data.host}`,
               }}
             >
-              <p>ProfitRx is free forever up to 50 synced orders. Upgrade your plan to track more orders and unlock AI Channel Attribution, RTO Pincode Heatmaps, and COD Risk Scoring engines!</p>
+              <p>You are currently on the <strong>Basic Plan ($15/mo)</strong>. Upgrade to <strong>Pro ($29/mo)</strong> or <strong>Advance ($45/mo)</strong> to unlock COD Risk Scoring, Pincode RTO Heatmaps, and Cohort LTV Analytics!</p>
             </Banner>
           </Layout.Section>
         )}

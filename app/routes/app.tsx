@@ -63,45 +63,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Sync billing state from Shopify to local DB
-  const billingCheck = await billing.check({
-    plans: ["Starter", "Growth", "Pro"],
-    isTest: true,
-  });
-
-  const activeSubscription = billingCheck.appSubscriptions.find(
-    (sub) => sub.status === "ACTIVE"
-  );
-
-  if (activeSubscription) {
-    localSub = await prisma.subscription.upsert({
-      where: { shop: session.shop },
-      update: {
-        plan: activeSubscription.name.toUpperCase(),
-        status: "ACTIVE",
-        shopifyChargeId: activeSubscription.id,
-        orderLimit: activeSubscription.name === "Pro" ? null : activeSubscription.name === "Growth" ? 2000 : 500,
-      },
-      create: {
-        shop: session.shop,
-        plan: activeSubscription.name.toUpperCase(),
-        status: "ACTIVE",
-        shopifyChargeId: activeSubscription.id,
-        orderLimit: activeSubscription.name === "Pro" ? null : activeSubscription.name === "Growth" ? 2000 : 500,
-        ordersUsed: 0,
-      },
+  try {
+    const billingCheck = await billing.check({
+      plans: ["Basic", "Pro", "Advance"] as any,
+      isTest: true,
     });
-  } else {
-    // If they cancel their Shopify active plan but they are not on FREE, reset them to FREE
-    if (localSub.plan !== "FREE") {
-      localSub = await prisma.subscription.update({
+
+    const activeSubscription = billingCheck.appSubscriptions.find(
+      (sub) => sub.status === "ACTIVE"
+    );
+
+    if (activeSubscription) {
+      const upperName = activeSubscription.name.toUpperCase();
+      const orderLimit = upperName === "ADVANCE" ? null : upperName === "PRO" ? 2000 : 500;
+      localSub = await prisma.subscription.upsert({
         where: { shop: session.shop },
-        data: {
-          plan: "FREE",
+        update: {
+          plan: upperName,
           status: "ACTIVE",
-          orderLimit: 50,
+          shopifyChargeId: activeSubscription.id,
+          orderLimit,
+        },
+        create: {
+          shop: session.shop,
+          plan: upperName,
+          status: "ACTIVE",
+          shopifyChargeId: activeSubscription.id,
+          orderLimit,
+          ordersUsed: 0,
         },
       });
     }
+  } catch (err) {
+    // Graceful fallback for local dev & unlisted app state
   }
 
   const features = await getFeatureList(session.shop);

@@ -19,7 +19,7 @@ import prisma from "../db.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
   
-  let currentPlan = "Free";
+  let currentPlan = "Basic";
   
   const localSub = await prisma.subscription.findUnique({
     where: { shop: session.shop },
@@ -27,7 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (localSub?.plan) {
     const raw = localSub.plan.toUpperCase();
-    currentPlan = raw === "FREE" ? "Free" : raw === "STARTER" ? "Starter" : raw === "GROWTH" ? "Growth" : "Pro";
+    currentPlan = (raw === "ADVANCE" || raw === "PRO_ENTERPRISE") ? "Advance" : (raw === "PRO" || raw === "GROWTH") ? "Pro" : "Basic";
   }
 
   if (process.env.BYPASS_BILLING === "true") {
@@ -36,7 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     const subscriptionResponse = await billing.check({
-      plans: ["Starter", "Growth", "Pro"],
+      plans: ["Basic", "Pro", "Advance"] as any,
       isTest: true,
     });
 
@@ -54,7 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { currentPlan, shop: session.shop };
 };
 
-type BillingPlan = "Free" | "Starter" | "Growth" | "Pro";
+type BillingPlan = "Basic" | "Pro" | "Advance";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -63,25 +63,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const plan = formData.get("plan") as BillingPlan;
 
-  if (!["Free", "Starter", "Growth", "Pro"].includes(plan)) {
+  if (!["Basic", "Pro", "Advance"].includes(plan)) {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
-  const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : plan === "Starter" ? 500 : 50;
+  const orderLimit = plan === "Advance" ? null : plan === "Pro" ? 2000 : 500;
+  const dbPlan = plan.toUpperCase();
 
-  if (plan === "Free" || isBypass) {
+  if (isBypass) {
     await prisma.subscription.upsert({
       where: { shop: session.shop },
-      update: { plan: plan.toUpperCase(), status: "ACTIVE", orderLimit },
-      create: { shop: session.shop, plan: plan.toUpperCase(), status: "ACTIVE", orderLimit, ordersUsed: 0 },
+      update: { plan: dbPlan, status: "ACTIVE", orderLimit },
+      create: { shop: session.shop, plan: dbPlan, status: "ACTIVE", orderLimit, ordersUsed: 0 },
     });
     return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
 
   try {
     return await billing.request({
-      plan: plan as "Starter" | "Growth" | "Pro",
+      plan: plan as any,
       isTest: true,
     });
   } catch (error: any) {
@@ -93,8 +94,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Fallback to local DB update for dev mode / non-public distribution apps
     await prisma.subscription.upsert({
       where: { shop: session.shop },
-      update: { plan: plan.toUpperCase(), status: "ACTIVE", orderLimit },
-      create: { shop: session.shop, plan: plan.toUpperCase(), status: "ACTIVE", orderLimit, ordersUsed: 0 },
+      update: { plan: dbPlan, status: "ACTIVE", orderLimit },
+      create: { shop: session.shop, plan: dbPlan, status: "ACTIVE", orderLimit, ordersUsed: 0 },
     });
     return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
@@ -106,57 +107,48 @@ export default function Pricing() {
 
   const plans = [
     {
-      name: "Free",
-      price: "$0",
-      description: "New stores",
-      tagline: "Perfect for new stores starting out.",
-      features: [
-        "Up to 50 orders/month",
-        "Real Profit Dashboard",
-        "Store Health Score",
-        "Basic alerts",
-      ],
-    },
-    {
-      name: "Starter",
-      price: "$12",
+      name: "Basic",
+      price: "$15",
       description: "Small stores",
-      tagline: "Perfect for stores starting to track real profits.",
+      tagline: "Essential profit tracking and product cost management.",
       features: [
-        "Up to 500 orders",
-        "Profit calculations",
-        "Product cost tracking",
-        "Basic COD/RTO insights",
-        "Weekly WhatsApp report",
+        "Up to 500 orders / month",
+        "True Profit Dashboard",
+        "Store Health Score",
+        "Product cost tracking (COGS)",
+        "Basic RTO & COD insights",
+        "Weekly WhatsApp report digest",
       ],
     },
     {
-      name: "Growth",
+      name: "Pro",
       price: "$29",
-      description: "Growing stores",
-      tagline: "Best for stores losing money to COD & RTO.",
+      description: "Growing stores ⭐ Most Popular",
+      tagline: "Pincode-level logistics intelligence & pre-shipment risk detection.",
       features: [
-        "Up to 2,000 orders",
-        "COD Risk Score",
-        "High-Risk COD Areas",
-        "AI Profit Recommendations",
-        "Advanced alerts",
+        "Up to 2,000 orders / month",
+        "Everything in Basic",
+        "COD Risk Score (Pre-shipment prediction)",
+        "Pincode RTO Heatmap",
+        "AI Profit Leak Recommendations",
+        "Advanced email & system alerts",
         "Priority support",
       ],
       popular: true,
     },
     {
-      name: "Pro",
-      price: "$59",
+      name: "Advance",
+      price: "$45",
       description: "Established brands",
-      tagline: "Built for high-volume brand scaling.",
+      tagline: "Full enterprise intelligence suite with unlimited order sync.",
       features: [
-        "Unlimited orders",
-        "LTV & Cohort Analysis",
-        "ROAS & Ad Spend",
+        "Unlimited orders / month",
+        "Everything in Pro",
+        "LTV & Cohort Retention Analysis",
+        "Blended ROAS & Ad Spend Sync",
         "Multi-store support",
-        "Beta features",
-        "Dedicated onboarding",
+        "Predictive AI Margins",
+        "Dedicated onboarding support",
       ],
     },
   ];
@@ -175,18 +167,18 @@ export default function Pricing() {
         <Layout.Section>
           <div style={{ marginBottom: "20px", textAlign: "center" }}>
             <Text variant="headingLg" as="h1">
-              Select Your Plan
+              Select Your Subscription Plan
             </Text>
             <div style={{ marginTop: "8px" }}>
               <Text variant="bodyMd" as="p" tone="subdued" fontWeight="medium">
-                💡 Try any paid plan free for 14 days. No credit card required.
+                💡 Try any plan risk-free for 14 days. Instant setup, cancel anytime.
               </Text>
             </div>
           </div>
         </Layout.Section>
 
         <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 4, md: 4, lg: 4 }}>
+          <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
             {plans.map((plan) => (
               <Grid.Cell key={plan.name}>
                 <Card>
@@ -228,7 +220,7 @@ export default function Pricing() {
                         fullWidth
                         disabled={currentPlan === plan.name}
                       >
-                        {currentPlan === plan.name ? "Current Plan" : plan.name === "Free" ? "Downgrade to Free" : "Select Plan"}
+                        {currentPlan === plan.name ? "Current Plan" : "Choose " + plan.name + " Plan"}
                       </Button>
                     </Form>
 
