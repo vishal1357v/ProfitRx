@@ -197,10 +197,14 @@ export class ShopifyService {
 
     const isSyncCapped = hasNextPage && pageCount >= maxPages;
     if (shop) {
-      await (prisma as any).storeSettings.updateMany({
-        where: { shop },
-        data: { syncCapped: isSyncCapped }
-      });
+      try {
+        await (prisma as any).storeSettings.updateMany({
+          where: { shop },
+          data: { syncCapped: isSyncCapped }
+        });
+      } catch (err: any) {
+        console.warn(`[ShopifyService.getOrders] Failed to update syncCapped status: ${err.message}`);
+      }
     }
 
     return allOrders;
