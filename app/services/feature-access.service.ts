@@ -74,6 +74,9 @@ export async function getSubscription(shop: string) {
 }
 
 export async function canAccessFeature(shop: string, feature: string): Promise<boolean> {
+  if (process.env.BYPASS_BILLING === "true") {
+    return true;
+  }
   const sub = await getSubscription(shop);
   if (!sub || sub.status !== "ACTIVE") {
     return false;
@@ -82,6 +85,9 @@ export async function canAccessFeature(shop: string, feature: string): Promise<b
 }
 
 export async function getFeatureList(shop: string): Promise<string[]> {
+  if (process.env.BYPASS_BILLING === "true") {
+    return PLAN_FEATURES.PRO;
+  }
   const sub = await getSubscription(shop);
   if (!sub || sub.status !== "ACTIVE") {
     return [];

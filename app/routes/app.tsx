@@ -48,9 +48,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  const isFreePlan = localSub.plan === "FREE" && localSub.status === "ACTIVE";
+  const isBypass = process.env.BYPASS_BILLING === "true";
 
-  // Require billing only if they are not on the FREE plan and not on the pricing page
+  if (isBypass) {
+    localSub = await prisma.subscription.upsert({
+      where: { shop: session.shop },
+      update: { plan: "PRO", status: "ACTIVE", orderLimit: null },
+      create: { shop: session.shop, plan: "PRO", status: "ACTIVE", orderLimit: null, ordersUsed: 0 },
+    });
+  }
+
+  const isFreePlan = (localSub.plan === "FREE" && localSub.status === "ACTIVE") || isBypass;
+
+  // Require billing only if they are not on the FREE plan, not bypassing, and not on the pricing page
   if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
     await billing.require({
       plans: ["Starter", "Growth", "Pro"],
