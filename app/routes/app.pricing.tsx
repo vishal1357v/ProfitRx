@@ -79,7 +79,7 @@ export default function Pricing() {
   const plans = [
     {
       name: "Free",
-      price: "₹0 ($0)",
+      price: "$0",
       description: "New stores",
       tagline: "Perfect for new stores starting out.",
       features: [
@@ -91,7 +91,7 @@ export default function Pricing() {
     },
     {
       name: "Starter",
-      price: "₹999 ($12)",
+      price: "$12",
       description: "Small stores",
       tagline: "Perfect for stores starting to track real profits.",
       features: [
@@ -104,7 +104,7 @@ export default function Pricing() {
     },
     {
       name: "Growth",
-      price: "₹2,499 ($29)",
+      price: "$29",
       description: "Growing stores",
       tagline: "Best for stores losing money to COD & RTO.",
       features: [
@@ -119,9 +119,9 @@ export default function Pricing() {
     },
     {
       name: "Pro",
-      price: "₹4,999 ($59)",
+      price: "$59",
       description: "Established brands",
-      tagline: "Built for brands scaling beyond ₹20L/month.",
+      tagline: "Built for high-volume brand scaling.",
       features: [
         "Unlimited orders",
         "LTV & Cohort Analysis",
