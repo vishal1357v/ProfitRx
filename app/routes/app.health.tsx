@@ -79,7 +79,7 @@ export default function ProfitHealthRoute() {
               <Divider />
 
               <BlockStack gap="200">
-                <Text variant="headingMd" as="h2">📊 Greek God Profit Health Assessment</Text>
+                <Text variant="headingMd" as="h2">📊 ProfitRx Profit Health Assessment</Text>
                 <p style={{
                   fontSize: 16,
                   color: "var(--gg-text-primary)",

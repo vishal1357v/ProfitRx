@@ -47,12 +47,12 @@ export class AlertService {
     try {
       const resend = new Resend(resendApiKey);
       const emailResponse = await resend.emails.send({
-        from: "Greek God SaaS <alerts@greek-god.saas>", // If not using custom domain, Resend onboarding uses onboarding@resend.dev but requires verified domains for custom addresses. Standard default fallback:
+        from: "ProfitRx <alerts@profitrx.app>",
         to: settings.alertEmail,
-        subject: `[${severity}] Greek God Alert: ${message.slice(0, 50)}`,
+        subject: `[${severity}] ProfitRx Alert: ${message.slice(0, 50)}`,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px; max-width: 600px;">
-            <h2 style="color: #d9534f;">Greek God Alert</h2>
+            <h2 style="color: #d9534f;">ProfitRx Alert</h2>
             <p>We detected a metrics issue on your shop: <strong>${shop}</strong></p>
             <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
             <table style="width: 100%;">
@@ -70,7 +70,7 @@ export class AlertService {
               </tr>
             </table>
             <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #777;">Please log in to your Shopify store admin and open Greek God SaaS to review your dashboard metrics.</p>
+            <p style="font-size: 12px; color: #777;">Please log in to your Shopify store admin and open ProfitRx to review your dashboard metrics.</p>
           </div>
         `,
       });

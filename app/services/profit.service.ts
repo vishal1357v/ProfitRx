@@ -29,7 +29,7 @@ export class ProfitService {
   static getSettings(settings: any) {
     return {
       defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
-      defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
+      defaultForwardShipping: settings?.defaultForwardShipping ?? 90,
       defaultReturnShipping: settings?.defaultReturnShipping ?? 70,
       defaultCODHandling: settings?.defaultCODHandling ?? 40,
       defaultPackaging: settings?.defaultPackaging ?? 10,

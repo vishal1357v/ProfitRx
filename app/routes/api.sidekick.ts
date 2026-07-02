@@ -152,7 +152,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   // 4. Default summary fallback
   else {
-    responseText = `Greek God SaaS Store Summary: Net profit is ₹${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })} (Margin: ${margin.toFixed(1)}%) on ₹${revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} revenue. Return to Origin (RTO) rate is ${rtoRate.toFixed(1)}%. AI Readiness is rated at ${aiReadinessScore}/100.`;
+    responseText = `ProfitRx Store Summary: Net profit is ₹${profit.toLocaleString(undefined, { maximumFractionDigits: 0 })} (Margin: ${margin.toFixed(1)}%) on ₹${revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} revenue. Return to Origin (RTO) rate is ${rtoRate.toFixed(1)}%. AI Readiness is rated at ${aiReadinessScore}/100.`;
   }
 
   return {

@@ -188,7 +188,7 @@ export default function ROASRoute() {
                 <Text variant="bodyMd" as="p">
                   Your platform-reported ROAS is <strong>{platformROAS}x</strong> — but your{" "}
                   <strong style={{ color: "var(--gg-accent-amber)" }}>true blended ROAS is {roas.blendedROAS}x</strong>.
-                  Ad platforms over-attribute conversions. Greek God uses real Shopify revenue.
+                  Ad platforms over-attribute conversions. ProfitRx uses real Shopify revenue.
                 </Text>
               </InlineStack>
             </div>

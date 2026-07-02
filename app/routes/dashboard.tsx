@@ -871,7 +871,7 @@ export default function DashboardRoute() {
 
   return (
     <Page
-      title={`Greek God — ${data.shop?.replace(".myshopify.com", "") || "Store"}`}
+      title={`ProfitRx — ${data.shop?.replace(".myshopify.com", "") || "Store"}`}
       primaryAction={
         <Button variant="primary" onClick={handleSyncOrders} loading={syncing} id="sync-orders-btn">
           ⟳ Sync Orders
@@ -909,7 +909,7 @@ export default function DashboardRoute() {
                 url: `/app/pricing?shop=${data.shop}&host=${data.host}`,
               }}
             >
-              <p>Greek God is free forever up to 50 synced orders. Upgrade your plan to track more orders and unlock AI Channel Attribution, RTO Pincode Heatmaps, and COD Risk Scoring engines!</p>
+              <p>ProfitRx is free forever up to 50 synced orders. Upgrade your plan to track more orders and unlock AI Channel Attribution, RTO Pincode Heatmaps, and COD Risk Scoring engines!</p>
             </Banner>
           </Layout.Section>
         )}
@@ -963,7 +963,7 @@ export default function DashboardRoute() {
                       </Text>
                     </div>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Complete these steps to unlock the full Greek God AI commerce advantage.
+                      Complete these steps to unlock the full ProfitRx AI commerce advantage.
                     </Text>
                   </BlockStack>
                   <Button variant="plain" onClick={() => setWizardDismissed(true)}>
@@ -1201,7 +1201,7 @@ export default function DashboardRoute() {
                               position: "relative",
                               color: "#303030"
                             }}>
-                              <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> GREEK GOD PROFIT DIGEST</div>
+                              <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
                               <div>📅 <strong>Monday Morning Summary:</strong></div>
                               <div style={{ marginBlock: "6px" }}>
                                 • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
@@ -1753,7 +1753,7 @@ export default function DashboardRoute() {
 
                           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
                             {[
-                              { color: "#7c3aed", label: "Greek God" },
+                              { color: "#7c3aed", label: "ProfitRx" },
                               { color: "rgba(148,163,184,0.5)", label: "Competitor 1" },
                               { color: "rgba(148,163,184,0.2)", label: "Competitor 2" },
                             ].map((l) => (

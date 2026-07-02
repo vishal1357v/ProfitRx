@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "08f8a7442c2182a3a390f753591c06f3"
-name = "Greek God Saas"
+name = "ProfitRx — RTO & Profit Intelligence"
 application_url = "https://greek-god-saas.vercel.app"
 embedded = true
 

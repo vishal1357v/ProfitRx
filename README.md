@@ -1,18 +1,16 @@
-# 🏛️ Greek God — Profit Intelligence for Shopify
+# ⚡ ProfitRx — RTO & Profit Intelligence for Shopify
 
-
-
-Greek God is a **Profit Intelligence Platform** built specifically for Indian D2C Shopify merchants. It auto-syncs with your Shopify store to reveal your **true profit**, track **AI channel attribution**, and plug **profit leaks** like RTO losses—all in one dashboard.
+ProfitRx is an **Actionable Profit & RTO Shield Platform** built for high-volume Shopify merchants. It auto-syncs with your Shopify store to reveal your **true profit**, track **pincode-level RTO risk**, and provide an **actionable to-do list** to stop profit leaks in 1 click.
 
 ---
 
-## 🚀 The Problem it Solve
+## 🚀 The Problem It Solves
 
-| Problem | Greek God Solution |
+| Problem | ProfitRx Solution |
 | :--- | :--- |
 | "I don't know my real profit" | True Profit calculation with COGS tracking |
-| "Which AI channel makes me money?" | AI Attribution (ChatGPT, Gemini, Copilot) |
-| "I'm losing ₹20,000/month to RTO" | Pincode-level RTO Heatmap + COD Risk Score |
+| "Which marketing channels work?" | AI Marketing Insights (ChatGPT, Gemini, Copilot) |
+| "I'm losing money to RTO" | Pincode-level RTO Heatmap + Pre-Shipment COD Risk Score |
 | "Where is money leaking?" | Profit Leak Detector (RTO, Shipping, Discounts, COD) |
 | "Do my customers come back?" | LTV/Cohort Retention |
 | "Meta says 4x ROAS but I'm not profitable" | Blended ROAS / True CAC |

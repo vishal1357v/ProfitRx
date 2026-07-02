@@ -11,7 +11,7 @@ import prisma from "./db.server";
 // Startup guard — fail fast if critical env vars are missing
 if (!process.env.SHOPIFY_API_KEY || !process.env.SHOPIFY_API_SECRET || !process.env.SHOPIFY_APP_URL) {
   throw new Error(
-    `[Greek God SaaS] Missing required environment variables. ` +
+    `[ProfitRx] Missing required environment variables. ` +
     `SHOPIFY_API_KEY=${process.env.SHOPIFY_API_KEY ? 'SET' : 'MISSING'}, ` +
     `SHOPIFY_API_SECRET=${process.env.SHOPIFY_API_SECRET ? 'SET' : 'MISSING'}, ` +
     `SHOPIFY_APP_URL=${process.env.SHOPIFY_APP_URL || 'MISSING'}. ` +

@@ -140,7 +140,7 @@ export default function App() {
   const searchStr = `?${searchParams.toString()}`;
 
   useEffect(() => {
-    const saved = localStorage.getItem("greek-god-dark-mode") === "true";
+    const saved = localStorage.getItem("profitrx-dark-mode") === "true";
     setDarkMode(saved);
     if (saved) {
       document.body.classList.add("dark-theme");
@@ -152,7 +152,7 @@ export default function App() {
   const toggleDarkMode = () => {
     const nextMode = !darkMode;
     setDarkMode(nextMode);
-    localStorage.setItem("greek-god-dark-mode", String(nextMode));
+    localStorage.setItem("profitrx-dark-mode", String(nextMode));
     if (nextMode) {
       document.body.classList.add("dark-theme");
     } else {
@@ -188,7 +188,7 @@ export default function App() {
             backgroundClip: "text",
             letterSpacing: "-0.02em",
           }}>
-            Greek God
+            ProfitRx
           </span>
         </div>
 
