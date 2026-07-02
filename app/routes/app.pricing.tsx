@@ -25,8 +25,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: { shop: session.shop },
   });
 
+  if (localSub?.plan) {
+    const raw = localSub.plan.toUpperCase();
+    currentPlan = raw === "FREE" ? "Free" : raw === "STARTER" ? "Starter" : raw === "GROWTH" ? "Growth" : "Pro";
+  }
+
   if (process.env.BYPASS_BILLING === "true") {
-    currentPlan = localSub?.plan ? (localSub.plan.charAt(0) + localSub.plan.slice(1).toLowerCase()) : "Pro";
     return { currentPlan, shop: session.shop };
   }
 
@@ -42,19 +46,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (activePlan) {
       currentPlan = activePlan;
-    } else if (localSub?.plan) {
-      currentPlan = localSub.plan.charAt(0) + localSub.plan.slice(1).toLowerCase();
     }
   } catch (err) {
-    if (localSub?.plan) {
-      currentPlan = localSub.plan.charAt(0) + localSub.plan.slice(1).toLowerCase();
-    }
+    // Rely on local database state
   }
 
   return { currentPlan, shop: session.shop };
 };
 
-type BillingPlan = "Starter" | "Growth" | "Pro";
+type BillingPlan = "Free" | "Starter" | "Growth" | "Pro";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -63,25 +63,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const plan = formData.get("plan") as BillingPlan;
 
-  if (!["Starter", "Growth", "Pro"].includes(plan)) {
+  if (!["Free", "Starter", "Growth", "Pro"].includes(plan)) {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
+  const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : plan === "Starter" ? 500 : 50;
 
-  if (isBypass) {
-    const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : 500;
+  if (plan === "Free" || isBypass) {
     await prisma.subscription.upsert({
       where: { shop: session.shop },
       update: { plan: plan.toUpperCase(), status: "ACTIVE", orderLimit },
       create: { shop: session.shop, plan: plan.toUpperCase(), status: "ACTIVE", orderLimit, ordersUsed: 0 },
     });
-    return redirect(`/app/dashboard?shop=${session.shop}&host=${host}&plan_updated=true`);
+    return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
 
   try {
     return await billing.request({
-      plan,
+      plan: plan as "Starter" | "Growth" | "Pro",
       isTest: true,
     });
   } catch (error: any) {
@@ -90,14 +90,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw error;
     }
     
-    // Fallback if app lacks public distribution in development
-    const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : 500;
+    // Fallback to local DB update for dev mode / non-public distribution apps
     await prisma.subscription.upsert({
       where: { shop: session.shop },
       update: { plan: plan.toUpperCase(), status: "ACTIVE", orderLimit },
       create: { shop: session.shop, plan: plan.toUpperCase(), status: "ACTIVE", orderLimit, ordersUsed: 0 },
     });
-    return redirect(`/app/dashboard?shop=${session.shop}&host=${host}&plan_updated=true`);
+    return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
 };
 
@@ -221,26 +220,17 @@ export default function Pricing() {
                       </Text>
                     </div>
 
-                    {plan.name === "Free" ? (
+                    <Form method="POST">
+                      <input type="hidden" name="plan" value={plan.name} />
                       <Button
-                        disabled={currentPlan === "Free"}
+                        variant={plan.name === currentPlan ? undefined : plan.popular ? "primary" : undefined}
+                        submit
                         fullWidth
+                        disabled={currentPlan === plan.name}
                       >
-                        {currentPlan === "Free" ? "Current Plan" : "Downgrade in Shopify"}
+                        {currentPlan === plan.name ? "Current Plan" : plan.name === "Free" ? "Downgrade to Free" : "Select Plan"}
                       </Button>
-                    ) : (
-                      <Form method="POST">
-                        <input type="hidden" name="plan" value={plan.name} />
-                        <Button
-                          variant={plan.popular ? "primary" : undefined}
-                          submit
-                          fullWidth
-                          disabled={currentPlan === plan.name}
-                        >
-                          {currentPlan === plan.name ? "Current Plan" : "Start Free Trial"}
-                        </Button>
-                      </Form>
-                    )}
+                    </Form>
 
                     <BlockStack gap="200">
                       <Text variant="headingSm" as="h4">

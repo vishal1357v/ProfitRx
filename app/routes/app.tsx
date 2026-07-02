@@ -49,15 +49,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
-
-  if (isBypass) {
-    localSub = await prisma.subscription.upsert({
-      where: { shop: session.shop },
-      update: { plan: "PRO", status: "ACTIVE", orderLimit: null },
-      create: { shop: session.shop, plan: "PRO", status: "ACTIVE", orderLimit: null, ordersUsed: 0 },
-    });
-  }
-
   const isFreePlan = (localSub.plan === "FREE" && localSub.status === "ACTIVE") || isBypass;
 
   // Require billing only if they are not on the FREE plan, not bypassing, and not on the pricing page
