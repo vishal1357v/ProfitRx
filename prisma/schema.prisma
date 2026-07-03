@@ -314,6 +314,8 @@ model StoreSettings {
   defaultGatewayFeePct   Float    @default(2)
   rtoDetectionPattern    String   @default("rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender")
   alertEmail             String?
+  whatsappPhone          String?
+  whatsappEnabled        Boolean  @default(false)
   rtoThreshold           Float    @default(10)
   marginThreshold        Float    @default(15)
   syncCapped             Boolean  @default(false)
