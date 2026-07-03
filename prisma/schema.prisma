@@ -74,14 +74,21 @@ model Order {
 }
 
 // ============================================
+// ============================================
 // PRODUCT COGS - Cost of Goods Sold per product
 // ============================================
 model ProductCOGS {
-  id        String   @id @default(cuid())
-  shop      String
-  productId String
-  cogs      Float    // Cost of Goods Sold in ₹
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  shop            String
+  productId       String
+  variantId       String?
+  cost            Float?   // Effective COGS
+  source          String   @default("manual_override") // "shopify_native" | "manual_override"
+  manualOverride  Float?
+  shopifyNative   Float?
+  cogs            Float    @default(0) // Legacy compatibility field
+  lastSyncedAt    DateTime?
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@unique([shop, productId])
   @@index([shop, productId])
@@ -178,21 +185,45 @@ model CustomerProfile {
 }
 
 // ============================================
-// AD SPEND - Manual ad spend input (ROAS fallback)
+// AD SPEND - Connected Platform OAuth & Manual Ad Spend
 // ============================================
 model AdSpend {
-  id         String   @id @default(cuid())
-  shop       String
-  month      String   // "2025-01" format
-  channel    String   // "Meta", "Google", "Influencer", "Other"
-  amount     Float    // Total spend in ₹
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  shop            String
+  platform        String   // "meta" | "google" | "tiktok" | "manual"
+  accountId       String?
+  accessToken     String?  // Encrypted token
+  refreshToken    String?  // Encrypted refresh token
+  tokenExpiresAt  DateTime?
+  lastSyncedAt    DateTime?
+  isConnected     Boolean  @default(false)
+  month           String?  // Legacy manual entry month format "2025-01"
+  channel         String?  // Legacy manual channel
+  amount          Float?   // Legacy manual spend amount in ₹
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  @@unique([shop, month, channel])
+  @@unique([shop, platform])
   @@index([shop])
-  @@index([shop, month])
   @@map("ad_spend")
+}
+
+// ============================================
+// AD SPEND DAILY - Auto-synced daily ad spend tracking
+// ============================================
+model AdSpendDaily {
+  id              String   @id @default(cuid())
+  shop            String
+  platform        String
+  date            DateTime
+  spend           Float
+  clicks          Int?
+  impressions     Int?
+  createdAt       DateTime @default(now())
+
+  @@unique([shop, platform, date])
+  @@index([shop, date])
+  @@map("ad_spend_daily")
 }
 
 // ============================================

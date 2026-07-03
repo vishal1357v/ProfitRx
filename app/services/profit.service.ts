@@ -81,7 +81,10 @@ export class ProfitService {
 
     const cogsMap = new Map<string, number>();
     cogsRecords.forEach((record: any) => {
-      cogsMap.set(record.productId, record.cogs);
+      const effectiveCost = record.manualOverride ?? record.shopifyNative ?? record.cost ?? (record.cogs > 0 ? record.cogs : undefined);
+      if (effectiveCost !== undefined && effectiveCost !== null) {
+        cogsMap.set(record.productId, effectiveCost);
+      }
     });
 
     // Fetch logistics settings defaults
@@ -138,17 +141,20 @@ export class ProfitService {
   }
 
   /**
-   * Save COGS for a product
+   * Save COGS for a product (as manual override)
    */
   static async saveCOGS(shop: string, productId: string, cogs: number) {
-    logInfo(`[ProfitService.saveCOGS] Saving COGS: shop=${shop}, productId=${productId}, cogs=${cogs}`);
+    logInfo(`[ProfitService.saveCOGS] Saving manual COGS: shop=${shop}, productId=${productId}, cogs=${cogs}`);
     if (cogs < 0) throw new Error('COGS cannot be negative');
 
     const id = `${shop}_${productId}`;
 
     const record = await prisma.productCOGS.upsert({
-      where: { id },
+      where: { shop_productId: { shop, productId } },
       update: {
+        cost: cogs,
+        manualOverride: cogs,
+        source: "manual_override",
         cogs,
         updatedAt: new Date(),
       },
@@ -156,16 +162,19 @@ export class ProfitService {
         id,
         shop,
         productId,
+        cost: cogs,
+        manualOverride: cogs,
+        source: "manual_override",
         cogs,
         updatedAt: new Date(),
       },
     });
-    logInfo(`[ProfitService.saveCOGS] Successfully saved COGS: id=${record.id}, cogs=${record.cogs}`);
+    logInfo(`[ProfitService.saveCOGS] Successfully saved manual COGS: id=${record.id}, cogs=${record.cost}`);
     return record;
   }
 
   /**
-   * Get all COGS for a store
+   * Get all COGS for a store (resolving manualOverride > shopifyNative > cost)
    */
   static async getCOGS(shop: string) {
     logDev(`[ProfitService.getCOGS] Fetching all COGS mappings for shop: ${shop}`);
@@ -174,9 +183,12 @@ export class ProfitService {
     });
     const map: Record<string, number> = {};
     records.forEach((r: any) => {
-      map[r.productId] = r.cogs;
+      const effective = r.manualOverride ?? r.shopifyNative ?? r.cost ?? (r.cogs > 0 ? r.cogs : undefined);
+      if (effective !== undefined && effective !== null) {
+        map[r.productId] = effective;
+      }
     });
-    logDev(`[ProfitService.getCOGS] Mapped ${records.length} COGS records`);
+    logDev(`[ProfitService.getCOGS] Mapped ${Object.keys(map).length} active COGS records`);
     return map;
   }
 

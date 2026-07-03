@@ -304,15 +304,21 @@ export class ProfitIntelligenceService {
   }
 
   // ── Blended ROAS ──────────────────────────────────────────
+  // ── Blended ROAS ──────────────────────────────────────────
   static async getROAS(shop: string): Promise<ROASData> {
     const orders = await prisma.order.findMany({ where: { shop } });
-    const adSpends = await (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { month: "desc" }, take: 12 });
+    const adSpends = await (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { updatedAt: "desc" }, take: 24 });
+    const dailySpends = await (prisma as any).adSpendDaily.findMany({ where: { shop } });
 
     const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
     const settings = ProfitService.getSettings(rawSettings);
 
     const totalRevenue = orders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-    const totalAdSpend = adSpends.reduce((s: number, a: any) => s + a.amount, 0);
+
+    const manualSpendTotal = adSpends.reduce((s: number, a: any) => s + (a.amount || 0), 0);
+    const autoDailySpendTotal = dailySpends.reduce((s: number, d: any) => s + (d.spend || 0), 0);
+    const totalAdSpend = manualSpendTotal + autoDailySpendTotal;
+
     const blendedROAS = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
 
     // Customer count for CAC
@@ -320,9 +326,7 @@ export class ProfitIntelligenceService {
     const trueCACRaw = uniqueCustomers > 0 && totalAdSpend > 0 ? totalAdSpend / uniqueCustomers : 0;
 
     // Profit-adjusted using actual order-by-order profit (with COGS + fees + gateway % + COD handling)
-    const cogsMap = await prisma.productCOGS.findMany({ where: { shop } });
-    const cogsDict: Record<string, number> = {};
-    cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
+    const cogsDict = await ProfitService.getCOGS(shop);
 
     let totalProfit = 0;
     let profitOrdersCount = 0;
@@ -341,8 +345,14 @@ export class ProfitIntelligenceService {
     // By channel
     const byChannelMap: Record<string, { spend: number; revenue: number }> = {};
     for (const a of adSpends) {
-      if (!byChannelMap[a.channel]) byChannelMap[a.channel] = { spend: 0, revenue: 0 };
-      byChannelMap[a.channel].spend += a.amount;
+      const ch = a.channel || (a.platform === "meta" ? "Meta" : a.platform === "google" ? "Google" : a.platform === "tiktok" ? "TikTok" : a.platform) || "Other";
+      if (!byChannelMap[ch]) byChannelMap[ch] = { spend: 0, revenue: 0 };
+      byChannelMap[ch].spend += a.amount || 0;
+    }
+    for (const d of dailySpends) {
+      const ch = d.platform === "meta" ? "Meta" : d.platform === "google" ? "Google" : d.platform === "tiktok" ? "TikTok" : d.platform;
+      if (!byChannelMap[ch]) byChannelMap[ch] = { spend: 0, revenue: 0 };
+      byChannelMap[ch].spend += d.spend || 0;
     }
     // Map revenue by channel from orders
     for (const o of orders) {

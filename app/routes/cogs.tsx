@@ -64,11 +64,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: { shop },
     orderBy: { updatedAt: "desc" },
   });
-  const lastUpdated = latestRecord ? latestRecord.updatedAt.toLocaleString() : "Never";
+  const lastUpdated = latestRecord?.lastSyncedAt
+    ? latestRecord.lastSyncedAt.toLocaleString()
+    : latestRecord
+    ? latestRecord.updatedAt.toLocaleString()
+    : "Never";
 
   return {
     products,
-    cogs: cogsRecords.map((r: any) => ({ productId: r.productId, cogs: r.cogs })),
+    cogsRecords: cogsRecords.map((r: any) => ({
+      productId: r.productId,
+      cost: r.cost ?? r.cogs,
+      shopifyNative: r.shopifyNative,
+      manualOverride: r.manualOverride,
+      source: r.source || (r.manualOverride ? "manual_override" : "shopify_native"),
+      lastSyncedAt: r.lastSyncedAt ? new Date(r.lastSyncedAt).toLocaleString() : null,
+    })),
     defaultCOGSPct: settings.defaultCOGSPct,
     lastUpdated,
   };
@@ -80,6 +91,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
+  if (intent === "sync_native_cogs") {
+    const result = await ShopifyService.syncNativeCOGS(request);
+    return Response.json({ success: true, ...result });
+  }
+
   if (intent === "save_cogs") {
     const cogsDataStr = formData.get("cogsData") as string;
     const cogsData = JSON.parse(cogsDataStr) as Record<string, number>;
@@ -88,9 +104,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (typeof cogs !== "number" || cogs < 0) continue;
       const id = `${shop}_${productId}`;
       await prisma.productCOGS.upsert({
-        where: { id },
-        update: { cogs, updatedAt: new Date() },
-        create: { id, shop, productId, cogs, updatedAt: new Date() },
+        where: { shop_productId: { shop, productId } },
+        update: {
+          cost: cogs,
+          manualOverride: cogs,
+          source: "manual_override",
+          cogs,
+          updatedAt: new Date(),
+        },
+        create: {
+          id,
+          shop,
+          productId,
+          cost: cogs,
+          manualOverride: cogs,
+          source: "manual_override",
+          cogs,
+          updatedAt: new Date(),
+        },
       });
     }
     return Response.json({ success: true });
@@ -142,16 +173,24 @@ function CogsInput({ productId, initialValue, onChange }: CogsInputProps) {
 }
 
 export default function COGSPage() {
-  const { products, cogs, defaultCOGSPct, lastUpdated } = useLoaderData<typeof loader>();
+  const { products, cogsRecords, defaultCOGSPct, lastUpdated } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
+  // Map cogsRecords by productId
+  const cogsRecordMap = new Map<string, any>();
+  cogsRecords.forEach((r: any) => cogsRecordMap.set(r.productId, r));
+
   // State
   const [cogsValues, setCogsValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    cogs.forEach((item: any) => {
-      initial[item.productId] = item.cogs.toString();
+    cogsRecords.forEach((item: any) => {
+      if (item.manualOverride != null) {
+        initial[item.productId] = item.manualOverride.toString();
+      } else if (item.cost != null) {
+        initial[item.productId] = item.cost.toString();
+      }
     });
     return initial;
   });
@@ -167,6 +206,13 @@ export default function COGSPage() {
       ...current,
       [productId]: value,
     }));
+  };
+
+  const handleSyncNativeCosts = () => {
+    setError(null);
+    const fd = new FormData();
+    fd.append("intent", "sync_native_cogs");
+    submit(fd, { method: "POST" });
   };
 
   const handleSaveCosts = () => {
@@ -214,115 +260,85 @@ export default function COGSPage() {
     setCsvMessage(null);
     setError(null);
     const file = event.target.files?.[0];
-    if (!file) {
-      console.warn("[COGS CSV Import] No file selected.");
-      return;
-    }
+    if (!file) return;
 
-    // Limit size to 5MB max
     if (file.size > 5 * 1024 * 1024) {
-      setError("File size exceeds 5MB limit. Please upload a smaller CSV.");
+      setError("File size exceeds 5MB limit.");
       return;
     }
 
-    console.log(`[COGS CSV Import] Starting parsing for file: ${file.name}, size: ${file.size} bytes`);
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
-      if (!text) {
-        console.error("[COGS CSV Import] File read result was empty.");
-        setError("Empty CSV file.");
-        return;
-      }
+      if (!text) return;
 
       const lines = text.split(/\r?\n/);
-      console.log(`[COGS CSV Import] Found ${lines.length} lines in file (including headers and empty rows).`);
-      
       const newCogs = { ...cogsValues };
       let updatedCount = 0;
-      let skippedCount = 0;
 
       lines.forEach((line, index) => {
-        const trimmedLine = line.trim();
-        if (index === 0) {
-          console.log(`[COGS CSV Import] Skipping header row (Line 1): "${trimmedLine}"`);
-          return;
-        }
-        if (!trimmedLine) {
-          console.log(`[COGS CSV Import] Skipping empty row at line ${index + 1}`);
-          return;
-        }
-
-        const parts = trimmedLine.split(",");
-        console.log(`[COGS CSV Import] Line ${index + 1}: Split into ${parts.length} parts ->`, parts);
-
+        if (index === 0 || !line.trim()) return;
+        const parts = line.trim().split(",");
         if (parts.length >= 2) {
-          const key = parts[0].trim().replace(/"/g, ""); // Product Title or ID
+          const key = parts[0].trim().replace(/"/g, "");
           const val = parts[1].trim().replace(/"/g, "");
           const parsedVal = parseFloat(val);
-
-          if (isNaN(parsedVal)) {
-            console.warn(`[COGS CSV Import] Line ${index + 1}: Value "${val}" is not a valid number. Skipping.`);
-            skippedCount++;
-            return;
-          }
+          if (isNaN(parsedVal)) return;
 
           const matchedProduct = products.find(
-            (p) => p.id === key || p.title.toLowerCase() === key.toLowerCase()
+            (p: any) => p.id === key || p.title.toLowerCase() === key.toLowerCase()
           );
-
-          if (matchedProduct) {
-            const productPrice = parseFloat(matchedProduct.price || "0");
-            if (parsedVal < 0) {
-              console.warn(`[COGS CSV Import] Line ${index + 1}: Cost cannot be negative. Skipping.`);
-              skippedCount++;
-              return;
-            }
-            if (parsedVal > productPrice) {
-              console.warn(`[COGS CSV Import] Line ${index + 1}: Cost (₹${parsedVal}) cannot exceed product price (₹${productPrice}). Skipping.`);
-              skippedCount++;
-              return;
-            }
-
-            console.log(`[COGS CSV Import] Line ${index + 1}: Matched product "${matchedProduct.title}" (ID: ${matchedProduct.id}) with cost: ₹${parsedVal}`);
+          if (matchedProduct && parsedVal >= 0) {
             newCogs[matchedProduct.id] = parsedVal.toString();
             updatedCount++;
-          } else {
-            console.warn(`[COGS CSV Import] Line ${index + 1}: No matched product in Shopify catalog for key: "${key}". Skipping.`);
-            skippedCount++;
           }
-        } else {
-          console.warn(`[COGS CSV Import] Line ${index + 1}: Expected at least 2 comma-separated columns but found ${parts.length}. Skipping.`);
-          skippedCount++;
         }
       });
 
-      console.log(`[COGS CSV Import] Completed parsing. Matches updated: ${updatedCount}, Skipped/Unmatched: ${skippedCount}`);
       setCogsValues(newCogs);
-      setCsvMessage(`CSV file parsed successfully! Updated temporary costs for ${updatedCount} products. Click "Save All Costs" to commit to the database.`);
+      setCsvMessage(`CSV parsed successfully! Updated temporary costs for ${updatedCount} products. Click "Save All Costs" to commit.`);
     };
     reader.readAsText(file);
   };
 
   // Filter products based on search query
-  const filteredProducts = products.filter((product) =>
+  const filteredProducts = products.filter((product: any) =>
     product.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const rows = filteredProducts.map((product) => [
-    product.title,
-    `₹${parseFloat(product.price || "0").toLocaleString()}`,
-    <CogsInput
-      key={product.id}
-      productId={product.id}
-      initialValue={cogsValues[product.id] ?? ""}
-      onChange={(value) => handleCogsChange(product.id, value)}
-    />,
-  ]);
+  const rows = filteredProducts.map((product: any) => {
+    const record = cogsRecordMap.get(product.id);
+    const nativeCost = product.shopifyNativeCost ?? record?.shopifyNative;
+    const isNativeSource = record?.source === "shopify_native" || (!record?.manualOverride && nativeCost != null);
+
+    return [
+      product.title,
+      `₹${parseFloat(product.price || "0").toLocaleString()}`,
+      nativeCost != null ? `₹${parseFloat(nativeCost).toLocaleString()}` : "Not set in Shopify",
+      <CogsInput
+        key={product.id}
+        productId={product.id}
+        initialValue={cogsValues[product.id] ?? ""}
+        onChange={(value) => handleCogsChange(product.id, value)}
+      />,
+      <Badge key={`badge-${product.id}`} tone={isNativeSource ? "success" : "info"}>
+        {isNativeSource ? "Shopify Native" : "Manual Override"}
+      </Badge>,
+    ];
+  });
 
   return (
-    <Page title="Advanced Product Cost Rules (COGS)">
+    <Page title="Automated Product Cost (COGS) Management">
       <Layout>
+        {/* Banner for Auto-Sync */}
+        <Layout.Section>
+          <Banner tone="info" title="Automatic Cost Sync Active">
+            <p>
+              🔄 <strong>We automatically pull your product costs from Shopify. No manual entry needed.</strong> If you update item cost in Shopify Admin, ProfitRx syncs it automatically.
+            </p>
+          </Banner>
+        </Layout.Section>
+
         {/* Info & Alerts Row */}
         <Layout.Section>
           {saved && (
@@ -342,33 +358,38 @@ export default function COGSPage() {
           )}
         </Layout.Section>
 
-        {/* Left Side: Product Search, Filtering, and List */}
+        {/* Product Catalog Sheet */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <InlineStack align="space-between">
+              <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="050">
                   <Text variant="headingMd" as="h2">
                     Product Catalog Cost Sheet ({filteredProducts.length} items)
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    💡 Cost rules are set at the product level and apply to all variants of the product.
+                    💡 Last synced: <strong>{lastUpdated}</strong>
                   </Text>
                 </BlockStack>
                 
-                {/* Custom Styled Bulk CSV File Upload */}
-                <div style={{ display: "inline-block" }}>
-                  <label htmlFor="csv-file-picker" style={{ display: "inline-block", padding: "6px 12px", backgroundColor: "var(--gg-surface-2)", border: "1px solid var(--gg-border)", borderRadius: "6px", fontSize: "13px", fontWeight: 500, color: "var(--gg-text-primary)", cursor: "pointer" }}>
-                    📥 Bulk Import CSV
-                  </label>
-                  <input
-                    id="csv-file-picker"
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCSVImport}
-                    style={{ display: "none" }}
-                  />
-                </div>
+                <InlineStack gap="200" blockAlign="center">
+                  <Button variant="secondary" onClick={handleSyncNativeCosts} loading={isSubmitting}>
+                    🔄 Sync Costs Now
+                  </Button>
+
+                  <div style={{ display: "inline-block" }}>
+                    <label htmlFor="csv-file-picker" style={{ display: "inline-block", padding: "6px 12px", backgroundColor: "var(--gg-surface-2)", border: "1px solid var(--gg-border)", borderRadius: "6px", fontSize: "13px", fontWeight: 500, color: "var(--gg-text-primary)", cursor: "pointer" }}>
+                      📥 Bulk Import CSV
+                    </label>
+                    <input
+                      id="csv-file-picker"
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVImport}
+                      style={{ display: "none" }}
+                    />
+                  </div>
+                </InlineStack>
               </InlineStack>
 
               <TextField
@@ -381,8 +402,8 @@ export default function COGSPage() {
               />
 
               <DataTable
-                columnContentTypes={["text", "text", "text"]}
-                headings={["Product Name", "Selling Price (₹)", "Your Cost (COGS)"]}
+                columnContentTypes={["text", "text", "text", "text", "text"]}
+                headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
                 rows={rows}
               />
 

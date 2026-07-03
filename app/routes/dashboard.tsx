@@ -26,6 +26,7 @@ import { ShopifyService } from "../services/shopify.service";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
 import { getFeatureList, getSubscription } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { AdSpendService } from "../services/ad-spend.service";
 
 // Helper to check for COD gateways
 const isCodGateway = (gateway: string | null) => {
@@ -307,6 +308,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return cogsMap[cleanId] !== undefined;
   }).length;
 
+  const connectedAdPlatforms = await AdSpendService.getConnectedPlatforms(shop);
+  const hasConnectedAdAccount = connectedAdPlatforms.some((p) => p.isConnected);
+  const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
+  const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
+  const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
+
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
     netProfit, netMargin: Math.round(netMargin * 10) / 10,
@@ -328,6 +335,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ordersUsed,
     ordersLimit,
     configuredCogsCount,
+    connectedAdPlatforms,
+    hasConnectedAdAccount,
+    nativeCogsCount,
+    manualCogsCount,
   };
 };
 
@@ -937,6 +948,59 @@ export default function DashboardRoute() {
             </Banner>
           </Layout.Section>
         )}
+
+        {/* Full Automation Status Cards */}
+        <Layout.Section>
+          <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
+            <Grid.Cell>
+              <Card>
+                <BlockStack gap="200">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="150" blockAlign="center">
+                      <span style={{ fontSize: 20 }}>📦</span>
+                      <Text variant="headingSm" as="h3">COGS Auto-Sync Status</Text>
+                    </InlineStack>
+                    <Badge tone={data.nativeCogsCount > 0 ? "success" : "info"}>
+                      {data.nativeCogsCount > 0 ? "Shopify Native Active ✅" : "Configured"}
+                    </Badge>
+                  </InlineStack>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    {data.nativeCogsCount > 0
+                      ? `We found your native COGS in Shopify for ${data.nativeCogsCount} items. No manual entry needed!`
+                      : `Syncing costs automatically from Shopify variants.`}
+                  </Text>
+                  <Button url={`/app/cogs?shop=${data.shop}&host=${data.host}`} variant="plain">
+                    Manage Cost Rules →
+                  </Button>
+                </BlockStack>
+              </Card>
+            </Grid.Cell>
+
+            <Grid.Cell>
+              <Card>
+                <BlockStack gap="200">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="150" blockAlign="center">
+                      <span style={{ fontSize: 20 }}>🔗</span>
+                      <Text variant="headingSm" as="h3">Ad Accounts Auto-Sync</Text>
+                    </InlineStack>
+                    <Badge tone={data.hasConnectedAdAccount ? "success" : "attention"}>
+                      {data.hasConnectedAdAccount ? "Auto-Sync Connected ✅" : "Not Connected"}
+                    </Badge>
+                  </InlineStack>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    {data.hasConnectedAdAccount
+                      ? `Connected to ad accounts. Pulling daily campaign spend automatically.`
+                      : `Connect your ad accounts (Meta, Google, TikTok) to see your true ROAS and CAC.`}
+                  </Text>
+                  <Button url={`/app/roas?shop=${data.shop}&host=${data.host}`} variant="plain">
+                    {data.hasConnectedAdAccount ? "View Ad Spend →" : "Connect Ad Accounts →"}
+                  </Button>
+                </BlockStack>
+              </Card>
+            </Grid.Cell>
+          </Grid>
+        </Layout.Section>
 
         {data.isColdStart && (
           <Layout.Section>

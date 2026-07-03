@@ -9,6 +9,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
 import { canAccessFeature } from "../services/feature-access.service";
+import { AdSpendService } from "../services/ad-spend.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -19,9 +20,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return redirect("/app/pricing?upgrade=pro");
   }
 
-  const [roas, adSpendRecords] = await Promise.all([
+  const [roas, adSpendRecords, connectedPlatforms] = await Promise.all([
     ProfitIntelligenceService.getROAS(shop),
-    (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { month: "desc" }, take: 24 }),
+    (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { updatedAt: "desc" }, take: 24 }),
+    AdSpendService.getConnectedPlatforms(shop),
   ]);
 
   // Revenue trend for 30 days (for chart)
@@ -44,9 +46,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }));
 
   return {
+    shop,
     roas,
+    connectedPlatforms,
     adSpendRecords: adSpendRecords.map((a: any) => ({
-      id: a.id, month: a.month, channel: a.channel, amount: a.amount,
+      id: a.id, month: a.month, channel: a.channel || a.platform, amount: a.amount,
     })),
     revenueChart,
   };
@@ -132,7 +136,7 @@ function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: numb
 
 // ─────────────────────────────────────────────────────────
 export default function ROASRoute() {
-  const { roas, adSpendRecords, revenueChart } = useLoaderData<typeof loader>();
+  const { shop, roas, connectedPlatforms, adSpendRecords, revenueChart } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -142,6 +146,14 @@ export default function ROASRoute() {
   const [amount, setAmount] = useState("");
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleConnect = async (platform: string) => {
+    window.location.href = `/api/auth/ad-platform?platform=${platform}&action=connect`;
+  };
+
+  const handleDisconnect = async (platform: string) => {
+    window.location.href = `/api/auth/ad-platform?platform=${platform}&action=disconnect`;
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,13 +178,68 @@ export default function ROASRoute() {
   const channelOptions = [
     { label: "Meta (Facebook/Instagram)", value: "Meta" },
     { label: "Google Ads", value: "Google" },
+    { label: "TikTok Ads", value: "TikTok" },
     { label: "Influencer Marketing", value: "Influencer" },
     { label: "Other", value: "Other" },
   ];
 
   return (
-    <Page title="Blended ROAS & True Customer Acquisition Cost">
+    <Page title="Automated ROAS & True Customer Acquisition Cost">
       <Layout>
+
+        {/* ── Connected Accounts Section (Automated Ad Spend) ── */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="050">
+                  <Text variant="headingMd" as="h2">🔗 Connected Ad Accounts (Auto-Sync)</Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Connect your ad platforms once. ProfitRx automatically pulls daily spend, clicks, and impressions.
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+
+              <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
+                {connectedPlatforms.map((p: any) => (
+                  <Grid.Cell key={p.platform}>
+                    <div style={{
+                      padding: "16px",
+                      borderRadius: "10px",
+                      border: p.isConnected ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--gg-border)",
+                      background: p.isConnected ? "rgba(16,185,129,0.06)" : "var(--gg-surface-2)",
+                    }}>
+                      <BlockStack gap="200">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text variant="headingSm" as="h3">{p.name}</Text>
+                          <Badge tone={p.isConnected ? "success" : "attention"}>
+                            {p.isConnected ? "Connected ✅" : "Not Connected"}
+                          </Badge>
+                        </InlineStack>
+
+                        <Text variant="bodyXs" as="p" tone="subdued">
+                          {p.isConnected
+                            ? `Last synced: ${p.lastSyncedAt || "Just now"}`
+                            : "Auto-pull daily campaign spend"}
+                        </Text>
+
+                        {p.isConnected ? (
+                          <Button variant="plain" tone="critical" onClick={() => handleDisconnect(p.platform)}>
+                            Disconnect Account
+                          </Button>
+                        ) : (
+                          <Button variant="primary" onClick={() => handleConnect(p.platform)}>
+                            Connect {p.platform.toUpperCase()}
+                          </Button>
+                        )}
+                      </BlockStack>
+                    </div>
+                  </Grid.Cell>
+                ))}
+              </Grid>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
 
         {/* ── ROAS Insight Banner ───────────────────────── */}
         {roas.totalAdSpend > 0 && platformROAS > roas.blendedROAS && (

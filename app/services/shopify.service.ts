@@ -227,8 +227,19 @@ export class ShopifyService {
             node {
               id
               title
-              variants(first: 1) {
-                edges { node { id price } }
+              variants(first: 50) {
+                edges {
+                  node {
+                    id
+                    price
+                    inventoryItem {
+                      id
+                      unitCost {
+                        amount
+                      }
+                    }
+                  }
+                }
               }
               metafield(namespace: "greek_god", key: "cogs") {
                 value
@@ -245,12 +256,82 @@ export class ShopifyService {
 
     if (data.errors?.length) throw new Error(data.errors[0].message);
 
-    return data.data.products.edges.map((edge) => ({
-      id: edge.node.id.split("/").pop(),
-      title: edge.node.title,
-      price: edge.node.variants.edges[0]?.node.price || "0",
-      cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
-    }));
+    return data.data.products.edges.map((edge) => {
+      const firstVariant = edge.node.variants?.edges?.[0]?.node;
+      const unitCost = firstVariant?.inventoryItem?.unitCost?.amount ? parseFloat(firstVariant.inventoryItem.unitCost.amount) : null;
+      return {
+        id: edge.node.id.split("/").pop() || "",
+        title: edge.node.title,
+        price: firstVariant?.price || "0",
+        variantId: firstVariant?.id?.split("/")?.pop() || null,
+        shopifyNativeCost: unitCost,
+        cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
+      };
+    });
+  }
+
+  // ── Sync Native Shopify COGS ─────────────────────────────────
+  static async syncNativeCOGS(requestOrAdmin: Request | any, shopName: string = ""): Promise<{ synced: number; skipped: number; message: string }> {
+    let shop = shopName;
+    if (requestOrAdmin instanceof Request) {
+      const auth = await authenticate.admin(requestOrAdmin);
+      if (!shop) shop = auth.session.shop;
+    } else if (typeof requestOrAdmin === "string" && !shop) {
+      shop = requestOrAdmin;
+    }
+
+    if (!shop) throw new Error("Shop domain is required for native COGS sync");
+
+    const products = await this.getProducts(requestOrAdmin);
+
+    let synced = 0;
+    let skipped = 0;
+
+    for (const p of products) {
+      const productId = p.id;
+      const shopifyNativeCost = p.shopifyNativeCost ?? p.cogsFromMetafield;
+
+      const existingRecord = await prisma.productCOGS.findUnique({
+        where: { shop_productId: { shop, productId } },
+      });
+
+      const manualOverride = existingRecord?.manualOverride;
+      const effectiveCost = manualOverride ?? shopifyNativeCost ?? (existingRecord?.cogs && existingRecord.cogs > 0 ? existingRecord.cogs : null);
+      const source = manualOverride != null ? "manual_override" : shopifyNativeCost != null ? "shopify_native" : "manual_override";
+
+      if (effectiveCost !== null && effectiveCost !== undefined) {
+        await prisma.productCOGS.upsert({
+          where: { shop_productId: { shop, productId } },
+          update: {
+            variantId: p.variantId,
+            cost: effectiveCost,
+            shopifyNative: shopifyNativeCost,
+            source,
+            cogs: effectiveCost, // legacy compatibility
+            lastSyncedAt: new Date(),
+          },
+          create: {
+            shop,
+            productId,
+            variantId: p.variantId,
+            cost: effectiveCost,
+            shopifyNative: shopifyNativeCost,
+            source,
+            cogs: effectiveCost,
+            lastSyncedAt: new Date(),
+          },
+        });
+        synced++;
+      } else {
+        skipped++;
+      }
+    }
+
+    return {
+      synced,
+      skipped,
+      message: `COGS synced successfully (${synced} synced, ${skipped} skipped)`,
+    };
   }
 
   // ── Order mapping ─────────────────────────────────────────
