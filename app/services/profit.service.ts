@@ -149,7 +149,7 @@ export class ProfitService {
 
     const id = `${shop}_${productId}`;
 
-    const record = await prisma.productCOGS.upsert({
+    const record = await (prisma as any).productCOGS.upsert({
       where: { shop_productId: { shop, productId } },
       update: {
         cost: cogs,
