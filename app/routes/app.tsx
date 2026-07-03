@@ -62,13 +62,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 const NAV_ITEMS = [
   { href: "/app/dashboard",    label: "Dashboard",     icon: "⚡" },
-  { href: "/app/profit-leaks",  label: "Profit Leaks",   icon: "💸" },
-  { href: "/app/rto-heatmap",   label: "RTO & COD",      icon: "📦", feature: "rto_heatmap" },
-  { href: "/app/customers",     label: "Customers",     icon: "👥", feature: "ltv_cohort" },
+  { href: "/app/cod-dashboard", label: "COD Profit",    icon: "💸" },
+  { href: "/app/cod-rules",    label: "COD Rules",     icon: "🛡️" },
+  { href: "/app/rto-heatmap",   label: "RTO Heatmap",   icon: "📍" },
+  { href: "/app/cogs",          label: "Products (COGS)", icon: "📦" },
+  { href: "/app/customers",     label: "Customers (LTV)", icon: "👥", feature: "ltv_cohort" },
   { href: "/app/roas",          label: "ROAS & Spend",   icon: "📈", feature: "blended_roas" },
-  { href: "/app/cogs",          label: "Product Costs", icon: "💰" },
   { href: "/app/alerts",        label: "Alerts",        icon: "🔔" },
-  { href: "/app/billing",       label: "Billing",       icon: "💳" },
   { href: "/app/pricing",       label: "Plans",         icon: "🚀" },
   { href: "/app/settings",      label: "Settings",      icon: "⚙️" },
 ];

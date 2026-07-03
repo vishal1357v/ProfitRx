@@ -319,10 +319,42 @@ model StoreSettings {
   rtoThreshold           Float    @default(10)
   marginThreshold        Float    @default(15)
   syncCapped             Boolean  @default(false)
+  // COD Management Suite
+  codBlockingEnabled     Boolean  @default(false)
+  codBlockedPincodes     String[] @default([])
+  otpVerificationEnabled Boolean  @default(false)
+  partialPaymentEnabled  Boolean  @default(false)
+  partialPaymentAmount   Float    @default(50)
+  codFeeEnabled          Boolean  @default(false)
+  codFeeAmount           Float    @default(30)
+  codFeeType             String   @default("fixed") // "fixed" or "percentage"
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   @@map("store_settings")
+}
+
+// ============================================
+// COD ORDER - Verification, Deposit & Fee Tracking
+// ============================================
+model CODOrder {
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  shop            String
+  phone           String
+  otp             String?
+  otpVerified     Boolean  @default(false)
+  otpSentAt       DateTime?
+  otpVerifiedAt   DateTime?
+  partialPaid     Boolean  @default(false)
+  partialAmount   Float?
+  codFee          Float?
+  status          String   @default("PENDING") // PENDING, OTP_SENT, VERIFIED, FAILED, CANCELED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shop])
+  @@map("cod_orders")
 }
 
 // ============================================

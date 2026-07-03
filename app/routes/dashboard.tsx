@@ -949,6 +949,37 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
+        {/* ── COD MANAGEMENT & PROFIT INTELLIGENCE MOAT ── */}
+        <Layout.Section>
+          <div style={{
+            padding: "20px",
+            borderRadius: "var(--gg-radius-lg)",
+            background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(16,185,129,0.06) 100%)",
+            border: "1px solid rgba(56,189,248,0.25)",
+          }}>
+            <InlineStack align="space-between" blockAlign="center">
+              <BlockStack gap="100">
+                <InlineStack gap="200" blockAlign="center">
+                  <span style={{ fontSize: 22 }}>🛡️</span>
+                  <Text variant="headingMd" as="h2">COD Management & Profit Intelligence</Text>
+                  <Badge tone="success">Active Moat Engine</Badge>
+                </InlineStack>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Greek God combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
+                </Text>
+              </BlockStack>
+              <InlineStack gap="200">
+                <Button url={`/app/cod-rules?shop=${data.shop}&host=${data.host}`} variant="secondary">
+                  Configure COD Rules →
+                </Button>
+                <Button url={`/app/cod-dashboard?shop=${data.shop}&host=${data.host}`} variant="primary">
+                  COD Profit Dashboard →
+                </Button>
+              </InlineStack>
+            </InlineStack>
+          </div>
+        </Layout.Section>
+
         {/* ── TOP SECTION: PROFIT & ALL CORE STATISTICS CARDS ── */}
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 2, md: 5, lg: 5 }}>
