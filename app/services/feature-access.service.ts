@@ -1,57 +1,14 @@
 import prisma from "../db.server";
 
 export const PLAN_FEATURES = {
-  BASIC: [
-    "profit_dashboard",
-    "health_score",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
-  ],
-  PRO: [
-    "profit_dashboard",
-    "health_score",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
-    "cod_risk",
-    "high_risk_areas",
-    "ai_recommendations",
-    "advanced_alerts",
-    "priority_support",
-  ],
-  ADVANCE: [
-    "profit_dashboard",
-    "health_score",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
-    "cod_risk",
-    "high_risk_areas",
-    "ai_recommendations",
-    "advanced_alerts",
-    "priority_support",
-    "ltv_cohort",
-    "roas_adspend",
-    "multistore_support",
-    "beta_features",
-    "onboarding",
-  ],
-  // Legacy aliases
   FREE: [
     "profit_dashboard",
     "health_score",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
   ],
   STARTER: [
     "profit_dashboard",
     "health_score",
+    "basic_rto",
     "basic_alerts",
     "weekly_whatsapp",
     "product_cost",
@@ -60,23 +17,80 @@ export const PLAN_FEATURES = {
   GROWTH: [
     "profit_dashboard",
     "health_score",
+    "basic_rto",
     "basic_alerts",
     "weekly_whatsapp",
     "product_cost",
     "basic_insights",
+    "ai_attribution",
+    "rto_heatmap",
     "cod_risk",
     "high_risk_areas",
     "ai_recommendations",
     "advanced_alerts",
+  ],
+  PRO: [
+    "profit_dashboard",
+    "health_score",
+    "basic_rto",
+    "basic_alerts",
+    "weekly_whatsapp",
+    "product_cost",
+    "basic_insights",
+    "ai_attribution",
+    "rto_heatmap",
+    "cod_risk",
+    "high_risk_areas",
+    "ai_recommendations",
+    "advanced_alerts",
+    "ltv_cohort",
+    "blended_roas",
+    "roas_adspend",
     "priority_support",
+    "multistore_support",
+    "beta_features",
+    "onboarding",
+  ],
+  // Legacy aliases
+  BASIC: [
+    "profit_dashboard",
+    "health_score",
+    "basic_rto",
+    "basic_alerts",
+    "weekly_whatsapp",
+    "product_cost",
+    "basic_insights",
+  ],
+  ADVANCE: [
+    "profit_dashboard",
+    "health_score",
+    "basic_rto",
+    "basic_alerts",
+    "weekly_whatsapp",
+    "product_cost",
+    "basic_insights",
+    "ai_attribution",
+    "rto_heatmap",
+    "cod_risk",
+    "high_risk_areas",
+    "ai_recommendations",
+    "advanced_alerts",
+    "ltv_cohort",
+    "blended_roas",
+    "roas_adspend",
+    "priority_support",
+    "multistore_support",
+    "beta_features",
+    "onboarding",
   ],
 };
 
-export function normalizePlanName(plan: string): "BASIC" | "PRO" | "ADVANCE" {
-  const upper = (plan || "").toUpperCase();
-  if (upper === "ADVANCE" || upper === "PRO_ENTERPRISE") return "ADVANCE";
-  if (upper === "PRO" || upper === "GROWTH") return "PRO";
-  return "BASIC";
+export function normalizePlanName(plan: string): "FREE" | "STARTER" | "GROWTH" | "PRO" {
+  const upper = (plan || "").toUpperCase().trim();
+  if (upper === "PRO" || upper === "ADVANCE" || upper === "PRO_ENTERPRISE") return "PRO";
+  if (upper === "GROWTH") return "GROWTH";
+  if (upper === "STARTER" || upper === "BASIC") return "STARTER";
+  return "FREE";
 }
 
 export function hasFeature(plan: string, feature: string): boolean {
@@ -89,14 +103,14 @@ export async function getSubscription(shop: string) {
     where: { shop },
   });
 
-  // If no subscription exists in database, default to BASIC tier ($15/mo)
+  // If no subscription exists in database, default to FREE tier (50 orders limit)
   if (!subscription) {
     subscription = await prisma.subscription.create({
       data: {
         shop,
-        plan: "BASIC",
+        plan: "FREE",
         status: "ACTIVE",
-        orderLimit: 500,
+        orderLimit: 50,
         ordersUsed: 0,
       },
     });

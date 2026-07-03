@@ -32,11 +32,41 @@ const shopify = shopifyApp({
     expiringOfflineAccessTokens: true,
   },
   billing: {
+    "STARTER": {
+      trialDays: 14,
+      lineItems: [
+        {
+          amount: 19.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+    },
+    "GROWTH": {
+      trialDays: 14,
+      lineItems: [
+        {
+          amount: 39.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+    },
+    "PRO": {
+      trialDays: 14,
+      lineItems: [
+        {
+          amount: 79.0,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
+    },
     "Starter": {
       trialDays: 14,
       lineItems: [
         {
-          amount: 12.0,
+          amount: 19.0,
           currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
@@ -46,7 +76,7 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 29.0,
+          amount: 39.0,
           currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
@@ -56,7 +86,7 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 59.0,
+          amount: 79.0,
           currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },

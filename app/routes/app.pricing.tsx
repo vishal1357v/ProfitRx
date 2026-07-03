@@ -15,60 +15,35 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
-  
-  let currentPlan = "Basic";
-  
-  const localSub = await prisma.subscription.findUnique({
-    where: { shop: session.shop },
-  });
-
-  if (localSub?.plan) {
-    const raw = localSub.plan.toUpperCase();
-    currentPlan = (raw === "ADVANCE" || raw === "PRO_ENTERPRISE") ? "Advance" : (raw === "PRO" || raw === "GROWTH") ? "Pro" : "Basic";
-  }
-
-  if (process.env.BYPASS_BILLING === "true") {
-    return { currentPlan, shop: session.shop };
-  }
-
-  try {
-    const subscriptionResponse = await billing.check({
-      plans: ["Basic", "Pro", "Advance"] as any,
-      isTest: true,
-    });
-
-    const activePlan = subscriptionResponse.appSubscriptions.find(
-      (sub) => sub.status === "ACTIVE"
-    )?.name || null;
-
-    if (activePlan) {
-      currentPlan = activePlan;
-    }
-  } catch (err) {
-    // Rely on local database state
-  }
-
+  const sub = await syncSubscriptionWithShopify(session.shop, billing);
+  const currentPlan = sub.plan === "PRO" ? "Pro" : sub.plan === "GROWTH" ? "Growth" : sub.plan === "STARTER" ? "Starter" : "Free";
   return { currentPlan, shop: session.shop };
 };
 
-type BillingPlan = "Basic" | "Pro" | "Advance";
+type BillingPlan = "Starter" | "Growth" | "Pro";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const formData = await request.formData();
-  const plan = formData.get("plan") as BillingPlan;
+  const rawPlan = (formData.get("plan") as string) || "";
+  const upperPlan = rawPlan.toUpperCase();
 
-  if (!["Basic", "Pro", "Advance"].includes(plan)) {
+  let plan: BillingPlan = "Starter";
+  if (upperPlan === "PRO") plan = "Pro";
+  else if (upperPlan === "GROWTH") plan = "Growth";
+  else if (upperPlan === "STARTER" || upperPlan === "BASIC") plan = "Starter";
+  else {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
-  const orderLimit = plan === "Advance" ? null : plan === "Pro" ? 2000 : 500;
+  const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : 500;
   const dbPlan = plan.toUpperCase();
 
   if (isBypass) {
@@ -107,10 +82,10 @@ export default function Pricing() {
 
   const plans = [
     {
-      name: "Basic",
-      price: "$15",
-      description: "Small stores",
-      tagline: "Essential profit tracking and product cost management.",
+      name: "Starter",
+      price: "$19",
+      description: "Small & early-stage stores",
+      tagline: "Essential profit tracking, product COGS management, and basic RTO insights.",
       features: [
         "Up to 500 orders / month",
         "True Profit Dashboard",
@@ -121,34 +96,34 @@ export default function Pricing() {
       ],
     },
     {
-      name: "Pro",
-      price: "$29",
+      name: "Growth",
+      price: "$39",
       description: "Growing stores ⭐ Most Popular",
-      tagline: "Pincode-level logistics intelligence & pre-shipment risk detection.",
+      tagline: "Pincode-level logistics intelligence, AI attribution, and pre-shipment COD risk detection.",
       features: [
         "Up to 2,000 orders / month",
-        "Everything in Basic",
+        "Everything in Starter",
+        "AI Search & Order Attribution",
         "COD Risk Score (Pre-shipment prediction)",
         "Pincode RTO Heatmap",
         "AI Profit Leak Recommendations",
         "Advanced email & system alerts",
-        "Priority support",
       ],
       popular: true,
     },
     {
-      name: "Advance",
-      price: "$45",
-      description: "Established brands",
-      tagline: "Full enterprise intelligence suite with unlimited order sync.",
+      name: "Pro",
+      price: "$79",
+      description: "Established brands & high-volume stores",
+      tagline: "Full enterprise intelligence suite with unlimited order sync and cohort retention.",
       features: [
         "Unlimited orders / month",
-        "Everything in Pro",
+        "Everything in Growth",
         "LTV & Cohort Retention Analysis",
         "Blended ROAS & Ad Spend Sync",
         "Multi-store support",
         "Predictive AI Margins",
-        "Dedicated onboarding support",
+        "Priority Support & Dedicated Onboarding",
       ],
     },
   ];

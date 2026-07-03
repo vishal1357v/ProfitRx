@@ -17,11 +17,12 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getSubscription } from "../services/feature-access.service";
+import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const subscription = await getSubscription(session.shop);
+  const { session, billing } = await authenticate.admin(request);
+  const subscription = await syncSubscriptionWithShopify(session.shop, billing);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
 
@@ -39,6 +40,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
+
+  if (intent === "sync_subscription") {
+    const subscription = await syncSubscriptionWithShopify(session.shop, billing);
+    return { success: true, message: `Subscription synced successfully. Current plan: ${subscription.plan}` };
+  }
 
   if (intent === "cancel_subscription") {
     const subscription = await prisma.subscription.findUnique({
@@ -59,13 +65,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await prisma.subscription.update({
       where: { shop: session.shop },
       data: {
-        plan: "STARTER",
+        plan: "FREE",
         status: "CANCELED",
-        orderLimit: 500,
+        orderLimit: 50,
         shopifyChargeId: null,
       },
     });
-    return { success: true, message: "Subscription downgraded to Starter plan successfully." };
+    return { success: true, message: "Subscription cancelled successfully." };
   }
 
   return { error: "Unknown action" };
@@ -84,35 +90,53 @@ export default function BillingPage() {
 
   // Detailed features list per plan
   const normalizedPlan = (plan || "").toUpperCase();
-  const planInfo = {
-    BASIC: {
-      name: "Basic Plan",
-      price: "$15/mo",
+  const planInfoMap: Record<string, { name: string; price: string; color: string; includes: string[]; lacks: string[] }> = {
+    FREE: {
+      name: "Free Plan",
+      price: "$0/mo",
       color: "info",
-      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking (COGS)", "Basic RTO & COD Insights", "Weekly WhatsApp Report"],
-      lacks: ["COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
+      includes: ["Up to 50 orders/mo", "Real Profit Dashboard", "Store Health Score"],
+      lacks: ["Product Cost Tracking", "COD Risk Score", "RTO Pincode Heatmap", "AI Attribution", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
+    },
+    STARTER: {
+      name: "Starter Plan",
+      price: "$19/mo",
+      color: "info",
+      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "Basic RTO & COD Insights", "Weekly WhatsApp Report"],
+      lacks: ["AI Search Attribution", "COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
+    },
+    GROWTH: {
+      name: "Growth Plan",
+      price: "$39/mo",
+      color: "attention",
+      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "AI Search & Order Attribution", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "AI Profit Leak Recommendations", "Advanced Email Alerts"],
+      lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support"],
     },
     PRO: {
       name: "Pro Plan",
-      price: "$29/mo",
-      color: "attention",
-      includes: ["Up to 2,000 orders/mo", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "AI Profit Recommendations", "Advanced Email Alerts", "Priority Support"],
-      lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support"],
-    },
-    ADVANCE: {
-      name: "Advance Plan",
-      price: "$45/mo",
+      price: "$79/mo",
       color: "success",
-      includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "RTO Pincode Heatmap", "COD Risk Scoring", "Multi-store Support", "Dedicated Onboarding Support"],
+      includes: ["Unlimited orders/mo", "Everything in Growth", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "RTO Pincode Heatmap", "COD Risk Scoring", "Multi-store Support", "Priority Support"],
       lacks: [],
     },
-  }[normalizedPlan as "BASIC" | "PRO" | "ADVANCE"] || {
-    name: "Basic Plan",
-    price: "$15/mo",
-    color: "info",
-    includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "Basic RTO & COD Insights"],
-    lacks: [],
+    // Legacy aliases
+    BASIC: {
+      name: "Starter Plan",
+      price: "$19/mo",
+      color: "info",
+      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "Basic RTO & COD Insights"],
+      lacks: ["COD Risk Score", "RTO Heatmap", "LTV & Cohort Analysis"],
+    },
+    ADVANCE: {
+      name: "Pro Plan",
+      price: "$79/mo",
+      color: "success",
+      includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync"],
+      lacks: [],
+    },
   };
+
+  const planInfo = planInfoMap[normalizedPlan] || planInfoMap.FREE;
 
   return (
     <Page title="Store Billing & Plan Usage">
@@ -204,17 +228,23 @@ export default function BillingPage() {
                       <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" fullWidth>
                         Change Plan Tier
                       </Button>
-                      {plan !== "STARTER" && (
+                      <Form method="POST">
+                        <input type="hidden" name="intent" value="sync_subscription" />
+                        <Button variant="secondary" submit fullWidth loading={isSubmitting}>
+                          Sync Subscription with Shopify
+                        </Button>
+                      </Form>
+                      {plan !== "FREE" && (
                         <Form method="POST">
                           <input type="hidden" name="intent" value="cancel_subscription" />
                           <Button
-                            variant="secondary"
+                            variant="plain"
                             tone="critical"
                             submit
                             fullWidth
                             loading={isSubmitting}
                           >
-                            Downgrade to Starter
+                            Cancel Subscription
                           </Button>
                         </Form>
                       )}

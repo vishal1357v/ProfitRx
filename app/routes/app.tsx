@@ -24,29 +24,15 @@ function RemixLink({ url, children, external, ...props }: any) {
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getFeatureList, getSubscription } from "../services/feature-access.service";
+import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session, redirect: shopifyRedirect } = await authenticate.admin(request);
   const url = new URL(request.url);
-
   const host = url.searchParams.get("host") || "";
 
-  // Get local subscription
-  let localSub = await prisma.subscription.findUnique({
-    where: { shop: session.shop },
-  });
-
-  if (!localSub) {
-    localSub = await prisma.subscription.create({
-      data: {
-        shop: session.shop,
-        plan: "FREE",
-        status: "ACTIVE",
-        orderLimit: 50,
-        ordersUsed: 0,
-      },
-    });
-  }
+  // Sync billing state from Shopify to local DB
+  const localSub = await syncSubscriptionWithShopify(session.shop, billing);
 
   const isBypass = process.env.BYPASS_BILLING === "true";
   const isFreePlan = (localSub.plan === "FREE" && localSub.status === "ACTIVE") || isBypass;
@@ -54,48 +40,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Require billing only if they are not on the FREE plan, not bypassing, and not on the pricing page
   if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
     await billing.require({
-      plans: ["Starter", "Growth", "Pro"],
+      plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"],
       isTest: true,
       onFailure: async () => {
         throw shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
       },
     });
-  }
-
-  // Sync billing state from Shopify to local DB
-  try {
-    const billingCheck = await billing.check({
-      plans: ["Basic", "Pro", "Advance"] as any,
-      isTest: true,
-    });
-
-    const activeSubscription = billingCheck.appSubscriptions.find(
-      (sub) => sub.status === "ACTIVE"
-    );
-
-    if (activeSubscription) {
-      const upperName = activeSubscription.name.toUpperCase();
-      const orderLimit = upperName === "ADVANCE" ? null : upperName === "PRO" ? 2000 : 500;
-      localSub = await prisma.subscription.upsert({
-        where: { shop: session.shop },
-        update: {
-          plan: upperName,
-          status: "ACTIVE",
-          shopifyChargeId: activeSubscription.id,
-          orderLimit,
-        },
-        create: {
-          shop: session.shop,
-          plan: upperName,
-          status: "ACTIVE",
-          shopifyChargeId: activeSubscription.id,
-          orderLimit,
-          ordersUsed: 0,
-        },
-      });
-    }
-  } catch (err) {
-    // Graceful fallback for local dev & unlisted app state
   }
 
   const features = await getFeatureList(session.shop);

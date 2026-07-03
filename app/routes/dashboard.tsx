@@ -25,6 +25,7 @@ import { ProfitService } from "../services/profit.service";
 import { ShopifyService } from "../services/shopify.service";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
 import { getFeatureList, getSubscription } from "../services/feature-access.service";
+import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 // Helper to check for COD gateways
 const isCodGateway = (gateway: string | null) => {
@@ -34,15 +35,18 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
-  const subscription = await getSubscription(shop);
-  const isBasicTier = (subscription?.plan || "BASIC") === "BASIC" || (subscription?.plan || "") === "FREE" || (subscription?.plan || "") === "STARTER";
-  const planName = subscription?.plan === "ADVANCE" ? "Advance" : subscription?.plan === "PRO" ? "Pro" : "Basic";
+
+  // Perform active subscription check with Shopify Billing API
+  const subscription = await syncSubscriptionWithShopify(shop, billing);
+  const isFreeTier = (subscription?.plan || "FREE") === "FREE";
+  const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
+  const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
   const ordersUsed = subscription?.ordersUsed || 0;
-  const ordersLimit = subscription?.orderLimit || 50;
+  const ordersLimit = subscription?.orderLimit ?? (subscription?.plan === "PRO" ? null : 50);
 
   const features = await getFeatureList(shop);
 
