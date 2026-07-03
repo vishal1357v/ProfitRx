@@ -291,7 +291,7 @@ export class ShopifyService {
       const productId = p.id;
       const shopifyNativeCost = p.shopifyNativeCost ?? p.cogsFromMetafield;
 
-      const existingRecord = await prisma.productCOGS.findUnique({
+      const existingRecord = await (prisma as any).productCOGS.findUnique({
         where: { shop_productId: { shop, productId } },
       });
 
@@ -300,7 +300,7 @@ export class ShopifyService {
       const source = manualOverride != null ? "manual_override" : shopifyNativeCost != null ? "shopify_native" : "manual_override";
 
       if (effectiveCost !== null && effectiveCost !== undefined) {
-        await prisma.productCOGS.upsert({
+        await (prisma as any).productCOGS.upsert({
           where: { shop_productId: { shop, productId } },
           update: {
             variantId: p.variantId,
