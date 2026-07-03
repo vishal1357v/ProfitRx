@@ -3,7 +3,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigation, redirect } from "react-router";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, TextField, Button, Banner, Divider, Select,
+  Badge, TextField, Button, Banner, Divider, Select, Modal,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -147,12 +147,37 @@ export default function ROASRoute() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [selectedPlatform, setSelectedPlatform] = useState<any | null>(null);
+  const [customAccountId, setCustomAccountId] = useState("");
+  const [connectingModal, setConnectingModal] = useState(false);
+
+  const handleOpenConnectModal = (p: any) => {
+    setSelectedPlatform(p);
+    setCustomAccountId(p.accountId || "");
+    setConnectingModal(true);
+  };
+
   const handleConnect = async (platform: string) => {
     window.location.href = `/api/auth/ad-platform?platform=${platform}&action=connect`;
   };
 
   const handleDisconnect = async (platform: string) => {
     window.location.href = `/api/auth/ad-platform?platform=${platform}&action=disconnect`;
+  };
+
+  const handleSaveCustomAccount = async () => {
+    if (!selectedPlatform) return;
+    const fd = new FormData();
+    fd.append("intent", "connect");
+    fd.append("platform", selectedPlatform.platform);
+    fd.append("accountId", customAccountId);
+    try {
+      await fetch("/api/auth/ad-platform", { method: "POST", body: fd });
+      setConnectingModal(false);
+      window.location.reload();
+    } catch {
+      handleConnect(selectedPlatform.platform);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -219,16 +244,21 @@ export default function ROASRoute() {
 
                         <Text variant="bodyXs" as="p" tone="subdued">
                           {p.isConnected
-                            ? `Last synced: ${p.lastSyncedAt || "Just now"}`
+                            ? `Account ID: ${p.accountId || "Connected"} • Last synced: ${p.lastSyncedAt || "Just now"}`
                             : "Auto-pull daily campaign spend"}
                         </Text>
 
                         {p.isConnected ? (
-                          <Button variant="plain" tone="critical" onClick={() => handleDisconnect(p.platform)}>
-                            Disconnect Account
-                          </Button>
+                          <InlineStack gap="150" align="space-between">
+                            <Button variant="tertiary" onClick={() => handleOpenConnectModal(p)}>
+                              Edit ID
+                            </Button>
+                            <Button variant="plain" tone="critical" onClick={() => handleDisconnect(p.platform)}>
+                              Disconnect
+                            </Button>
+                          </InlineStack>
                         ) : (
-                          <Button variant="primary" onClick={() => handleConnect(p.platform)}>
+                          <Button variant="primary" onClick={() => handleOpenConnectModal(p)}>
                             Connect {p.platform.toUpperCase()}
                           </Button>
                         )}
@@ -240,6 +270,47 @@ export default function ROASRoute() {
             </BlockStack>
           </Card>
         </Layout.Section>
+
+        {/* ── Connect Account Modal ───────────────────────── */}
+        {selectedPlatform && (
+          <Modal
+            open={connectingModal}
+            onClose={() => setConnectingModal(false)}
+            title={`Connect ${selectedPlatform.name}`}
+            primaryAction={{
+              content: "Connect Account",
+              onAction: handleSaveCustomAccount,
+            }}
+            secondaryActions={[
+              {
+                content: "1-Click Auto Authenticate",
+                onAction: () => handleConnect(selectedPlatform.platform),
+              },
+            ]}
+          >
+            <Modal.Section>
+              <BlockStack gap="300">
+                <Text variant="bodyMd" as="p">
+                  Authorize ProfitRx to fetch daily ad spend from <strong>{selectedPlatform.name}</strong>.
+                </Text>
+                <TextField
+                  label="Ad Account ID (Optional)"
+                  value={customAccountId}
+                  onChange={setCustomAccountId}
+                  placeholder={
+                    selectedPlatform.platform === "meta"
+                      ? "e.g. act_123456789"
+                      : selectedPlatform.platform === "google"
+                      ? "e.g. 123-456-7890"
+                      : "e.g. tt_acc_987654"
+                  }
+                  helpText="Leave blank or use 1-Click Auto Authenticate to authorize instantly."
+                  autoComplete="off"
+                />
+              </BlockStack>
+            </Modal.Section>
+          </Modal>
+        )}
 
         {/* ── ROAS Insight Banner ───────────────────────── */}
         {roas.totalAdSpend > 0 && platformROAS > roas.blendedROAS && (
