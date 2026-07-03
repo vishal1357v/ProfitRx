@@ -59,6 +59,7 @@ function detectChannel(node: any): { channelType: string; channelAttribution: st
   if (combined.includes("utm_source=gemini") || combined.includes("gemini.google")) return { channelType: "AI_CHAT", channelAttribution: "Gemini" };
   if (combined.includes("utm_source=copilot") || combined.includes("bing.com/chat")) return { channelType: "AI_CHAT", channelAttribution: "Copilot" };
   if (combined.includes("utm_source=perplexity") || combined.includes("perplexity.ai")) return { channelType: "AI_CHAT", channelAttribution: "Perplexity" };
+  if (combined.includes("utm_source=claude") || combined.includes("claude.ai")) return { channelType: "AI_CHAT", channelAttribution: "Claude" };
 
   // Deterministic demo attribution based on order id (ONLY for dev mode)
   const isDev = process.env.NODE_ENV === "development";
