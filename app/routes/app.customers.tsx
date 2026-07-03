@@ -1,11 +1,13 @@
+import { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, redirect } from "react-router";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, DataTable, Divider, Banner,
+  Badge, DataTable, Divider, Banner, TextField,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
+import { CustomerIntelligenceService } from "../services/customer-intelligence.service";
 import { canAccessFeature } from "../services/feature-access.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -17,12 +19,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return redirect("/app/pricing?upgrade=pro");
   }
 
-  const [cohorts, channelQuality] = await Promise.all([
-    ProfitIntelligenceService.getLTVCohorts(shop),
+  const [cohorts, channelQuality, customers] = await Promise.all([
+    CustomerIntelligenceService.getLTVCohorts(shop),
     ProfitIntelligenceService.getChannelQualityScores(shop),
+    CustomerIntelligenceService.getCustomerDirectory(shop),
   ]);
 
-  return { cohorts, channelQuality };
+  return { cohorts, channelQuality, customers };
 };
 
 // ── Retention Curve Chart ─────────────────────────────────
@@ -129,7 +132,13 @@ const CHANNEL_META: Record<string, { icon: string; color: string }> = {
 };
 
 export default function CustomersRoute() {
-  const { cohorts, channelQuality } = useLoaderData<typeof loader>();
+  const { cohorts, channelQuality, customers } = useLoaderData<typeof loader>();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCustomers = customers.filter((c: any) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Find best channel for the insight callout
   const bestChannel = channelQuality[0];
@@ -138,17 +147,29 @@ export default function CustomersRoute() {
     ? Math.round((bestChannel.ltv / websiteChannel.ltv) * 10) / 10
     : null;
 
-  const cohortRows = cohorts.map((c) => [
-    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-primary)" }}>{c.cohortMonth}</span>,
-    <span style={{ fontFamily: "'Outfit', sans-serif" }}>{c.customers}</span>,
-    <span style={{ fontFamily: "'Outfit', sans-serif" }}>₹{c.avgRevenue.toLocaleString("en-IN")}</span>,
-    <Badge tone={c.repeat30 >= 25 ? "success" : c.repeat30 >= 10 ? "attention" : "critical"}>{`${c.repeat30}%`}</Badge>,
-    <Badge tone={c.repeat60 >= 20 ? "success" : c.repeat60 >= 8 ? "attention" : "critical"}>{`${c.repeat60}%`}</Badge>,
-    <Badge tone={c.repeat90 >= 15 ? "success" : c.repeat90 >= 5 ? "attention" : "critical"}>{`${c.repeat90}%`}</Badge>,
+  const cohortRows = cohorts.map((c: any) => [
+    <span key={`${c.cohortMonth}-month`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-primary)" }}>{c.cohortMonth}</span>,
+    <span key={`${c.cohortMonth}-cust`} style={{ fontFamily: "'Outfit', sans-serif" }}>{c.customers}</span>,
+    <span key={`${c.cohortMonth}-rev`} style={{ fontFamily: "'Outfit', sans-serif" }}>₹{c.avgRevenue.toLocaleString("en-IN")}</span>,
+    <Badge key={`${c.cohortMonth}-30`} tone={c.repeat30 >= 25 ? "success" : c.repeat30 >= 10 ? "attention" : "critical"}>{`${c.repeat30}%`}</Badge>,
+    <Badge key={`${c.cohortMonth}-60`} tone={c.repeat60 >= 20 ? "success" : c.repeat60 >= 8 ? "attention" : "critical"}>{`${c.repeat60}%`}</Badge>,
+    <Badge key={`${c.cohortMonth}-90`} tone={c.repeat90 >= 15 ? "success" : c.repeat90 >= 5 ? "attention" : "critical"}>{`${c.repeat90}%`}</Badge>,
+  ]);
+
+  const customerRows = filteredCustomers.map((c: any) => [
+    <span key={`${c.id}-name`} style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{c.name}</span>,
+    <span key={`${c.id}-email`} style={{ color: "var(--gg-text-muted)", fontSize: 13 }}>{c.email}</span>,
+    <span key={`${c.id}-cohort`}>{c.cohortMonth}</span>,
+    <Badge key={`${c.id}-ch`} tone="info">{c.channelSource}</Badge>,
+    <span key={`${c.id}-orders`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>{c.orderCount}</span>,
+    <span key={`${c.id}-aov`} style={{ fontFamily: "'Outfit', sans-serif" }}>₹{c.aov.toLocaleString("en-IN")}</span>,
+    <span key={`${c.id}-ltv`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, color: "var(--gg-accent-green)" }}>
+      ₹{c.ltv.toLocaleString("en-IN")}
+    </span>,
   ]);
 
   return (
-    <Page title="Customer Intelligence — LTV & Retention">
+    <Page title="Customer Intelligence — LTV & Cohort Retention">
       <Layout>
 
         {/* ── AI Quality Score insight ──────────────────── */}
@@ -292,6 +313,43 @@ export default function CustomersRoute() {
                   columnContentTypes={["text", "numeric", "numeric", "text", "text", "text"]}
                   headings={["Cohort Month", "New Customers", "Rev / Customer", "30-Day Repeat", "60-Day Repeat", "90-Day Repeat"]}
                   rows={cohortRows}
+                />
+              )}
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        {/* ── Customer LTV Directory ────────────────────── */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="100">
+                  <Text variant="headingMd" as="h2">👤 Customer LTV Directory</Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Individual customer lifetime value, order counts, and acquisition channel attribution.
+                  </Text>
+                </BlockStack>
+              </InlineStack>
+
+              <TextField
+                label="Search customer directory"
+                labelHidden
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by customer name, email, or ID..."
+                autoComplete="off"
+              />
+
+              {customerRows.length === 0 ? (
+                <Banner tone="info">
+                  No customer profiles match your search filter.
+                </Banner>
+              ) : (
+                <DataTable
+                  columnContentTypes={["text", "text", "text", "text", "numeric", "numeric", "numeric"]}
+                  headings={["Customer Name", "Email", "Cohort", "Source Channel", "Orders", "AOV", "Lifetime Value (LTV)"]}
+                  rows={customerRows}
                 />
               )}
             </BlockStack>

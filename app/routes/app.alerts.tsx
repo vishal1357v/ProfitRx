@@ -19,6 +19,8 @@ import {
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
+import { AlertService } from "../services/alerts.service";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
@@ -42,6 +44,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     });
   }
+
+  // Auto-evaluate current store conditions against thresholds
+  await AlertService.evaluateStoreAlerts(session.shop);
 
   const activeAlerts = await prisma.alert.findMany({
     where: { shop: session.shop, isRead: false },
@@ -75,10 +80,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "resolve_alert") {
     const alertId = formData.get("alertId") as string;
-    await prisma.alert.update({
-      where: { id: alertId, shop: session.shop },
-      data: { isRead: true, readAt: new Date() },
-    });
+    await AlertService.resolveAlert(session.shop, alertId);
     return Response.json({ success: true });
   }
 
@@ -102,6 +104,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       update: { alertEmail, rtoThreshold, marginThreshold },
       create: { shop: session.shop, alertEmail, rtoThreshold, marginThreshold, defaultCOGSPct: 40 },
     });
+
+    // Re-evaluate alerts with new settings thresholds
+    await AlertService.evaluateStoreAlerts(session.shop);
 
     return Response.json({ success: true });
   }

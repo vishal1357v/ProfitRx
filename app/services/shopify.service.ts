@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { authenticate, unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
+import { getSubscription } from "./feature-access.service";
+import { CustomerIntelligenceService } from "./customer-intelligence.service";
+import { AlertService } from "./alerts.service";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -496,8 +499,9 @@ export class ShopifyService {
     // Update pincode stats
     await this.updatePincodeStats(session.shop);
 
-    // Sync customer profiles
-    await this.syncCustomerProfiles(session.shop);
+    // Sync customer profiles & evaluate store alerts
+    await CustomerIntelligenceService.syncCustomerProfiles(session.shop);
+    await AlertService.evaluateStoreAlerts(session.shop);
 
     // Seed search queries if first run
     await this.seedSearchQueriesIfEmpty(admin, session.shop);
@@ -574,8 +578,9 @@ export class ShopifyService {
     // Update pincode stats
     await this.updatePincodeStats(session.shop);
 
-    // Sync customer profiles
-    await this.syncCustomerProfiles(session.shop);
+    // Sync customer profiles & evaluate store alerts
+    await CustomerIntelligenceService.syncCustomerProfiles(session.shop);
+    await AlertService.evaluateStoreAlerts(session.shop);
 
     // Seed search queries if first run
     await this.seedSearchQueriesIfEmpty(admin, session.shop);
