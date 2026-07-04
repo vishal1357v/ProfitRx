@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink } from "react-router";
+import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button } from "@shopify/polaris";
@@ -35,176 +35,172 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const localSub = await syncSubscriptionWithShopify(session.shop, billing);
 
   const isBypass = process.env.BYPASS_BILLING === "true";
-  const isFreePlan = (localSub.plan === "FREE" && localSub.status === "ACTIVE") || isBypass;
+  const isFreePlan = localSub.plan === "FREE" || isBypass;
 
   // Require billing only if they are not on the FREE plan, not bypassing, and not on the pricing page
   if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
-    await billing.require({
-      plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"],
-      isTest: true,
-      onFailure: async () => {
-        throw shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
-      },
-    });
+    try {
+      await billing.require({
+        plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"],
+        isTest: true,
+        onFailure: async () => {
+          return shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
+        },
+      });
+    } catch (err) {
+      // If billing.require throws a redirect response, rethrow so React Router handles iframe redirect
+      if (err instanceof Response || (err && typeof err === "object" && "status" in err)) {
+        throw err;
+      }
+      console.error("[app.tsx Loader Billing Require Error]:", err);
+    }
   }
 
   const features = await getFeatureList(session.shop);
-  const subscription = await getSubscription(session.shop);
+  const billingStatus = localSub.status || "ACTIVE";
 
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     shop: session.shop,
     host,
     features,
-    plan: subscription.plan,
-    billingStatus: localSub.status || "ACTIVE",
+    plan: localSub.plan,
+    billingStatus,
   };
 };
 
 const NAV_ITEMS = [
-  { href: "/app/dashboard",    label: "Dashboard",     icon: "⚡" },
-  { href: "/app/cod-dashboard", label: "COD Profit",    icon: "💸" },
-  { href: "/app/cod-rules",    label: "COD Rules",     icon: "🛡️" },
-  { href: "/app/rto-heatmap",   label: "RTO Heatmap",   icon: "📍" },
-  { href: "/app/cogs",          label: "Products (COGS)", icon: "📦" },
-  { href: "/app/customers",     label: "Customers (LTV)", icon: "👥", feature: "ltv_cohort" },
-  { href: "/app/roas",          label: "ROAS & Spend",   icon: "📈", feature: "blended_roas" },
-  { href: "/app/alerts",        label: "Alerts",        icon: "🔔" },
-  { href: "/app/pricing",       label: "Plans",         icon: "🚀" },
-  { href: "/app/settings",      label: "Settings",      icon: "⚙️" },
+  { label: "Dashboard", url: "/app/dashboard", icon: "📊" },
+  { label: "COGS Catalog", url: "/app/cogs", icon: "📦" },
+  { label: "COD Risk Shield", url: "/app/cod-rules", icon: "🛡️", badge: "India" },
+  { label: "COD Analytics", url: "/app/cod-dashboard", icon: "⚡" },
+  { label: "RTO Analytics", url: "/app/rto", icon: "🚚", feature: "basic_rto" },
+  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: "🗺️", feature: "rto_heatmap", badge: "Pro" },
+  { label: "Profit Leaks", url: "/app/profit-leaks", icon: "🔍", feature: "basic_insights" },
+  { label: "Customer LTV", url: "/app/customers", icon: "👥", feature: "ltv_cohort", badge: "Pro" },
+  { label: "Ad Spend Sync", url: "/app/roas", icon: "📈", feature: "blended_roas", badge: "Pro" },
+  { label: "Alerts", url: "/app/alerts", icon: "🔔", feature: "basic_alerts" },
+  { label: "Store Health", url: "/app/health", icon: "❤️" },
+  { label: "Plans & Billing", url: "/app/pricing", icon: "💎" },
+  { label: "Settings", url: "/app/settings", icon: "⚙️" },
 ];
 
 export default function App() {
-  const { apiKey, shop, host, features, plan, billingStatus } = useLoaderData<typeof loader>();
-  const [darkMode, setDarkMode] = useState(false);
+  const { apiKey, shop, host, features = [], billingStatus } = useLoaderData<typeof loader>();
   const location = useLocation();
   const navigation = useNavigation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isNavigating = navigation.state !== "idle";
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
 
-  const searchParams = new URLSearchParams();
-  if (shop) searchParams.set("shop", shop);
-  if (host) searchParams.set("host", host);
-  const searchStr = `?${searchParams.toString()}`;
-
-  useEffect(() => {
-    const saved = localStorage.getItem("profitrx-dark-mode") === "true";
-    setDarkMode(saved);
-    if (saved) {
-      document.body.classList.add("dark-theme");
-    } else {
-      document.body.classList.remove("dark-theme");
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const nextMode = !darkMode;
-    setDarkMode(nextMode);
-    localStorage.setItem("profitrx-dark-mode", String(nextMode));
-    if (nextMode) {
-      document.body.classList.add("dark-theme");
-    } else {
-      document.body.classList.remove("dark-theme");
-    }
-  };
-
-  const isActive = (path: string) =>
-    location.pathname === path || location.pathname === `${path}/`;
-
   return (
-    <AppProvider embedded apiKey={apiKey}>
+    <AppProvider apiKey={apiKey}>
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
-      {/* ── Premium Nav ───────────────────────────────────── */}
-      <s-app-nav>
-        {/* Brand wordmark */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginRight: 16,
-          paddingRight: 16,
-          borderRight: "1px solid rgba(255,255,255,0.08)",
-        }}>
-          <span style={{ fontSize: 18 }}>⚡</span>
-          <span style={{
-            fontFamily: "'Outfit', sans-serif",
-            fontWeight: 700,
-            fontSize: 14,
-            background: "linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            letterSpacing: "-0.02em",
-          }}>
-            ProfitRx
-          </span>
-        </div>
-
-        {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => (
-          <ReactRouterLink
-            key={item.href}
-            to={`${item.href}${searchStr}`}
-            className={`gg-nav-link ${isActive(item.href) ? "active" : ""}`}
-          >
-            <span style={{ marginRight: 5, fontSize: 13 }}>{item.icon}</span>
-            {item.label}
-          </ReactRouterLink>
-        ))}
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Live indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 12 }}>
-          <div className="gg-pulse" />
-          <span style={{ fontSize: 11, fontWeight: 500, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>
-            Live
-          </span>
-        </div>
-
-        {/* Dark mode toggle */}
-        <button
-          className="gg-dark-toggle"
-          onClick={toggleDarkMode}
-          aria-label="Toggle dark mode"
-          title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          {darkMode ? "☀️" : "🌙"}
-        </button>
-      </s-app-nav>
-
-      {/* ── Page Content ──────────────────────────────────── */}
-      <div style={{ minHeight: "calc(100vh - 56px)", padding: "20px 16px" }}>
+        {/* Top Dunning Banner for RBI Mandate Failures */}
         {isDunningActive && (
-          <div style={{ marginBottom: 16 }}>
-            <Banner tone="critical" title="Payment Authorization Action Required">
-              <p>Your subscription payment failed, likely due to RBI e-mandate limits. Please check your bank app/SMS to authorize the mandate, or update your payment method in Shopify Settings.</p>
+          <div style={{ padding: "12px 20px" }}>
+            <Banner tone="critical" title="⚠️ Payment Action Required — RBI Mandate Notice">
+              <p style={{ margin: 0, fontSize: "13px" }}>
+                Shopify was unable to process your subscription payment. Under RBI regulations for Indian cards and UPI mandates, please update your payment method or approve the mandate in your bank app to keep ProfitRx active.
+              </p>
+              <div style={{ marginTop: "8px" }}>
+                <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" size="micro">
+                  Update Payment Method →
+                </Button>
+              </div>
             </Banner>
           </div>
         )}
-        {navigation.state === "loading" ? (
-          <div className="skeleton-container" style={{ marginTop: 8 }}>
-            <div className="skeleton-row" style={{ marginBottom: 8 }}>
-              <div className="skeleton-pulse skeleton-card" />
-              <div className="skeleton-pulse skeleton-card" />
-              <div className="skeleton-pulse skeleton-card" />
-              <div className="skeleton-pulse skeleton-card" />
-              <div className="skeleton-pulse skeleton-card" />
-            </div>
-            <div className="skeleton-pulse skeleton-chart" style={{ marginBottom: 16 }} />
-            <div className="skeleton-row" style={{ flexDirection: "column", gap: 10 }}>
-              <div className="skeleton-pulse skeleton-line" style={{ width: "100%" }} />
-              <div className="skeleton-pulse skeleton-line" style={{ width: "90%" }} />
-              <div className="skeleton-pulse skeleton-line" style={{ width: "80%" }} />
-              <div className="skeleton-pulse skeleton-line" style={{ width: "75%" }} />
+
+        <div className="gg-app-container">
+          {/* Top Bar for Mobile Toggle */}
+          <div className="gg-topbar-mobile">
+            <button
+              className="gg-menu-toggle"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle Navigation"
+            >
+              {mobileMenuOpen ? "✕" : "☰ Menu"}
+            </button>
+            <div className="gg-mobile-brand">
+              <span className="gg-logo-icon">⚡</span>
+              <span className="gg-logo-text">ProfitRx</span>
             </div>
           </div>
-        ) : (
-          <div className="gg-page-enter">
-            <Outlet />
-          </div>
-        )}
-      </div>
+
+          {/* Navigation Sidebar */}
+          <nav className={`gg-sidebar ${mobileMenuOpen ? "gg-sidebar-open" : ""}`}>
+            <div className="gg-sidebar-brand">
+              <div className="gg-brand-content">
+                <span className="gg-logo-icon">⚡</span>
+                <span className="gg-logo-text">ProfitRx</span>
+              </div>
+              <span className="gg-badge-moat">India COD</span>
+            </div>
+
+            <div className="gg-nav-list">
+              {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => {
+                const isActive = location.pathname === item.url || (item.url !== "/app/dashboard" && location.pathname.startsWith(item.url));
+                const fullUrl = `${item.url}?shop=${shop}&host=${host}`;
+
+                return (
+                  <ReactRouterLink
+                    key={item.url}
+                    to={fullUrl}
+                    className={`gg-nav-item ${isActive ? "active" : ""}`}
+                  >
+                    <span className="gg-nav-icon">{item.icon}</span>
+                    <span className="gg-nav-label">{item.label}</span>
+                    {item.badge && (
+                      <span className={`gg-nav-badge ${item.badge === "Pro" ? "pro" : "india"}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </ReactRouterLink>
+                );
+              })}
+            </div>
+
+            <div className="gg-sidebar-footer">
+              <div className="gg-store-pill">
+                <span className="gg-store-dot" />
+                <span className="gg-store-name" title={shop}>
+                  {shop.replace(".myshopify.com", "")}
+                </span>
+              </div>
+            </div>
+          </nav>
+
+          {/* Main Content Area */}
+          <main className="gg-main-content">
+            {isNavigating ? (
+              <div className="gg-skeleton-container">
+                <div className="skeleton-header skeleton-pulse" />
+                <div className="skeleton-grid">
+                  <div className="skeleton-pulse skeleton-card" />
+                  <div className="skeleton-pulse skeleton-card" />
+                  <div className="skeleton-pulse skeleton-card" />
+                </div>
+                <div className="skeleton-pulse skeleton-chart" style={{ marginBottom: 16 }} />
+                <div className="skeleton-row" style={{ flexDirection: "column", gap: 10 }}>
+                  <div className="skeleton-pulse skeleton-line" style={{ width: "100%" }} />
+                  <div className="skeleton-pulse skeleton-line" style={{ width: "90%" }} />
+                  <div className="skeleton-pulse skeleton-line" style={{ width: "80%" }} />
+                  <div className="skeleton-pulse skeleton-line" style={{ width: "75%" }} />
+                </div>
+              </div>
+            ) : (
+              <div className="gg-page-enter">
+                <Outlet />
+              </div>
+            )}
+          </main>
+        </div>
       </PolarisProvider>
     </AppProvider>
   );
@@ -212,13 +208,19 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  // Standard Shopify OAuth or Billing redirects must be delegated to boundary.error
+  if (isRouteErrorResponse(error)) {
+    return boundary.error(error);
+  }
+
   console.error("[App ErrorBoundary Caught Error]:", error);
 
   let errorMessage = "An unexpected application error occurred.";
   if (error instanceof Error) {
     errorMessage = error.message;
-  } else if (typeof error === "object" && error !== null && "data" in error) {
-    errorMessage = (error as any).data?.message || JSON.stringify((error as any).data);
+  } else if (typeof error === "object" && error !== null) {
+    errorMessage = JSON.stringify(error);
   }
 
   return (
