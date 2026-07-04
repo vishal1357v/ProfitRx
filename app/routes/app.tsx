@@ -36,6 +36,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (authErr: any) {
     // If it's a Response (OAuth redirect / session bounce), pass it through unchanged
     if (authErr instanceof Response) throw authErr;
+
+    const url = new URL(request.url);
+    const shop = url.searchParams.get("shop");
+    const host = url.searchParams.get("host") || "";
+
+    // If authentication failed due to stale session token and we know the shop, trigger re-authorization
+    if (shop) {
+      console.warn(`[app.tsx] Session validation failed for ${shop}. Triggering re-authorization flow.`);
+      return redirect(`/auth/login?shop=${shop}&host=${host}`);
+    }
+
     // For all other errors, log with full detail and re-throw as a readable error
     const errMsg = [
       `[app.tsx authenticate.admin FAILED]`,
