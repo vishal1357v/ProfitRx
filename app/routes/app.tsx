@@ -27,17 +27,46 @@ import { getFeatureList, getSubscription } from "../services/feature-access.serv
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing, session, redirect: shopifyRedirect } = await authenticate.admin(request);
+  // ── Step 1: Authenticate with Shopify ─────────────────────────────────────
+  // We MUST let Response throws pass through (these are OAuth redirects from Shopify SDK).
+  // But we catch real Errors so we can log them properly before re-throwing.
+  let authResult: Awaited<ReturnType<typeof authenticate.admin>>;
+  try {
+    authResult = await authenticate.admin(request);
+  } catch (authErr: any) {
+    // If it's a Response (OAuth redirect / session bounce), pass it through unchanged
+    if (authErr instanceof Response) throw authErr;
+    // For all other errors, log with full detail and re-throw as a readable error
+    const errMsg = [
+      `[app.tsx authenticate.admin FAILED]`,
+      `Name: ${authErr?.name || "unknown"}`,
+      `Message: ${authErr?.message || String(authErr)}`,
+      `Stack: ${authErr?.stack || "(no stack)"}`,
+      `Code: ${authErr?.code || "(none)"}`,
+      `Meta: ${JSON.stringify(authErr?.meta || {})}`,
+    ].join("\n");
+    console.error(errMsg);
+    throw new Error(errMsg);
+  }
+
+  const { billing, session, redirect: shopifyRedirect } = authResult;
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
 
-  // Sync billing state from Shopify to local DB
-  const localSub = await syncSubscriptionWithShopify(session.shop, billing);
+  // ── Step 2: Sync billing ────────────────────────────────────────────────────
+  let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
+  try {
+    localSub = await syncSubscriptionWithShopify(session.shop, billing);
+  } catch (syncErr: any) {
+    console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
+    // Default to FREE so the app can still render
+    localSub = { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
+  }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
   const isFreePlan = localSub.plan === "FREE" || isBypass;
 
-  // Require billing only if they are not on the FREE plan, not bypassing, and not on the pricing page
+  // ── Step 3: Require billing for paid plans ─────────────────────────────────
   if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
     try {
       await billing.require({
@@ -51,11 +80,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (err instanceof Response || (err && typeof err === "object" && "status" in err)) {
         throw err;
       }
-      console.error("[app.tsx Loader Billing Require Error]:", err);
+      console.error("[app.tsx billing.require Error]:", err);
     }
   }
 
-  const features = await getFeatureList(session.shop);
+  // ── Step 4: Load features ─────────────────────────────────────────────────
+  let features: string[] = [];
+  try {
+    features = await getFeatureList(session.shop);
+  } catch (featErr: any) {
+    console.error("[app.tsx getFeatureList FAILED]:", featErr);
+  }
+
   const billingStatus = localSub.status || "ACTIVE";
 
   return {
