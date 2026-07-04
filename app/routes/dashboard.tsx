@@ -37,10 +37,24 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
-  const shop = session.shop;
-  const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
+  let session: any;
+  let billing: any;
+  let shop = "";
+  let host = "";
+
+  try {
+    const url = new URL(request.url);
+    host = url.searchParams.get("host") || "";
+
+    const auth = await authenticate.admin(request);
+    session = auth.session;
+    billing = auth.billing;
+    shop = session.shop;
+  } catch (authErr: any) {
+    if (authErr instanceof Response) throw authErr;
+    console.error("[dashboard.tsx loader authenticate.admin FAILED]:", authErr);
+    throw authErr;
+  }
 
   try {
     // Perform active subscription check with Shopify Billing API

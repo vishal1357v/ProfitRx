@@ -73,12 +73,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     testStep("prisma_sessions_detail", async () => {
       const sessions = await prisma.session.findMany({
-        select: { id: true, shop: true, isOnline: true, expires: true },
+        select: { id: true, shop: true, isOnline: true, expires: true, accessToken: true, scope: true },
         orderBy: { shop: "asc" },
       });
       return sessions.map(s => ({
         shop: s.shop,
         isOnline: s.isOnline,
+        hasAccessToken: !!s.accessToken,
+        accessTokenPrefix: s.accessToken ? `${s.accessToken.substring(0, 8)}...` : "NONE ❌",
+        scope: s.scope || "NONE ❌",
         expires: s.expires ? s.expires.toISOString() : "never",
         expired: s.expires ? s.expires < new Date() : false,
       }));

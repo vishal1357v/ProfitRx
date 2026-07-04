@@ -34,20 +34,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
-    // If it's a Response (OAuth redirect / session bounce), pass it through unchanged
-    if (authErr instanceof Response) throw authErr;
-
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop");
     const host = url.searchParams.get("host") || "";
 
-    // If authentication failed due to stale session token and we know the shop, trigger re-authorization
+    // If it's a 302/401 redirect response, pass it through directly
+    if (authErr instanceof Response && authErr.status !== 500) {
+      throw authErr;
+    }
+
+    // If session validation failed or 500 error occurred and we know the shop:
+    // Auto-wipe stale session record from PostgreSQL so merchant gets a fresh OAuth prompt!
     if (shop) {
-      console.warn(`[app.tsx] Session validation failed for ${shop}. Triggering re-authorization flow.`);
+      console.warn(`[app.tsx Auto-Heal] Wiping stale session records for ${shop} and re-authorizing...`);
+      try {
+        await prisma.session.deleteMany({ where: { shop } });
+      } catch (dbErr) {
+        console.error("[app.tsx Auto-Heal] Failed to wipe stale session:", dbErr);
+      }
       return redirect(`/auth/login?shop=${shop}&host=${host}`);
     }
 
-    // For all other errors, log with full detail and re-throw as a readable error
+    if (authErr instanceof Response) throw authErr;
+
+    // For all other errors, log with full detail and re-throw
     const errMsg = [
       `[app.tsx authenticate.admin FAILED]`,
       `Name: ${authErr?.name || "unknown"}`,
