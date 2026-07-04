@@ -37,18 +37,19 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
-  const shop = session.shop;
-  const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
+  try {
+    const { session, billing } = await authenticate.admin(request);
+    const shop = session.shop;
+    const url = new URL(request.url);
+    const host = url.searchParams.get("host") || "";
 
-  // Perform active subscription check with Shopify Billing API
-  const subscription = await syncSubscriptionWithShopify(shop, billing);
-  const isFreeTier = (subscription?.plan || "FREE") === "FREE";
-  const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
-  const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
-  const ordersUsed = subscription?.ordersUsed || 0;
-  const ordersLimit = subscription?.orderLimit ?? (subscription?.plan === "PRO" ? null : 50);
+    // Perform active subscription check with Shopify Billing API
+    const subscription = await syncSubscriptionWithShopify(shop, billing);
+    const isFreeTier = (subscription?.plan || "FREE") === "FREE";
+    const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
+    const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
+    const ordersUsed = subscription?.ordersUsed || 0;
+    const ordersLimit = subscription?.orderLimit ?? (subscription?.plan === "PRO" ? null : 50);
 
   const features = await getFeatureList(shop);
 
@@ -270,12 +271,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   orders.forEach((o: any) => {
-    const dateStr = o.createdAt.toISOString().split("T")[0];
+    const d = o.createdAt ? (o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)) : new Date();
+    const dateStr = d.toISOString().split("T")[0];
     if (dailyStats[dateStr]) {
-      const c = cogsMap[o.productId || ""] ?? o.totalPrice * 0.4;
-      const f = o.totalTax + o.shippingPrice;
-      const p = o.totalPrice - c - f;
-      dailyStats[dateStr].revenue += o.totalPrice;
+      const totalPrice = Number(o.totalPrice) || 0;
+      const totalTax = Number(o.totalTax) || 0;
+      const shippingPrice = Number(o.shippingPrice) || 0;
+      const c = (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ?? (totalPrice * 0.4);
+      const f = totalTax + shippingPrice;
+      const p = totalPrice - c - f;
+      dailyStats[dateStr].revenue += totalPrice;
       dailyStats[dateStr].profit += p;
     }
   });
@@ -358,6 +363,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     netRoiSavings,
     blockedCodCount,
   };
+} catch (err: any) {
+  console.error("[Dashboard Loader Critical Error Caught]:", err);
+  return {
+    shop: "", host: "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
+    healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
+    aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
+    products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
+    leakTrend: [], features: {}, missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
+    excludedOrdersCount: 0, syncCapped: false, isBasicTier: true, planName: "Free", ordersUsed: 0, ordersLimit: 50,
+    configuredCogsCount: 0, connectedAdPlatforms: [], hasConnectedAdAccount: false, nativeCogsCount: 0, manualCogsCount: 0,
+    feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
+    gstSummary: { gstin: "", isGstRegistered: false, defaultGstRate: 18, totalTaxableSales: 0, totalGstCollected: 0, cgst: 0, sgst: 0, igst: 0, intraStateSales: 0, interStateSales: 0, hsnSummary: [] },
+    totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
+  };
+}
 };
 
 // ── Count-up hook ─────────────────────────────────────────
@@ -1958,7 +1978,7 @@ export default function DashboardRoute() {
               )}
 
               {/* ══ TAB 1: AI Channel Attribution ══════════ */}
-              {selectedTab === 1 && data.features.includes("ai_attribution") && (
+              {selectedTab === 1 && (Array.isArray(data.features) && data.features.includes("ai_attribution")) && (
                 !data.isAttributionActive ? (
                   <Card>
                     <div style={{ padding: "40px 0" }}>
@@ -2051,7 +2071,7 @@ export default function DashboardRoute() {
                 </Grid>
               ))}
 
-              {selectedTab === 1 && !data.features.includes("ai_attribution") && (
+              {selectedTab === 1 && !(Array.isArray(data.features) && data.features.includes("ai_attribution")) && (
                 <div style={{ padding: "48px 24px", textAlign: "center", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(25, 20, 45, 0.4)", backdropFilter: "blur(20px)" }}>
                   <BlockStack gap="400" align="center" inlineAlign="center">
                     <div style={{ fontSize: 64, filter: "drop-shadow(0 0 10px rgba(124, 58, 237, 0.5))" }}>🤖</div>
@@ -2072,7 +2092,7 @@ export default function DashboardRoute() {
               )}
 
               {/* ══ TAB 2: Search Intelligence ══════════════ */}
-              {selectedTab === 2 && data.features.includes("ai_attribution") && (
+              {selectedTab === 2 && (Array.isArray(data.features) && data.features.includes("ai_attribution")) && (
                 <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
                   <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
                     <Card>
@@ -2216,7 +2236,7 @@ export default function DashboardRoute() {
                 </Grid>
               )}
 
-              {selectedTab === 2 && !data.features.includes("ai_attribution") && (
+              {selectedTab === 2 && !(Array.isArray(data.features) && data.features.includes("ai_attribution")) && (
                 <div style={{ padding: "48px 24px", textAlign: "center", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(25, 20, 45, 0.4)", backdropFilter: "blur(20px)" }}>
                   <BlockStack gap="400" align="center" inlineAlign="center">
                     <div style={{ fontSize: 64, filter: "drop-shadow(0 0 10px rgba(124, 58, 237, 0.5))" }}>🔍</div>

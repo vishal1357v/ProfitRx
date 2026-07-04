@@ -3,7 +3,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisProvider, Banner } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 
 function RemixLink({ url, children, external, ...props }: any) {
@@ -211,7 +211,41 @@ export default function App() {
 }
 
 export function ErrorBoundary() {
-  return boundary.error(useRouteError());
+  const error = useRouteError();
+  console.error("[App ErrorBoundary Caught Error]:", error);
+
+  let errorMessage = "An unexpected application error occurred.";
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === "object" && error !== null && "data" in error) {
+    errorMessage = (error as any).data?.message || JSON.stringify((error as any).data);
+  }
+
+  return (
+    <PolarisProvider i18n={enTranslations}>
+      <Page title="Greek God SaaS Diagnostic Portal">
+        <Layout>
+          <Layout.Section>
+            <Banner tone="critical" title="Application Error Detected">
+              <BlockStack gap="200">
+                <Text variant="bodyMd" as="p">
+                  Greek God SaaS encountered a runtime exception while executing this route action:
+                </Text>
+                <div style={{ background: "#1e293b", color: "#f8fafc", padding: "12px 16px", borderRadius: "8px", fontFamily: "monospace", fontSize: "13px" }}>
+                  {errorMessage}
+                </div>
+                <InlineStack align="end">
+                  <Button variant="primary" onClick={() => window.location.reload()}>
+                    Reload Dashboard 🔄
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    </PolarisProvider>
+  );
 }
 
 export const headers: HeadersFunction = (headersArgs) => {
