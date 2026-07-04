@@ -209,8 +209,40 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
 
-  // Standard Shopify OAuth or Billing redirects must be delegated to boundary.error
+  // Handle direct browser tab access outside Shopify Admin iframe gracefully
   if (isRouteErrorResponse(error)) {
+    if (error.status === 401 || error.statusText === "Unexpected Server Error" || error.data === "Unexpected Server Error") {
+      return (
+        <PolarisProvider i18n={enTranslations}>
+          <div style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
+            <Page title="Shopify Admin Session Required">
+              <Layout>
+                <Layout.Section>
+                  <Banner tone="warning" title="🔑 Please Open App Inside Shopify Admin">
+                    <BlockStack gap="300">
+                      <Text variant="bodyMd" as="p">
+                        Greek God SaaS is an <strong>embedded Shopify App</strong>. It requires an authenticated session inside Shopify Admin to track live orders, COGS, and COD rules securely.
+                      </Text>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        If you are opening this URL directly in a browser tab (e.g. <code>localhost</code> or direct Vercel domain), please open the app from your <strong>Shopify Store Admin → Apps → Greek God / ProfitRx</strong>.
+                      </Text>
+                      <InlineStack align="start" gap="200">
+                        <Button variant="primary" url="https://admin.shopify.com" external>
+                          Open Shopify Admin ↗
+                        </Button>
+                        <Button variant="secondary" url="/">
+                          Return to Landing Page
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Banner>
+                </Layout.Section>
+              </Layout>
+            </Page>
+          </div>
+        </PolarisProvider>
+      );
+    }
     return boundary.error(error);
   }
 
