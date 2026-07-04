@@ -216,6 +216,7 @@ export function ErrorBoundary() {
   let statusCode = 500;
   let statusText = "Internal Server Error";
   let detailsText = "";
+  let isUnexpectedServerError = false;
 
   if (isRouteErrorResponse(error)) {
     errorKind = "RouteErrorResponse (Shopify Server Response)";
@@ -229,12 +230,20 @@ export function ErrorBoundary() {
     } else {
       detailsText = `Route error response returned with HTTP ${error.status} status.`;
     }
+
+    if (error.statusText === "Unexpected Server Error" || error.data === "Unexpected Server Error" || error.status === 500) {
+      isUnexpectedServerError = true;
+    }
   } else if (error instanceof Error) {
     errorKind = error.name || "JavaScript Runtime Error";
     statusCode = 500;
     statusText = error.message || "Error";
     errorTitle = `${error.name || "Error"}: ${error.message}`;
     detailsText = error.stack || error.message;
+
+    if (error.message.includes("Unexpected Server Error")) {
+      isUnexpectedServerError = true;
+    }
   } else if (typeof error === "object" && error !== null) {
     errorKind = "Object Exception";
     errorTitle = "Uncaught Exception Object";
@@ -252,7 +261,7 @@ export function ErrorBoundary() {
   return (
     <PolarisProvider i18n={enTranslations}>
       <div style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
-        <Page title="Greek God SaaS — Diagnostic Portal">
+        <Page title="Greek God SaaS — Diagnostic & Recovery Portal">
           <Layout>
             <Layout.Section>
               <Banner tone="critical" title={`🚨 ${errorTitle}`}>
@@ -276,6 +285,24 @@ export function ErrorBoundary() {
                     </div>
                   </div>
 
+                  {isUnexpectedServerError && (
+                    <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", padding: "14px 16px", borderRadius: "8px" }}>
+                      <div style={{ color: "#f59e0b", marginBottom: "6px", fontWeight: "bold" }}>
+                        <Text variant="headingSm" as="h3">
+                          🔑 Diagnostic Insight: Shopify Session Validation Failure
+                        </Text>
+                      </div>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Shopify App SDK threw <code>Unexpected Server Error</code> when validating your store session token. This happens when:
+                      </Text>
+                      <ul style={{ paddingLeft: "20px", marginTop: "6px", fontSize: "13px", color: "#cbd5e1" }}>
+                        <li><strong>1. Missing / Stale Session:</strong> The PostgreSQL <code>Session</code> table does not have an active OAuth token for your shop.</li>
+                        <li><strong>2. Client Secret Mismatch:</strong> <code>SHOPIFY_API_SECRET</code> in <code>.env</code> / Vercel does not match your app secret in Shopify Partner Dashboard.</li>
+                        <li><strong>3. Domain Mismatch:</strong> <code>SHOPIFY_APP_URL</code> in <code>.env</code> does not match the active host URL.</li>
+                      </ul>
+                    </div>
+                  )}
+
                   <div>
                     <div style={{ marginBottom: "4px" }}>
                       <Text variant="bodyXs" as="p" tone="subdued">RAW DIAGNOSTIC PAYLOAD & STACK TRACE:</Text>
@@ -295,6 +322,9 @@ export function ErrorBoundary() {
                       </Button>
                       <Button variant="primary" url="/auth/login" external>
                         Re-Authorize Session 🔑
+                      </Button>
+                      <Button variant="plain" url="/api/debug-env" external>
+                        Check Environment API 🛠️
                       </Button>
                     </InlineStack>
                   </InlineStack>

@@ -37,12 +37,12 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  try {
-    const { session, billing } = await authenticate.admin(request);
-    const shop = session.shop;
-    const url = new URL(request.url);
-    const host = url.searchParams.get("host") || "";
+  const { session, billing } = await authenticate.admin(request);
+  const shop = session.shop;
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
 
+  try {
     // Perform active subscription check with Shopify Billing API
     const subscription = await syncSubscriptionWithShopify(shop, billing);
     const isFreeTier = (subscription?.plan || "FREE") === "FREE";
@@ -366,7 +366,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 } catch (err: any) {
   console.error("[Dashboard Loader Critical Error Caught]:", err);
   return {
-    shop: "", host: "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
+    shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
     healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
     aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
     products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
