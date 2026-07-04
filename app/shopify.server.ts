@@ -28,9 +28,7 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
-  future: {
-    expiringOfflineAccessTokens: true,
-  },
+  future: {},
   hooks: {
     afterAuth: async ({ session }) => {
       console.log(`[afterAuth] Seeding default StoreSettings and starting 30-day background sync for ${session.shop}`);

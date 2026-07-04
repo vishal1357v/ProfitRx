@@ -41,7 +41,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
     try {
       await billing.require({
-        plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"],
+        plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"] as any,
         isTest: true,
         onFailure: async () => {
           return shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
@@ -207,15 +207,19 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  // Route error responses (OAuth redirects, 401s, 302s thrown by Shopify authenticate.admin)
+  // MUST be delegated to Shopify's boundary.error so App Bridge can perform iframe redirects!
+  if (isRouteErrorResponse(error)) {
+    return boundary.error(error);
+  }
+
   console.error("[App ErrorBoundary Detailed Error Log]:", error);
 
-  let statusText = "Runtime Exception";
+  let statusText = "JavaScript Error";
   let errorDetails = "";
 
-  if (isRouteErrorResponse(error)) {
-    statusText = `HTTP ${error.status}: ${error.statusText || "Route Error Response"}`;
-    errorDetails = typeof error.data === "string" ? error.data : JSON.stringify(error.data, null, 2);
-  } else if (error instanceof Error) {
+  if (error instanceof Error) {
     statusText = error.name || "JavaScript Error";
     errorDetails = error.stack || error.message;
   } else {

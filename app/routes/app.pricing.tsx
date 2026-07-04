@@ -56,8 +56,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    return await billing.request({
-      plan: plan as any,
+    return await (billing.request as any)({
+      plan: plan,
       isTest: true,
     });
   } catch (error: any) {
