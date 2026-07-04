@@ -83,15 +83,17 @@ export default function CODRulesRoute() {
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
+  const blockedPincodes = codSettings?.codBlockedPincodes || [];
+
   // Form State
-  const [blockingEnabled, setBlockingEnabled] = useState(codSettings.codBlockingEnabled);
-  const [otpEnabled, setOtpEnabled] = useState(codSettings.otpVerificationEnabled);
-  const [partialEnabled, setPartialEnabled] = useState(codSettings.partialPaymentEnabled);
-  const [partialAmount, setPartialAmount] = useState(codSettings.partialPaymentAmount.toString());
-  const [feeEnabled, setFeeEnabled] = useState(codSettings.codFeeEnabled);
-  const [feeAmount, setFeeAmount] = useState(codSettings.codFeeAmount.toString());
-  const [feeType, setFeeType] = useState(codSettings.codFeeType);
-  const [bulkInput, setBulkInput] = useState(codSettings.codBlockedPincodes.join(", "));
+  const [blockingEnabled, setBlockingEnabled] = useState(codSettings?.codBlockingEnabled ?? false);
+  const [otpEnabled, setOtpEnabled] = useState(codSettings?.otpVerificationEnabled ?? false);
+  const [partialEnabled, setPartialEnabled] = useState(codSettings?.partialPaymentEnabled ?? false);
+  const [partialAmount, setPartialAmount] = useState((codSettings?.partialPaymentAmount ?? 50).toString());
+  const [feeEnabled, setFeeEnabled] = useState(codSettings?.codFeeEnabled ?? false);
+  const [feeAmount, setFeeAmount] = useState((codSettings?.codFeeAmount ?? 30).toString());
+  const [feeType, setFeeType] = useState(codSettings?.codFeeType || "fixed");
+  const [bulkInput, setBulkInput] = useState(blockedPincodes.join(", "));
   const [saveBanner, setSaveBanner] = useState<string | null>(null);
 
   const handleSaveRules = () => {
@@ -124,7 +126,7 @@ export default function CODRulesRoute() {
     setSaveBanner("Bulk blocked pincodes updated!");
   };
 
-  const blockedSet = new Set(codSettings.codBlockedPincodes);
+  const blockedSet = new Set(blockedPincodes);
 
   const pincodeRows = pincodeStats.map((p: any) => {
     const isBlocked = blockedSet.has(p.pincode);
@@ -197,7 +199,7 @@ export default function CODRulesRoute() {
                 />
                 <InlineStack align="end">
                   <Button variant="secondary" onClick={handleBulkImport}>
-                    {`Update Blocked Pincodes List (${codSettings.codBlockedPincodes.length} Blocked)`}
+                    {`Update Blocked Pincodes List (${blockedPincodes.length} Blocked)`}
                   </Button>
                 </InlineStack>
               </BlockStack>

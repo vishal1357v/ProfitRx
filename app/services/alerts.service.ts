@@ -19,7 +19,8 @@ export class AlertService {
       });
     }
 
-    const { marginThreshold, rtoThreshold } = settings;
+    const safeSettings = ProfitService.getSettings(settings);
+    const { marginThreshold, rtoThreshold } = safeSettings;
 
     // Fetch orders and calculate summary
     const orders = await prisma.order.findMany({ where: { shop } });
@@ -38,7 +39,7 @@ export class AlertService {
     for (const o of orders) {
       const c = cogsDict[o.productId || ""];
       if (c !== undefined) {
-        const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
+        const { fees } = ProfitService.calculateOrderProfit(o, c, safeSettings);
         totalCogs += c;
         totalFees += fees;
         profitOrdersCount++;
@@ -108,7 +109,7 @@ export class AlertService {
       const prodOrders = orders.filter((o) => o.productId === productId);
       if (prodOrders.length > 0) {
         const prodRev = prodOrders.reduce((s, o) => s + o.totalPrice, 0);
-        const { profit } = ProfitService.calculateOrderProfit(prodOrders[0], cogs, settings);
+        const { profit } = ProfitService.calculateOrderProfit(prodOrders[0], cogs, safeSettings);
         const prodMargin = prodRev > 0 ? (profit / (prodRev / prodOrders.length)) * 100 : 0;
         if (prodMargin < marginThreshold) {
           await triggerAlert(
