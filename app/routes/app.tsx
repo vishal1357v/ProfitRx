@@ -207,50 +207,94 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+  const location = useLocation();
 
-  // Route error responses (OAuth redirects, 401s, 302s thrown by Shopify authenticate.admin)
-  // MUST be delegated to Shopify's boundary.error so App Bridge can perform iframe redirects!
+  console.error("[Greek God SaaS Error Diagnostic]:", error);
+
+  let errorTitle = "Runtime Exception";
+  let errorKind = "Unknown";
+  let statusCode = 500;
+  let statusText = "Internal Server Error";
+  let detailsText = "";
+
   if (isRouteErrorResponse(error)) {
-    return boundary.error(error);
-  }
-
-  console.error("[App ErrorBoundary Detailed Error Log]:", error);
-
-  let statusText = "JavaScript Error";
-  let errorDetails = "";
-
-  if (error instanceof Error) {
-    statusText = error.name || "JavaScript Error";
-    errorDetails = error.stack || error.message;
+    errorKind = "RouteErrorResponse (Shopify Server Response)";
+    statusCode = error.status;
+    statusText = error.statusText || "Route Error";
+    errorTitle = `HTTP ${error.status}: ${statusText}`;
+    if (typeof error.data === "string") {
+      detailsText = error.data;
+    } else if (error.data) {
+      detailsText = JSON.stringify(error.data, null, 2);
+    } else {
+      detailsText = `Route error response returned with HTTP ${error.status} status.`;
+    }
+  } else if (error instanceof Error) {
+    errorKind = error.name || "JavaScript Runtime Error";
+    statusCode = 500;
+    statusText = error.message || "Error";
+    errorTitle = `${error.name || "Error"}: ${error.message}`;
+    detailsText = error.stack || error.message;
+  } else if (typeof error === "object" && error !== null) {
+    errorKind = "Object Exception";
+    errorTitle = "Uncaught Exception Object";
+    try {
+      detailsText = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+    } catch {
+      detailsText = String(error);
+    }
   } else {
-    statusText = "Unknown Exception";
-    errorDetails = JSON.stringify(error, null, 2);
+    errorKind = typeof error;
+    errorTitle = String(error);
+    detailsText = String(error);
   }
 
   return (
     <PolarisProvider i18n={enTranslations}>
-      <div style={{ padding: "40px 20px", maxWidth: "840px", margin: "0 auto" }}>
-        <Page title="Greek God SaaS Diagnostic Portal">
+      <div style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
+        <Page title="Greek God SaaS — Diagnostic Portal">
           <Layout>
             <Layout.Section>
-              <Banner tone="critical" title={`Application Error: ${statusText}`}>
-                <BlockStack gap="300">
+              <Banner tone="critical" title={`🚨 ${errorTitle}`}>
+                <BlockStack gap="400">
                   <Text variant="bodyMd" as="p">
-                    Greek God SaaS encountered a runtime exception while loading this page:
+                    Greek God SaaS captured an exception while executing <code>{location.pathname}</code>:
                   </Text>
-                  <pre style={{ background: "#0f172a", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace" }}>
-                    {errorDetails || "No detailed error stack available."}
-                  </pre>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", background: "rgba(15, 23, 42, 0.7)", padding: "12px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div>
+                      <Text variant="bodyXs" as="p" tone="subdued">ERROR CLASSIFICATION</Text>
+                      <div style={{ color: "#38bdf8", fontWeight: "bold" }}>
+                        <Text variant="bodySm" as="p">{errorKind}</Text>
+                      </div>
+                    </div>
+                    <div>
+                      <Text variant="bodyXs" as="p" tone="subdued">HTTP / SYSTEM STATUS</Text>
+                      <div style={{ color: "#f43f5e", fontWeight: "bold" }}>
+                        <Text variant="bodySm" as="p">{`${statusCode} ${statusText}`}</Text>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ marginBottom: "4px" }}>
+                      <Text variant="bodyXs" as="p" tone="subdued">RAW DIAGNOSTIC PAYLOAD & STACK TRACE:</Text>
+                    </div>
+                    <pre style={{ background: "#090d16", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", maxHeight: "300px", border: "1px solid #1e293b" }}>
+                      {detailsText || "No detailed error payload returned."}
+                    </pre>
+                  </div>
+
                   <InlineStack align="space-between" blockAlign="center">
                     <Text variant="bodySm" as="p" tone="subdued">
-                      If re-authenticating your store session, click Re-Authorize below.
+                      Choose a recovery action for your store session:
                     </Text>
                     <InlineStack gap="200">
                       <Button variant="secondary" onClick={() => window.location.reload()}>
                         Reload Page 🔄
                       </Button>
                       <Button variant="primary" url="/auth/login" external>
-                        Re-Authorize App Session 🔑
+                        Re-Authorize Session 🔑
                       </Button>
                     </InlineStack>
                   </InlineStack>
