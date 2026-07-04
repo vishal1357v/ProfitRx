@@ -99,7 +99,7 @@ export class ProfitService {
    * Gateway_Fee (COD) = 0. COD Handling Fee applied instead.
    */
   static calculateOrderProfit(
-    order: { totalPrice: number; isCOD: boolean; gateway?: string | null; totalTax: number; shippingPrice: number; cogsAtTimeOfOrder?: number | null },
+    order: { totalPrice: number; isCOD: boolean; gateway?: string | null; totalTax: number; shippingPrice: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number },
     cogs: number,
     settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string }
   ): { profit: number; fees: number; margin: number } {
@@ -126,6 +126,19 @@ export class ProfitService {
     const profit = order.totalPrice - effectiveCogs - fees;
     const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
     return { profit, fees, margin };
+  }
+
+  /**
+   * Calculate net RTO loss for an undelivered order.
+   * Upfront partial deposit collected (e.g. ₹100) offsets return shipping loss.
+   */
+  static calculateRTOLoss(
+    order: { isCOD: boolean; fulfillmentStatus?: string; partialDepositCollected?: number },
+    settings: { defaultForwardShipping: number; defaultReturnShipping: number }
+  ): number {
+    const rawLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
+    const deposit = order.partialDepositCollected || 0;
+    return Math.max(0, rawLoss - deposit);
   }
 
   /**

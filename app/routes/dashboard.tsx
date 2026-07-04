@@ -18,6 +18,7 @@ import {
   Tooltip,
   Box,
   Tabs,
+  CalloutCard,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -319,6 +320,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ProfitService.getGSTSummary(shop),
   ]);
 
+  const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length || 15;
+  const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
+  const totalRtoSavings = blockedCodCount * avgRtoLoss;
+  const monthlySubscriptionCost = planName === "Pro" ? 6000 : planName === "Growth" ? 3000 : planName === "Starter" ? 1500 : 0;
+  const netRoiSavings = totalRtoSavings - monthlySubscriptionCost;
+
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
     netProfit, netMargin: Math.round(netMargin * 10) / 10,
@@ -346,6 +353,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     manualCogsCount,
     feeBreakdown,
     gstSummary,
+    totalRtoSavings,
+    monthlySubscriptionCost,
+    netRoiSavings,
+    blockedCodCount,
   };
 };
 
@@ -921,6 +932,34 @@ export default function DashboardRoute() {
             </Banner>
           </Layout.Section>
         )}
+
+        {/* ── INITIAL BACKGROUND SYNC LOADING BANNER ── */}
+        {data.orderCount === 0 && (
+          <Layout.Section>
+            <Banner tone="info" title="Initial Data Sync in Progress">
+              <p>Syncing your last 30 days of data... Please wait a moment while your orders and COGS catalog update automatically.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
+        <Layout.Section>
+          <CalloutCard
+            title="⚡ Proof of ROI: Greek God SaaS Pays for Itself"
+            illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
+            primaryAction={{
+              content: "Manage COD Risk Shield Rules",
+              url: `/app/cod-rules?shop=${data.shop}&host=${data.host}`,
+            }}
+          >
+            <p style={{ fontSize: "15px", fontWeight: "600", color: "#166534" }}>
+              Greek God SaaS saved you {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)} in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
+            </p>
+            <p style={{ fontSize: "13px", marginTop: "6px", color: "#475569" }}>
+              Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
+            </p>
+          </CalloutCard>
+        </Layout.Section>
 
         {/* Warning & Plan Banners */}
         {data.isBasicTier && (

@@ -31,6 +31,51 @@ const shopify = shopifyApp({
   future: {
     expiringOfflineAccessTokens: true,
   },
+  hooks: {
+    afterAuth: async ({ session }) => {
+      console.log(`[afterAuth] Seeding default StoreSettings and starting 30-day background sync for ${session.shop}`);
+
+      try {
+        // Auto-inject sensible default StoreSettings into Prisma
+        await prisma.storeSettings.upsert({
+          where: { shop: session.shop },
+          update: {
+            rtoThreshold: 30,
+            defaultCODHandling: 50,
+            defaultForwardShipping: 60,
+            defaultReturnShipping: 70,
+            defaultPackaging: 10,
+            defaultGatewayFeePct: 2,
+          },
+          create: {
+            shop: session.shop,
+            rtoThreshold: 30,
+            defaultCODHandling: 50,
+            defaultForwardShipping: 60,
+            defaultReturnShipping: 70,
+            defaultPackaging: 10,
+            defaultGatewayFeePct: 2,
+            defaultCOGSPct: 40,
+          },
+        });
+
+        // Trigger background 30-day orders and native COGS sync
+        setTimeout(async () => {
+          try {
+            const { ShopifyService } = await import("./services/shopify.service");
+            console.log(`[afterAuth.background] Triggering 30-day sync for ${session.shop}...`);
+            await ShopifyService.syncOrdersForShop(session.shop);
+            await ShopifyService.syncNativeCOGS(session.shop);
+            console.log(`[afterAuth.background] Initial background sync complete for ${session.shop}`);
+          } catch (err: any) {
+            console.error(`[afterAuth.background] Error syncing shop ${session.shop}:`, err);
+          }
+        }, 100);
+      } catch (err: any) {
+        console.error(`[afterAuth] Error in afterAuth hook:`, err);
+      }
+    },
+  },
   billing: {
     "STARTER": {
       trialDays: 14,
