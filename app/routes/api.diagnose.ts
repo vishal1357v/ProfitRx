@@ -29,14 +29,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const incomingNormalized = incomingOrigin.replace(/\/$/, "");
 
   const steps = await Promise.all([
-    testStep("env_vars", async () => ({
-      SHOPIFY_API_KEY: process.env.SHOPIFY_API_KEY ? `${process.env.SHOPIFY_API_KEY.slice(0, 6)}...` : "MISSING ❌",
-      SHOPIFY_API_SECRET: process.env.SHOPIFY_API_SECRET ? "SET ✅" : "MISSING ❌",
-      SHOPIFY_APP_URL: configuredAppUrl || "MISSING ❌",
-      SCOPES: process.env.SCOPES || "MISSING ❌",
-      DATABASE_URL: process.env.DATABASE_URL ? "SET ✅" : "MISSING ❌",
-      NODE_ENV: process.env.NODE_ENV,
-    })),
+    testStep("env_vars", async () => {
+      const apiKey = process.env.SHOPIFY_API_KEY || "";
+      const apiSecret = process.env.SHOPIFY_API_SECRET || "";
+      const isSecretSameAsKey = apiKey && apiSecret && apiKey === apiSecret;
+
+      return {
+        SHOPIFY_API_KEY: apiKey ? `${apiKey.slice(0, 6)}...` : "MISSING ❌",
+        SHOPIFY_API_SECRET: apiSecret
+          ? isSecretSameAsKey
+            ? "INVALID ❌ (SHOPIFY_API_SECRET equals SHOPIFY_API_KEY! You must copy the Client Secret from Partner Dashboard → App setup)"
+            : "SET ✅"
+          : "MISSING ❌",
+        SHOPIFY_APP_URL: configuredAppUrl || "MISSING ❌",
+        SCOPES: process.env.SCOPES || "MISSING ❌",
+        DATABASE_URL: process.env.DATABASE_URL ? "SET ✅" : "MISSING ❌",
+        NODE_ENV: process.env.NODE_ENV,
+      };
+    }),
 
     testStep("url_match", async () => {
       const rawAppUrl = process.env.SHOPIFY_APP_URL || "";

@@ -17,13 +17,15 @@ const DEFAULT_SCOPES = process.env.SCOPES
   ? process.env.SCOPES.split(",")
   : ["read_products","write_products","read_metaobjects","write_metaobjects","write_metaobject_definitions","read_orders","write_orders","read_customers","write_customers","read_fulfillments"];
 
-if (!process.env.SHOPIFY_API_SECRET && process.env.NODE_ENV === "production") {
-  console.warn("[ProfitRx Warning] SHOPIFY_API_SECRET is missing from environment variables.");
+const apiSecretKey = process.env.SHOPIFY_API_SECRET || "";
+
+if (!apiSecretKey && process.env.NODE_ENV === "production") {
+  console.error("[ProfitRx Critical Error] SHOPIFY_API_SECRET is missing from environment variables. Copy Client Secret from Shopify Partner Dashboard -> App setup -> Client credentials.");
 }
 
 const shopify = shopifyApp({
   apiKey: DEFAULT_API_KEY,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "08f8a7442c2182a3a390f753591c06f3",
+  apiSecretKey: apiSecretKey || "MISSING_SECRET_KEY_CHECK_VERCEL_ENV",
   apiVersion: ApiVersion.April26,
   scopes: DEFAULT_SCOPES,
   appUrl: DEFAULT_APP_URL,
