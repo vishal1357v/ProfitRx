@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { ProfitService } from "./profit.service";
+import { WhatsAppService } from "./whatsapp.service";
 
 export interface CODSettings {
   codBlockingEnabled: boolean;
@@ -143,8 +144,11 @@ export class CODManagementService {
       },
     });
 
-    console.log(`[CODManagementService] Generated OTP ${otp} for order ${orderId} (${phone})`);
-    return { success: true, record, otpSent: true };
+    // Dispatch live SMS/WhatsApp message
+    const dispatchRes = await WhatsAppService.sendOTP(phone, otp);
+
+    console.log(`[CODManagementService] Generated and dispatched OTP ${otp} to ${phone} via ${dispatchRes.provider}`);
+    return { success: true, record, otpSent: true, provider: dispatchRes.provider };
   }
 
   /**

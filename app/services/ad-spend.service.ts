@@ -151,6 +151,22 @@ export class AdSpendService {
           };
         }
       }
+      if (cleanPlatform === "tiktok" && conn.accessToken && !conn.accessToken.startsWith("demo_")) {
+        const response = await fetch(`https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/?advertiser_id=${conn.accountId}&report_type=BASIC&data_level=AUCTION_ADVERTISER&dimensions=["stat_time_day"]&metrics=["stat_cost","clicks","impressions"]`, {
+          headers: {
+            "Access-Token": conn.accessToken,
+          },
+        });
+        const data = await response.json();
+        const row = data.data?.list?.[0]?.metrics;
+        if (row) {
+          return {
+            spend: parseFloat(row.stat_cost || "0"),
+            clicks: parseInt(row.clicks || "0", 10),
+            impressions: parseInt(row.impressions || "0", 10),
+          };
+        }
+      }
     } catch (err) {
       console.warn(`[AdSpendService] Live API call failed for ${cleanPlatform}, falling back to daily estimate:`, err);
     }
