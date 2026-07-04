@@ -48,7 +48,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         },
       });
     } catch (err) {
-      // If billing.require throws a redirect response, rethrow so React Router handles iframe redirect
       if (err instanceof Response || (err && typeof err === "object" && "status" in err)) {
         throw err;
       }
@@ -208,76 +207,55 @@ export default function App() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+  console.error("[App ErrorBoundary Detailed Error Log]:", error);
 
-  // Handle direct browser tab access outside Shopify Admin iframe gracefully
+  let statusText = "Runtime Exception";
+  let errorDetails = "";
+
   if (isRouteErrorResponse(error)) {
-    if (error.status === 401 || error.statusText === "Unexpected Server Error" || error.data === "Unexpected Server Error") {
-      return (
-        <PolarisProvider i18n={enTranslations}>
-          <div style={{ padding: "40px 20px", maxWidth: "800px", margin: "0 auto" }}>
-            <Page title="Shopify Admin Session Required">
-              <Layout>
-                <Layout.Section>
-                  <Banner tone="warning" title="🔑 Please Open App Inside Shopify Admin">
-                    <BlockStack gap="300">
-                      <Text variant="bodyMd" as="p">
-                        Greek God SaaS is an <strong>embedded Shopify App</strong>. It requires an authenticated session inside Shopify Admin to track live orders, COGS, and COD rules securely.
-                      </Text>
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        If you are opening this URL directly in a browser tab (e.g. <code>localhost</code> or direct Vercel domain), please open the app from your <strong>Shopify Store Admin → Apps → Greek God / ProfitRx</strong>.
-                      </Text>
-                      <InlineStack align="start" gap="200">
-                        <Button variant="primary" url="https://admin.shopify.com" external>
-                          Open Shopify Admin ↗
-                        </Button>
-                        <Button variant="secondary" url="/">
-                          Return to Landing Page
-                        </Button>
-                      </InlineStack>
-                    </BlockStack>
-                  </Banner>
-                </Layout.Section>
-              </Layout>
-            </Page>
-          </div>
-        </PolarisProvider>
-      );
-    }
-    return boundary.error(error);
-  }
-
-  console.error("[App ErrorBoundary Caught Error]:", error);
-
-  let errorMessage = "An unexpected application error occurred.";
-  if (error instanceof Error) {
-    errorMessage = error.message;
-  } else if (typeof error === "object" && error !== null) {
-    errorMessage = JSON.stringify(error);
+    statusText = `HTTP ${error.status}: ${error.statusText || "Route Error Response"}`;
+    errorDetails = typeof error.data === "string" ? error.data : JSON.stringify(error.data, null, 2);
+  } else if (error instanceof Error) {
+    statusText = error.name || "JavaScript Error";
+    errorDetails = error.stack || error.message;
+  } else {
+    statusText = "Unknown Exception";
+    errorDetails = JSON.stringify(error, null, 2);
   }
 
   return (
     <PolarisProvider i18n={enTranslations}>
-      <Page title="Greek God SaaS Diagnostic Portal">
-        <Layout>
-          <Layout.Section>
-            <Banner tone="critical" title="Application Error Detected">
-              <BlockStack gap="200">
-                <Text variant="bodyMd" as="p">
-                  Greek God SaaS encountered a runtime exception while executing this route action:
-                </Text>
-                <div style={{ background: "#1e293b", color: "#f8fafc", padding: "12px 16px", borderRadius: "8px", fontFamily: "monospace", fontSize: "13px" }}>
-                  {errorMessage}
-                </div>
-                <InlineStack align="end">
-                  <Button variant="primary" onClick={() => window.location.reload()}>
-                    Reload Dashboard 🔄
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </Banner>
-          </Layout.Section>
-        </Layout>
-      </Page>
+      <div style={{ padding: "40px 20px", maxWidth: "840px", margin: "0 auto" }}>
+        <Page title="Greek God SaaS Diagnostic Portal">
+          <Layout>
+            <Layout.Section>
+              <Banner tone="critical" title={`Application Error: ${statusText}`}>
+                <BlockStack gap="300">
+                  <Text variant="bodyMd" as="p">
+                    Greek God SaaS encountered a runtime exception while loading this page:
+                  </Text>
+                  <pre style={{ background: "#0f172a", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace" }}>
+                    {errorDetails || "No detailed error stack available."}
+                  </pre>
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      If re-authenticating your store session, click Re-Authorize below.
+                    </Text>
+                    <InlineStack gap="200">
+                      <Button variant="secondary" onClick={() => window.location.reload()}>
+                        Reload Page 🔄
+                      </Button>
+                      <Button variant="primary" url="/auth/login" external>
+                        Re-Authorize App Session 🔑
+                      </Button>
+                    </InlineStack>
+                  </InlineStack>
+                </BlockStack>
+              </Banner>
+            </Layout.Section>
+          </Layout>
+        </Page>
+      </div>
     </PolarisProvider>
   );
 }
