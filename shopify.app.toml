@@ -2,7 +2,7 @@
 
 client_id = "08f8a7442c2182a3a390f753591c06f3"
 name = "ProfitRx — RTO & Profit Intelligence"
-application_url = "https://greek-god-saas-git-main-greek-god.vercel.app"
+application_url = "https://greek-god-saas.vercel.app"
 embedded = true
 
 [build]
@@ -33,9 +33,9 @@ scopes = "read_products,write_products,read_metaobjects,write_metaobjects,write_
 
 [auth]
 redirect_urls = [
-  "https://greek-god-saas-git-main-greek-god.vercel.app/auth/callback",
   "https://greek-god-saas.vercel.app/auth/callback",
-  "https://greek-god-saas-git-main-greek-god.vercel.app/auth/shopify/callback"
+  "https://greek-god-saas-git-main-greek-god.vercel.app/auth/callback",
+  "https://greek-god-saas.vercel.app/auth/shopify/callback"
 ]
 
 [product.metafields.app.demo_info]
