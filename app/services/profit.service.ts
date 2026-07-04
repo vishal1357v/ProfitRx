@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
-import { logDev, logInfo } from "../utils/logger";
 
 export interface ProfitOrder {
   orderId: string;
@@ -45,7 +44,29 @@ export interface GSTSummary {
   hsnSummary: Array<{ hsnCode: string; sales: number; tax: number }>;
 }
 
+const COD_KEYWORDS = ["cod", "cash", "cash on delivery", "manual"];
+
+function isCodOrder(order: { isCOD: boolean; gateway?: string | null }): boolean {
+  if (order.isCOD) return true;
+  if (!order.gateway) return false;
+  const lower = order.gateway.toLowerCase();
+  return COD_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 export class ProfitService {
+  /**
+   * Determine Shopify transaction surcharge rate based on merchant's Shopify plan.
+   * Basic = 2.0%, Shopify/Grow = 1.0%, Advanced = 0.6%, Plus = 0.15%
+   */
+  static getShopifySurchargeRate(planName?: string | null): number {
+    if (!planName) return 0.02;
+    const name = planName.toLowerCase();
+    if (name.includes("plus")) return 0.0015;
+    if (name.includes("advanced")) return 0.006;
+    if (name.includes("shopify") || name.includes("grow")) return 0.01;
+    return 0.02; // Default Basic / Starter 2.0%
+  }
+
   /**
    * Centralized mapping helper to prevent null/undefined database columns from returning NaN in math.
    */
@@ -58,6 +79,7 @@ export class ProfitService {
       defaultPackaging: settings?.defaultPackaging ?? 10,
       defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
       gatewayFixedFee: settings?.gatewayFixedFee ?? 0,
+      shopifyPlanName: settings?.shopifyPlanName || "Basic",
       gstin: settings?.gstin || "",
       gstRate: settings?.gstRate ?? 18,
       isGstRegistered: settings?.isGstRegistered ?? false,
@@ -72,19 +94,36 @@ export class ProfitService {
 
   /**
    * Centralized formula to calculate profit for a single order.
-   * Profit = Revenue - COGS - (Tax + Shipping + Gateway Fees + COD Handling Fees + Packaging)
+   * Uses cogsAtTimeOfOrder snapshot if available to preserve historical accuracy.
+   * Gateway_Fee (Prepaid) = ((Order_Total * Razorpay_Rate) + (Order_Total * Shopify_Surcharge_Rate) + Fixed_Fee) * 1.18 (18% GST)
+   * Gateway_Fee (COD) = 0. COD Handling Fee applied instead.
    */
   static calculateOrderProfit(
-    order: { totalPrice: number; isCOD: boolean; totalTax: number; shippingPrice: number },
+    order: { totalPrice: number; isCOD: boolean; gateway?: string | null; totalTax: number; shippingPrice: number; cogsAtTimeOfOrder?: number | null },
     cogs: number,
-    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; gatewayFixedFee?: number; defaultPackaging?: number }
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string }
   ): { profit: number; fees: number; margin: number } {
+    const effectiveCogs = (order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined) ? order.cogsAtTimeOfOrder : cogs;
     const gatewayFixed = settings.gatewayFixedFee || 0;
     const packaging = settings.defaultPackaging || 10;
-    const gatewayFee = order.isCOD ? 0 : (order.totalPrice * (settings.defaultGatewayFeePct / 100)) + gatewayFixed;
-    const codFee = order.isCOD ? settings.defaultCODHandling : 0;
+
+    const isCod = isCodOrder(order);
+
+    let gatewayFee = 0;
+    let codFee = 0;
+
+    if (isCod) {
+      gatewayFee = 0; // Strictly 0 gateway fee for COD orders
+      codFee = settings.defaultCODHandling;
+    } else {
+      const razorpayRate = (settings.defaultGatewayFeePct || 2) / 100;
+      const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
+      const rawGatewayFee = (order.totalPrice * razorpayRate) + (order.totalPrice * shopifySurchargeRate) + gatewayFixed;
+      gatewayFee = rawGatewayFee * 1.18; // Apply 18% GST to payment gateway fees
+    }
+
     const fees = order.totalTax + settings.defaultForwardShipping + gatewayFee + codFee + packaging;
-    const profit = order.totalPrice - cogs - fees;
+    const profit = order.totalPrice - effectiveCogs - fees;
     const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
     return { profit, fees, margin };
   }
@@ -103,17 +142,22 @@ export class ProfitService {
     let returnShipping = 0;
     let packagingCosts = 0;
 
+    const razorpayRate = (settings.defaultGatewayFeePct || 2) / 100;
+    const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
+
     for (const o of orders) {
       packagingCosts += settings.defaultPackaging;
       forwardShipping += settings.defaultForwardShipping;
 
-      if (o.isCOD) {
+      const isCod = isCodOrder(o as any);
+      if (isCod) {
         codHandlingFees += settings.defaultCODHandling;
         if (o.fulfillmentStatus === "RTO") {
           returnShipping += settings.defaultReturnShipping;
         }
       } else {
-        gatewayFees += (o.totalPrice * (settings.defaultGatewayFeePct / 100)) + settings.gatewayFixedFee;
+        const rawFee = (o.totalPrice * razorpayRate) + (o.totalPrice * shopifySurchargeRate) + settings.gatewayFixedFee;
+        gatewayFees += rawFee * 1.18;
       }
     }
 
@@ -148,23 +192,23 @@ export class ProfitService {
     const hsnMap: Record<string, { sales: number; tax: number }> = {};
 
     for (const o of orders) {
-      const orderTax = o.totalTax > 0 ? o.totalTax : (o.subtotalPrice * (settings.gstRate / 100));
-      totalTaxableSales += o.subtotalPrice || (o.totalPrice - orderTax);
+      const orderTax = o.totalTax || 0;
+      const taxablePrice = Math.max(0, o.totalPrice - orderTax);
+      totalTaxableSales += taxablePrice;
       totalGstCollected += orderTax;
 
-      // Classify Intra-state vs Inter-state based on state/province matching default (e.g. MH / Maharashtra)
-      const isIntraState = o.province ? /maharashtra|mh/i.test(o.province) : true;
+      const merchantState = "MAHARASHTRA";
+      const customerState = (o.province || "").toUpperCase();
 
-      if (isIntraState) {
-        intraStateSales += o.totalPrice;
+      if (customerState && customerState !== merchantState) {
+        interStateSales += taxablePrice;
+        igst += orderTax;
+      } else {
+        intraStateSales += taxablePrice;
         cgst += orderTax / 2;
         sgst += orderTax / 2;
-      } else {
-        interStateSales += o.totalPrice;
-        igst += orderTax;
       }
 
-      // HSN aggregation
       const hsnCode = (settings.hsnCodes as any)?.[o.productId || "default"] || "610910";
       if (!hsnMap[hsnCode]) {
         hsnMap[hsnCode] = { sales: 0, tax: 0 };
@@ -237,7 +281,7 @@ export class ProfitService {
         orderId: o.id,
         orderNumber: o.orderNumber,
         revenue: o.totalPrice,
-        cogs: c,
+        cogs: (o as any).cogsAtTimeOfOrder ?? c,
         fees,
         profit,
         margin,
@@ -245,7 +289,7 @@ export class ProfitService {
       });
 
       totalRevenue += o.totalPrice;
-      totalCOGS += c;
+      totalCOGS += (o as any).cogsAtTimeOfOrder ?? c;
       totalFees += fees;
       totalProfit += profit;
     }

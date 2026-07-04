@@ -83,7 +83,7 @@ export default function Pricing() {
   const plans = [
     {
       name: "Starter",
-      price: "$19",
+      price: "₹1,500",
       description: "Small & early-stage stores",
       tagline: "Essential profit tracking, product COGS management, and basic RTO insights.",
       features: [
@@ -97,7 +97,7 @@ export default function Pricing() {
     },
     {
       name: "Growth",
-      price: "$39",
+      price: "₹3,000",
       description: "Growing stores ⭐ Most Popular",
       tagline: "Pincode-level logistics intelligence, AI attribution, and pre-shipment COD risk detection.",
       features: [
@@ -113,7 +113,7 @@ export default function Pricing() {
     },
     {
       name: "Pro",
-      price: "$79",
+      price: "₹6,000",
       description: "Established brands & high-volume stores",
       tagline: "Full enterprise intelligence suite with unlimited order sync and cohort retention.",
       features: [
@@ -138,6 +138,12 @@ export default function Pricing() {
             </Banner>
           </Layout.Section>
         )}
+
+        <Layout.Section>
+          <Banner tone="info">
+            Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.
+          </Banner>
+        </Layout.Section>
 
         <Layout.Section>
           <div style={{ marginBottom: "20px", textAlign: "center" }}>

@@ -66,6 +66,8 @@ model Order {
   pincode           String?
   city              String?
   province          String?
+  // Snapshot COGS at time of order creation (prevents historical data distortion)
+  cogsAtTimeOfOrder Float?
 
   @@index([shop, createdAt])
   @@index([shop, pincode])
@@ -334,6 +336,7 @@ model StoreSettings {
   isGstRegistered        Boolean  @default(false)
   hsnCodes               Json?
   gatewayFixedFee        Float    @default(0)
+  shopifyPlanName        String?  // e.g. "Basic", "Shopify", "Advanced", "Plus"
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

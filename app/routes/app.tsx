@@ -3,7 +3,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisProvider } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 
 function RemixLink({ url, children, external, ...props }: any) {
@@ -57,6 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host,
     features,
     plan: subscription.plan,
+    billingStatus: localSub.status || "ACTIVE",
   };
 };
 
@@ -74,10 +75,12 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
-  const { apiKey, shop, host, features, plan } = useLoaderData<typeof loader>();
+  const { apiKey, shop, host, features, plan, billingStatus } = useLoaderData<typeof loader>();
   const [darkMode, setDarkMode] = useState(false);
   const location = useLocation();
   const navigation = useNavigation();
+
+  const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
 
   const searchParams = new URLSearchParams();
   if (shop) searchParams.set("shop", shop);
@@ -172,6 +175,13 @@ export default function App() {
 
       {/* ── Page Content ──────────────────────────────────── */}
       <div style={{ minHeight: "calc(100vh - 56px)", padding: "20px 16px" }}>
+        {isDunningActive && (
+          <div style={{ marginBottom: 16 }}>
+            <Banner tone="critical" title="Payment Authorization Action Required">
+              <p>Your subscription payment failed, likely due to RBI e-mandate limits. Please check your bank app/SMS to authorize the mandate, or update your payment method in Shopify Settings.</p>
+            </Banner>
+          </div>
+        )}
         {navigation.state === "loading" ? (
           <div className="skeleton-container" style={{ marginTop: 8 }}>
             <div className="skeleton-row" style={{ marginBottom: 8 }}>

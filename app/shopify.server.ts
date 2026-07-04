@@ -36,8 +36,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 19.0,
-          currencyCode: "USD",
+          amount: 1500.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -46,8 +46,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 39.0,
-          currencyCode: "USD",
+          amount: 3000.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -56,8 +56,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 79.0,
-          currencyCode: "USD",
+          amount: 6000.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -66,8 +66,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 19.0,
-          currencyCode: "USD",
+          amount: 1500.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -76,8 +76,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 39.0,
-          currencyCode: "USD",
+          amount: 3000.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -86,8 +86,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 79.0,
-          currencyCode: "USD",
+          amount: 6000.0,
+          currencyCode: "INR",
           interval: BillingInterval.Every30Days,
         },
       ],

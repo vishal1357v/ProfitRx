@@ -4,6 +4,7 @@ import prisma from "../db.server";
 import { getSubscription } from "./feature-access.service";
 import { CustomerIntelligenceService } from "./customer-intelligence.service";
 import { AlertService } from "./alerts.service";
+import { ProfitService } from "./profit.service";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -411,10 +412,39 @@ export class ShopifyService {
     };
   }
 
+  // ── Sync Shop Plan Name ──────────────────────────────────
+  static async syncShopPlanName(admin: any, shop: string): Promise<string> {
+    try {
+      const res = await admin.graphql(`
+        query {
+          shop {
+            plan {
+              displayName
+            }
+          }
+        }
+      `);
+      const data = await res.json() as any;
+      const planName = data?.data?.shop?.plan?.displayName || "Basic";
+      await (prisma.storeSettings as any).upsert({
+        where: { shop },
+        update: { shopifyPlanName: planName },
+        create: { shop, shopifyPlanName: planName, defaultCOGSPct: 40 },
+      });
+      return planName;
+    } catch (err: any) {
+      console.warn(`[ShopifyService] Failed to fetch shop plan name for ${shop}: ${err.message}`);
+      return "Basic";
+    }
+  }
+
   // ── Sync Orders ───────────────────────────────────────────
   static async syncOrders(request: Request): Promise<{ count: number }> {
     const { session, admin } = await authenticate.admin(request);
     console.log("Session scopes:", session.scope);
+
+    // Sync shop plan name for India transaction fee surcharge calculation
+    await this.syncShopPlanName(admin, session.shop);
 
     // Check subscription order limit
     const subscription = await prisma.subscription.findUnique({
@@ -433,6 +463,7 @@ export class ShopifyService {
       }
     }
 
+    const cogsDict = await ProfitService.getCOGS(session.shop);
     const orders = await this.getOrders(admin, 250, session.shop);
 
     let count = 0;
@@ -446,6 +477,10 @@ export class ShopifyService {
         newOrdersCount++;
       }
 
+      const lineProdId = order.lineItems?.[0]?.productId || null;
+      const cleanProdId = lineProdId ? (lineProdId.split("/").pop() || "") : "";
+      const snapshotCogs = cogsDict[cleanProdId] ?? (order.totalPrice * 0.4);
+
       await (prisma.order as any).upsert({
         where: { id: order.id },
         update: {
@@ -457,7 +492,7 @@ export class ShopifyService {
           isCOD: order.isCOD,
           financialStatus: order.financialStatus,
           fulfillmentStatus: order.fulfillmentStatus,
-          productId: order.lineItems?.[0]?.productId || null,
+          productId: lineProdId,
           gateway: order.gateway || null,
           channelType: order.channelType || "WEBSITE",
           channelAttribution: order.channelAttribution || "Website",
@@ -482,7 +517,7 @@ export class ShopifyService {
           processedAt: order.createdAt,
           financialStatus: order.financialStatus,
           fulfillmentStatus: order.fulfillmentStatus,
-          productId: order.lineItems?.[0]?.productId || null,
+          productId: lineProdId,
           gateway: order.gateway || null,
           channelType: order.channelType || "WEBSITE",
           channelAttribution: order.channelAttribution || "Website",
@@ -492,6 +527,7 @@ export class ShopifyService {
           pincode: order.pincode,
           city: order.city,
           province: order.province,
+          cogsAtTimeOfOrder: snapshotCogs,
         },
       });
       count++;
@@ -521,10 +557,16 @@ export class ShopifyService {
   // ── Sync Orders For Shop (Cron / Offline) ─────────────────
   static async syncOrdersForShop(shop: string): Promise<{ count: number }> {
     const { admin, session } = await unauthenticated.admin(shop);
+    await this.syncShopPlanName(admin, shop);
+    const cogsDict = await ProfitService.getCOGS(shop);
     const orders = await this.getOrders(admin, 250, shop);
 
     let count = 0;
     for (const order of orders) {
+      const lineProdId = order.lineItems?.[0]?.productId || null;
+      const cleanProdId = lineProdId ? (lineProdId.split("/").pop() || "") : "";
+      const snapshotCogs = cogsDict[cleanProdId] ?? (order.totalPrice * 0.4);
+
       await (prisma.order as any).upsert({
         where: { id: order.id },
         update: {
@@ -536,7 +578,7 @@ export class ShopifyService {
           isCOD: order.isCOD,
           financialStatus: order.financialStatus,
           fulfillmentStatus: order.fulfillmentStatus,
-          productId: order.lineItems?.[0]?.productId || null,
+          productId: lineProdId,
           gateway: order.gateway || null,
           channelType: order.channelType || "WEBSITE",
           channelAttribution: order.channelAttribution || "Website",
@@ -561,7 +603,7 @@ export class ShopifyService {
           processedAt: order.createdAt,
           financialStatus: order.financialStatus,
           fulfillmentStatus: order.fulfillmentStatus,
-          productId: order.lineItems?.[0]?.productId || null,
+          productId: lineProdId,
           gateway: order.gateway || null,
           channelType: order.channelType || "WEBSITE",
           channelAttribution: order.channelAttribution || "Website",
@@ -571,6 +613,7 @@ export class ShopifyService {
           pincode: order.pincode,
           city: order.city,
           province: order.province,
+          cogsAtTimeOfOrder: snapshotCogs,
         },
       });
       count++;
@@ -771,6 +814,10 @@ export class ShopifyService {
       channelAttribution = ch.channelAttribution;
     }
 
+    const cogsDict = await ProfitService.getCOGS(shop);
+    const cleanProdId = productId ? (productId.split("/").pop() || "") : "";
+    const snapshotCogs = cogsDict[cleanProdId] ?? (totalPrice * 0.4);
+
     await (prisma.order as any).upsert({
       where: { id },
       update: {
@@ -817,6 +864,7 @@ export class ShopifyService {
         pincode,
         city,
         province,
+        cogsAtTimeOfOrder: snapshotCogs,
       },
     });
 
