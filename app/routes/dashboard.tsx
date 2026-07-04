@@ -314,6 +314,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
   const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
 
+  const [feeBreakdown, gstSummary] = await Promise.all([
+    ProfitService.getFeeBreakdown(shop),
+    ProfitService.getGSTSummary(shop),
+  ]);
+
   return {
     shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
     netProfit, netMargin: Math.round(netMargin * 10) / 10,
@@ -339,6 +344,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     hasConnectedAdAccount,
     nativeCogsCount,
     manualCogsCount,
+    feeBreakdown,
+    gstSummary,
   };
 };
 
@@ -978,6 +985,121 @@ export default function DashboardRoute() {
               </InlineStack>
             </InlineStack>
           </div>
+        </Layout.Section>
+
+        {/* ── FEE BREAKDOWN & GST TAX COMPLIANCE SUMMARY ── */}
+        <Layout.Section>
+          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+            {/* Fee Breakdown Card */}
+            <Grid.Cell>
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="150" blockAlign="center">
+                      <span style={{ fontSize: 20 }}>📊</span>
+                      <Text variant="headingSm" as="h3">Fee Breakdown</Text>
+                    </InlineStack>
+                    <Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>
+                  </InlineStack>
+                  <Divider />
+                  <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Gateway Fees</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.gatewayFees.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">COD Fees</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.codHandlingFees.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Forward Freight</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.forwardShipping.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Return Freight</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="critical">₹{data.feeBreakdown.returnShipping.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Packaging</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.packagingCosts.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Net Overhead</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="subdued">100% Calculated</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                  </Grid>
+                </BlockStack>
+              </Card>
+            </Grid.Cell>
+
+            {/* GST Compliance Summary Card */}
+            <Grid.Cell>
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <InlineStack gap="150" blockAlign="center">
+                      <span style={{ fontSize: 20 }}>📑</span>
+                      <Text variant="headingSm" as="h3">GST Tax Summary (GSTR-1)</Text>
+                    </InlineStack>
+                    <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
+                      Export GSTR CSV 📄
+                    </Button>
+                  </InlineStack>
+                  <Divider />
+                  <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Taxable Sales</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.totalTaxableSales.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">CGST (Intra)</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.cgst.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">SGST (Intra)</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.sgst.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">IGST (Inter)</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.igst.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">Total GST</span>
+                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="success">₹{data.gstSummary.totalGstCollected.toLocaleString("en-IN")}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="050">
+                        <span className="gg-section-label">GSTIN</span>
+                        <Text variant="bodySm" as="p" tone="subdued">{data.gstSummary.gstin || "Not set"}</Text>
+                      </BlockStack>
+                    </Grid.Cell>
+                  </Grid>
+                </BlockStack>
+              </Card>
+            </Grid.Cell>
+          </Grid>
         </Layout.Section>
 
         {/* ── TOP SECTION: PROFIT & ALL CORE STATISTICS CARDS ── */}

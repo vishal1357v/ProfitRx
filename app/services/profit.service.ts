@@ -22,6 +22,29 @@ export interface ProfitSummary {
   orderCount: number;
 }
 
+export interface FeeBreakdown {
+  gatewayFees: number;
+  codHandlingFees: number;
+  forwardShipping: number;
+  returnShipping: number;
+  packagingCosts: number;
+  totalFees: number;
+}
+
+export interface GSTSummary {
+  gstin: string;
+  isGstRegistered: boolean;
+  defaultGstRate: number;
+  totalTaxableSales: number;
+  totalGstCollected: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  intraStateSales: number;
+  interStateSales: number;
+  hsnSummary: Array<{ hsnCode: string; sales: number; tax: number }>;
+}
+
 export class ProfitService {
   /**
    * Centralized mapping helper to prevent null/undefined database columns from returning NaN in math.
@@ -29,11 +52,16 @@ export class ProfitService {
   static getSettings(settings: any) {
     return {
       defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
-      defaultForwardShipping: settings?.defaultForwardShipping ?? 90,
+      defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
       defaultReturnShipping: settings?.defaultReturnShipping ?? 70,
       defaultCODHandling: settings?.defaultCODHandling ?? 40,
       defaultPackaging: settings?.defaultPackaging ?? 10,
       defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
+      gatewayFixedFee: settings?.gatewayFixedFee ?? 0,
+      gstin: settings?.gstin || "",
+      gstRate: settings?.gstRate ?? 18,
+      isGstRegistered: settings?.isGstRegistered ?? false,
+      hsnCodes: settings?.hsnCodes || {},
       rtoDetectionPattern: settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
       rtoThreshold: settings?.rtoThreshold ?? 10,
       marginThreshold: settings?.marginThreshold ?? 15,
@@ -44,185 +72,195 @@ export class ProfitService {
 
   /**
    * Centralized formula to calculate profit for a single order.
-   * Profit = Revenue - COGS - (Tax + Shipping + Gateway Fees + COD Handling Fees)
+   * Profit = Revenue - COGS - (Tax + Shipping + Gateway Fees + COD Handling Fees + Packaging)
    */
   static calculateOrderProfit(
     order: { totalPrice: number; isCOD: boolean; totalTax: number; shippingPrice: number },
     cogs: number,
-    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number }
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; gatewayFixedFee?: number; defaultPackaging?: number }
   ): { profit: number; fees: number; margin: number } {
-    const gatewayFee = order.isCOD ? 0 : order.totalPrice * (settings.defaultGatewayFeePct / 100);
+    const gatewayFixed = settings.gatewayFixedFee || 0;
+    const packaging = settings.defaultPackaging || 10;
+    const gatewayFee = order.isCOD ? 0 : (order.totalPrice * (settings.defaultGatewayFeePct / 100)) + gatewayFixed;
     const codFee = order.isCOD ? settings.defaultCODHandling : 0;
-    const fees = order.totalTax + settings.defaultForwardShipping + gatewayFee + codFee;
+    const fees = order.totalTax + settings.defaultForwardShipping + gatewayFee + codFee + packaging;
     const profit = order.totalPrice - cogs - fees;
     const margin = order.totalPrice > 0 ? (profit / order.totalPrice) * 100 : 0;
     return { profit, fees, margin };
   }
 
   /**
-   * Calculate profit for all orders of a store
+   * Calculate detailed fee breakdown across all store orders
    */
-  static async calculate(shop: string, limit: number = 100) {
-    logDev(`[ProfitService.calculate] Initiating calculation for shop: ${shop}, limit: ${limit}`);
-    
-    // Fetch orders from database
-    const orders = await prisma.order.findMany({
-      where: { shop },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
-    logDev(`[ProfitService.calculate] Fetched ${orders.length} orders from database`);
+  static async getFeeBreakdown(shop: string): Promise<FeeBreakdown> {
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = this.getSettings(rawSettings);
+    const orders = await prisma.order.findMany({ where: { shop } });
 
-    // Fetch COGS for this store
-    const cogsRecords = await prisma.productCOGS.findMany({
-      where: { shop },
-    });
-    logDev(`[ProfitService.calculate] Fetched ${cogsRecords.length} COGS records`);
+    let gatewayFees = 0;
+    let codHandlingFees = 0;
+    let forwardShipping = 0;
+    let returnShipping = 0;
+    let packagingCosts = 0;
 
-    const cogsMap = new Map<string, number>();
-    cogsRecords.forEach((record: any) => {
-      const effectiveCost = record.manualOverride ?? record.shopifyNative ?? record.cost ?? (record.cogs > 0 ? record.cogs : undefined);
-      if (effectiveCost !== undefined && effectiveCost !== null) {
-        cogsMap.set(record.productId, effectiveCost);
+    for (const o of orders) {
+      packagingCosts += settings.defaultPackaging;
+      forwardShipping += settings.defaultForwardShipping;
+
+      if (o.isCOD) {
+        codHandlingFees += settings.defaultCODHandling;
+        if (o.fulfillmentStatus === "RTO") {
+          returnShipping += settings.defaultReturnShipping;
+        }
+      } else {
+        gatewayFees += (o.totalPrice * (settings.defaultGatewayFeePct / 100)) + settings.gatewayFixedFee;
+      }
+    }
+
+    const totalFees = gatewayFees + codHandlingFees + forwardShipping + returnShipping + packagingCosts;
+
+    return {
+      gatewayFees: Math.round(gatewayFees),
+      codHandlingFees: Math.round(codHandlingFees),
+      forwardShipping: Math.round(forwardShipping),
+      returnShipping: Math.round(returnShipping),
+      packagingCosts: Math.round(packagingCosts),
+      totalFees: Math.round(totalFees),
+    };
+  }
+
+  /**
+   * Calculate GST Tax breakdown (CGST, SGST, IGST, HSN-wise sales)
+   */
+  static async getGSTSummary(shop: string): Promise<GSTSummary> {
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = this.getSettings(rawSettings);
+    const orders = await prisma.order.findMany({ where: { shop } });
+
+    let totalTaxableSales = 0;
+    let totalGstCollected = 0;
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    let intraStateSales = 0;
+    let interStateSales = 0;
+
+    const hsnMap: Record<string, { sales: number; tax: number }> = {};
+
+    for (const o of orders) {
+      const orderTax = o.totalTax > 0 ? o.totalTax : (o.subtotalPrice * (settings.gstRate / 100));
+      totalTaxableSales += o.subtotalPrice || (o.totalPrice - orderTax);
+      totalGstCollected += orderTax;
+
+      // Classify Intra-state vs Inter-state based on state/province matching default (e.g. MH / Maharashtra)
+      const isIntraState = o.province ? /maharashtra|mh/i.test(o.province) : true;
+
+      if (isIntraState) {
+        intraStateSales += o.totalPrice;
+        cgst += orderTax / 2;
+        sgst += orderTax / 2;
+      } else {
+        interStateSales += o.totalPrice;
+        igst += orderTax;
+      }
+
+      // HSN aggregation
+      const hsnCode = (settings.hsnCodes as any)?.[o.productId || "default"] || "610910";
+      if (!hsnMap[hsnCode]) {
+        hsnMap[hsnCode] = { sales: 0, tax: 0 };
+      }
+      hsnMap[hsnCode].sales += o.totalPrice;
+      hsnMap[hsnCode].tax += orderTax;
+    }
+
+    const hsnSummary = Object.entries(hsnMap).map(([hsnCode, data]) => ({
+      hsnCode,
+      sales: Math.round(data.sales),
+      tax: Math.round(data.tax),
+    }));
+
+    return {
+      gstin: settings.gstin,
+      isGstRegistered: settings.isGstRegistered,
+      defaultGstRate: settings.gstRate,
+      totalTaxableSales: Math.round(totalTaxableSales),
+      totalGstCollected: Math.round(totalGstCollected),
+      cgst: Math.round(cgst),
+      sgst: Math.round(sgst),
+      igst: Math.round(igst),
+      intraStateSales: Math.round(intraStateSales),
+      interStateSales: Math.round(interStateSales),
+      hsnSummary,
+    };
+  }
+
+  /**
+   * Fetch COGS dictionary
+   */
+  static async getCOGS(shop: string): Promise<Record<string, number>> {
+    const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
+    const cogsDict: Record<string, number> = {};
+    cogsRecords.forEach((r: any) => {
+      const eff = r.manualOverride ?? r.shopifyNative ?? r.cost ?? (r.cogs > 0 ? r.cogs : undefined);
+      if (eff !== undefined && eff !== null) {
+        cogsDict[r.productId] = eff;
       }
     });
+    return cogsDict;
+  }
 
-    // Fetch logistics settings defaults
+  /**
+   * Backward-compatible calculate method for api.profit.ts and health.service.ts
+   */
+  static async calculate(shop: string, limit: number = 100) {
+    const orders = await prisma.order.findMany({
+      where: { shop },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    const cogsDict = await this.getCOGS(shop);
     const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
     const settings = this.getSettings(rawSettings);
 
-    // Calculate profit per order
     const results: ProfitOrder[] = [];
     let totalRevenue = 0;
     let totalCOGS = 0;
     let totalFees = 0;
     let totalProfit = 0;
 
-    let profitOrdersCount = 0;
-    for (const order of orders) {
-      // Get COGS (exclude if not set)
-      const cogs = cogsMap.get(order.productId || '');
-      if (cogs === undefined) continue;
-      
-      const { profit, fees, margin } = this.calculateOrderProfit(order, cogs, settings);
+    for (const o of orders) {
+      const c = cogsDict[o.productId || ""] || 0;
+      const { profit, fees, margin } = this.calculateOrderProfit(o, c, settings);
 
       results.push({
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        revenue: order.totalPrice,
-        cogs,
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        revenue: o.totalPrice,
+        cogs: c,
         fees,
         profit,
         margin,
-        createdAt: order.createdAt,
+        createdAt: o.createdAt,
       });
 
-      totalRevenue += order.totalPrice;
-      totalCOGS += cogs;
+      totalRevenue += o.totalPrice;
+      totalCOGS += c;
       totalFees += fees;
       totalProfit += profit;
-      profitOrdersCount++;
     }
+
+    const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
     const summary: ProfitSummary = {
-      totalRevenue,
-      totalCOGS,
-      totalFees,
-      totalProfit,
-      avgMargin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
-      orderCount: profitOrdersCount,
+      totalRevenue: Math.round(totalRevenue),
+      totalCOGS: Math.round(totalCOGS),
+      totalFees: Math.round(totalFees),
+      totalProfit: Math.round(totalProfit),
+      avgMargin: Math.round(avgMargin * 10) / 10,
+      orderCount: orders.length,
     };
-    logDev(`[ProfitService.calculate] Summary calculated:`, summary);
 
-    return {
-      orders: results,
-      summary,
-    };
-  }
-
-  /**
-   * Save COGS for a product (as manual override)
-   */
-  static async saveCOGS(shop: string, productId: string, cogs: number) {
-    logInfo(`[ProfitService.saveCOGS] Saving manual COGS: shop=${shop}, productId=${productId}, cogs=${cogs}`);
-    if (cogs < 0) throw new Error('COGS cannot be negative');
-
-    const id = `${shop}_${productId}`;
-
-    const record = await (prisma as any).productCOGS.upsert({
-      where: { shop_productId: { shop, productId } },
-      update: {
-        cost: cogs,
-        manualOverride: cogs,
-        source: "manual_override",
-        cogs,
-        updatedAt: new Date(),
-      },
-      create: {
-        id,
-        shop,
-        productId,
-        cost: cogs,
-        manualOverride: cogs,
-        source: "manual_override",
-        cogs,
-        updatedAt: new Date(),
-      },
-    });
-    logInfo(`[ProfitService.saveCOGS] Successfully saved manual COGS: id=${record.id}, cogs=${record.cost}`);
-    return record;
-  }
-
-  /**
-   * Get all COGS for a store (resolving manualOverride > shopifyNative > cost)
-   */
-  static async getCOGS(shop: string) {
-    logDev(`[ProfitService.getCOGS] Fetching all COGS mappings for shop: ${shop}`);
-    const records = await prisma.productCOGS.findMany({
-      where: { shop },
-    });
-    const map: Record<string, number> = {};
-    records.forEach((r: any) => {
-      const effective = r.manualOverride ?? r.shopifyNative ?? r.cost ?? (r.cogs > 0 ? r.cogs : undefined);
-      if (effective !== undefined && effective !== null) {
-        map[r.productId] = effective;
-      }
-    });
-    logDev(`[ProfitService.getCOGS] Mapped ${Object.keys(map).length} active COGS records`);
-    return map;
-  }
-
-  /**
-   * Sync orders from Shopify to database
-   */
-  static async syncOrders(shop: string, orders: any[]) {
-    logInfo(`[ProfitService.syncOrders] Syncing ${orders.length} orders for shop: ${shop}`);
-    let count = 0;
-    for (const order of orders) {
-      const existing = await prisma.order.findUnique({
-        where: { id: order.id },
-      });
-
-      if (!existing) {
-        await prisma.order.create({
-          data: {
-            id: order.id,
-            shop,
-            orderNumber: order.orderNumber,
-            totalPrice: order.totalPrice,
-            subtotalPrice: order.subtotalPrice,
-            totalTax: order.totalTax,
-            shippingPrice: order.shippingPrice,
-            createdAt: order.createdAt,
-            processedAt: order.processedAt || order.createdAt,
-            financialStatus: order.financialStatus || 'pending',
-            fulfillmentStatus: order.fulfillmentStatus || 'unfulfilled',
-          },
-        });
-        count++;
-      }
-    }
-    logInfo(`[ProfitService.syncOrders] Sync completed. Created ${count} new orders.`);
-    return count;
+    return { orders: results, summary };
   }
 }

@@ -328,6 +328,12 @@ model StoreSettings {
   codFeeEnabled          Boolean  @default(false)
   codFeeAmount           Float    @default(30)
   codFeeType             String   @default("fixed") // "fixed" or "percentage"
+  // GST Compliance Suite & Gateway Fees
+  gstin                  String?
+  gstRate                Float    @default(18)
+  isGstRegistered        Boolean  @default(false)
+  hsnCodes               Json?
+  gatewayFixedFee        Float    @default(0)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
