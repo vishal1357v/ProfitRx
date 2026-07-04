@@ -35,39 +35,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop");
+    let shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
     const host = url.searchParams.get("host") || "";
 
-    // If it's a 302/401 redirect response, pass it through directly
-    if (authErr instanceof Response && authErr.status !== 500) {
+    // If shop is not in query params or headers, look up the most recent shop in database
+    if (!shop) {
+      try {
+        const lastSession = await prisma.session.findFirst({ select: { shop: true }, orderBy: { updatedAt: "desc" } });
+        if (lastSession?.shop) {
+          shop = lastSession.shop;
+        }
+      } catch (e) {
+        console.error("[app.tsx DB Lookup Error]:", e);
+      }
+    }
+
+    // If it's a standard OAuth 302 redirect from Shopify SDK, pass it through directly
+    if (authErr instanceof Response && (authErr.status === 302 || authErr.status === 301)) {
       throw authErr;
     }
 
-    // If session validation failed or 500 error occurred and we know the shop:
-    // Auto-wipe stale session record from PostgreSQL so merchant gets a fresh OAuth prompt!
+    console.warn(`[app.tsx Session Heal] Session authentication failed for shop "${shop}". Resetting session and re-authorizing...`);
+
+    // Auto-wipe stale session record from PostgreSQL if shop is known
     if (shop) {
-      console.warn(`[app.tsx Auto-Heal] Wiping stale session records for ${shop} and re-authorizing...`);
       try {
         await prisma.session.deleteMany({ where: { shop } });
       } catch (dbErr) {
-        console.error("[app.tsx Auto-Heal] Failed to wipe stale session:", dbErr);
+        console.error("[app.tsx Session Heal] DB delete error:", dbErr);
       }
       return redirect(`/auth/login?shop=${shop}&host=${host}`);
     }
 
-    if (authErr instanceof Response) throw authErr;
-
-    // For all other errors, log with full detail and re-throw
-    const errMsg = [
-      `[app.tsx authenticate.admin FAILED]`,
-      `Name: ${authErr?.name || "unknown"}`,
-      `Message: ${authErr?.message || String(authErr)}`,
-      `Stack: ${authErr?.stack || "(no stack)"}`,
-      `Code: ${authErr?.code || "(none)"}`,
-      `Meta: ${JSON.stringify(authErr?.meta || {})}`,
-    ].join("\n");
-    console.error(errMsg);
-    throw new Error(errMsg);
+    // Ultimate fallback: redirect to login route
+    return redirect(`/auth/login?host=${host}`);
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
