@@ -8,7 +8,10 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
-const DEFAULT_APP_URL = process.env.SHOPIFY_APP_URL || "https://greek-god-saas-git-main-greek-god.vercel.app";
+const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
+const DEFAULT_APP_URL = (rawAppUrl === "https://greek-god-saas.vercel.app" || !rawAppUrl)
+  ? "https://greek-god-saas-git-main-greek-god.vercel.app"
+  : rawAppUrl;
 const DEFAULT_API_KEY = process.env.SHOPIFY_API_KEY || "08f8a7442c2182a3a390f753591c06f3";
 const DEFAULT_SCOPES = process.env.SCOPES
   ? process.env.SCOPES.split(",")

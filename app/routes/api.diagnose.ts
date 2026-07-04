@@ -38,11 +38,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
       NODE_ENV: process.env.NODE_ENV,
     })),
 
-    testStep("url_match", async () => ({
-      configuredAppUrl,
-      incomingOrigin,
-      match: configuredAppUrl === incomingNormalized ? "MATCH ✅" : `MISMATCH ❌ — fix SHOPIFY_APP_URL in Vercel env vars to equal "${incomingNormalized}"`,
-    })),
+    testStep("url_match", async () => {
+      const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
+      const activeAppUrl = (rawAppUrl === "https://greek-god-saas.vercel.app" || !rawAppUrl)
+        ? "https://greek-god-saas-git-main-greek-god.vercel.app"
+        : rawAppUrl;
+
+      const isMatch = activeAppUrl.replace(/\/$/, "") === incomingNormalized.replace(/\/$/, "");
+      return {
+        configuredAppUrl: rawAppUrl,
+        activeAppUrl,
+        incomingOrigin,
+        match: isMatch ? "MATCH ✅" : `MISMATCH ❌ — fix SHOPIFY_APP_URL in Vercel env vars to equal "${incomingNormalized}"`,
+      };
+    }),
 
     testStep("prisma_session_count", async () => {
       const count = await prisma.session.count();
