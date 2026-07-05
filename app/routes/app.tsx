@@ -3,7 +3,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 
 function RemixLink({ url, children, external, ...props }: any) {
