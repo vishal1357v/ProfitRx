@@ -28,47 +28,39 @@ import { syncSubscriptionWithShopify } from "../services/subscription-sync.servi
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   // ── Step 1: Authenticate with Shopify ─────────────────────────────────────
-  // We MUST let Response throws pass through (these are OAuth redirects from Shopify SDK).
-  // But we catch real Errors so we can log them properly before re-throwing.
+  // IMPORTANT: Do NOT wrap authenticate.admin in a try/catch that swallows its
+  // redirect Response. The Shopify SDK throws a special Response with ExitIframe
+  // headers when OAuth is needed inside an embedded app. If we intercept it and
+  // return a plain redirect(), the browser blocks it (cross-origin iframe policy).
+  // We must let the SDK's Response propagate so App Bridge can escape the iframe.
   let authResult: Awaited<ReturnType<typeof authenticate.admin>>;
   try {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
-    const url = new URL(request.url);
-    let shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
-    const host = url.searchParams.get("host") || "";
-
-    // If shop is not in query params or headers, look up the most recent shop in database
-    if (!shop) {
-      try {
-        const lastSession = await prisma.session.findFirst({ select: { shop: true }, orderBy: { updatedAt: "desc" } });
-        if (lastSession?.shop) {
-          shop = lastSession.shop;
-        }
-      } catch (e) {
-        console.error("[app.tsx DB Lookup Error]:", e);
-      }
-    }
-
-    // If it's a standard OAuth 302 redirect from Shopify SDK, pass it through directly
-    if (authErr instanceof Response && (authErr.status === 302 || authErr.status === 301)) {
+    // Always re-throw Response objects — these are intentional SDK redirects
+    // (ExitIframe, OAuth, etc.) and must reach the browser untouched.
+    if (authErr instanceof Response) {
       throw authErr;
     }
 
-    console.warn(`[app.tsx Session Heal] Session authentication failed for shop "${shop}". Resetting session and re-authorizing...`);
+    // For unexpected non-Response errors, log and attempt a top-level recovery.
+    console.error("[app.tsx authenticate.admin threw non-Response error]:", authErr);
 
-    // Auto-wipe stale session record from PostgreSQL if shop is known
+    const url = new URL(request.url);
+    const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+    const host = url.searchParams.get("host") || "";
+
+    // Wipe stale DB session so next attempt gets a clean OAuth flow
     if (shop) {
       try {
         await prisma.session.deleteMany({ where: { shop } });
       } catch (dbErr) {
         console.error("[app.tsx Session Heal] DB delete error:", dbErr);
       }
-      return redirect(`/auth/login?shop=${shop}&host=${host}`);
     }
 
-    // Ultimate fallback: redirect to login route
-    return redirect(`/auth/login?host=${host}`);
+    // Throw a redirect so it breaks out at the top level (not inside an iframe)
+    throw redirect(`/auth/login?shop=${shop}&host=${host}`);
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
