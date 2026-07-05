@@ -1,5 +1,5 @@
 // Polyfill BigInt serialization so JSON.stringify doesn't crash on Prisma models with BigInt fields (e.g. Session.userId)
-if (!(BigInt.prototype as any).toJSON) {
+if (typeof BigInt !== "undefined" && !(BigInt.prototype as any).toJSON) {
   (BigInt.prototype as any).toJSON = function () {
     return this.toString();
   };
