@@ -56,7 +56,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
   const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
+  let host = url.searchParams.get("host") || "";
+
+  // Auto-generate base64 host parameter if missing from query string
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
   // ── Step 2: Sync billing ────────────────────────────────────────────────────
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
@@ -129,12 +135,7 @@ export default function App() {
   const { apiKey, shop, host, features = [], billingStatus } = useLoaderData<typeof loader>();
   const location = useLocation();
   const navigation = useNavigation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isNavigating = navigation.state !== "idle";
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
 
   const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
 
@@ -143,13 +144,13 @@ export default function App() {
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
         {/* Top Dunning Banner for RBI Mandate Failures — Simple Warning */}
         {isDunningActive && (
-          <div style={{ padding: "12px 20px" }}>
+          <div style={{ padding: "12px 20px 0 20px" }}>
             <Banner tone="warning" title="⚠️ Payment Action Required — RBI Mandate Notice">
               <p style={{ margin: 0, fontSize: "13px" }}>
                 Shopify was unable to process your subscription payment. Under RBI regulations for Indian cards and UPI mandates, please update your payment method or approve the mandate in your bank app to keep ProfitRx active.
               </p>
               <div style={{ marginTop: "8px" }}>
-                <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="secondary" size="micro">
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="secondary" size="micro">
                   Update Payment Method →
                 </Button>
               </div>
@@ -157,82 +158,91 @@ export default function App() {
           </div>
         )}
 
-        <div className="gg-app-container">
-          {/* Top Bar for Mobile Toggle */}
-          <div className="gg-topbar-mobile">
-            <button
-              className="gg-menu-toggle"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle Navigation"
-            >
-              {mobileMenuOpen ? "✕" : "☰ Menu"}
-            </button>
-            <div className="gg-mobile-brand">
-              <span className="gg-logo-icon">⚡</span>
-              <span className="gg-logo-text">ProfitRx</span>
-            </div>
-          </div>
+        <div style={{ minHeight: "100vh", backgroundColor: "var(--gg-bg-base)" }}>
+          {/* Top Polaris Navigation Bar */}
+          <header style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
+            backgroundColor: "rgba(13, 21, 38, 0.92)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            padding: "8px 20px",
+          }}>
+            <InlineStack align="space-between" blockAlign="center">
+              <InlineStack gap="300" blockAlign="center">
+                <InlineStack gap="150" blockAlign="center">
+                  <span style={{ fontSize: "20px" }}>⚡</span>
+                  <Text variant="headingMd" as="span" fontWeight="bold">
+                    ProfitRx <span style={{ color: "#38bdf8", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em", marginLeft: "4px" }}>India COD</span>
+                  </Text>
+                </InlineStack>
 
-          {/* Navigation Sidebar */}
-          <nav className={`gg-sidebar ${mobileMenuOpen ? "gg-sidebar-open" : ""}`}>
-            <div className="gg-sidebar-brand">
-              <div className="gg-brand-content">
-                <span className="gg-logo-icon">⚡</span>
-                <span className="gg-logo-text">ProfitRx</span>
+                <nav style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBlock: "4px" }}>
+                  {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => {
+                    const isActive = location.pathname === item.url || (item.url !== "/app/dashboard" && location.pathname.startsWith(item.url));
+                    const fullUrl = `${item.url}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`;
+
+                    return (
+                      <ReactRouterLink
+                        key={item.url}
+                        to={fullUrl}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? "#38bdf8" : "var(--gg-text-secondary)",
+                          backgroundColor: isActive ? "rgba(56, 189, 248, 0.12)" : "transparent",
+                          border: isActive ? "1px solid rgba(56, 189, 248, 0.3)" : "1px solid transparent",
+                          textDecoration: "none",
+                          whiteSpace: "nowrap",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        <span style={{ fontSize: "14px" }}>{item.icon}</span>
+                        <span>{item.label}</span>
+                        {item.badge && (
+                          <span style={{
+                            fontSize: "9px",
+                            fontWeight: 700,
+                            padding: "1px 5px",
+                            borderRadius: "4px",
+                            backgroundColor: item.badge === "Pro" ? "rgba(124, 58, 237, 0.2)" : "rgba(16, 185, 129, 0.2)",
+                            color: item.badge === "Pro" ? "#c084fc" : "#34d399",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                          }}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </ReactRouterLink>
+                    );
+                  })}
+                </nav>
+              </InlineStack>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
               </div>
-              <span className="gg-badge-moat">India COD</span>
-            </div>
-
-            <div className="gg-nav-list">
-              {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => {
-                const isActive = location.pathname === item.url || (item.url !== "/app/dashboard" && location.pathname.startsWith(item.url));
-                const fullUrl = `${item.url}?shop=${shop}&host=${host}`;
-
-                return (
-                  <ReactRouterLink
-                    key={item.url}
-                    to={fullUrl}
-                    className={`gg-nav-item ${isActive ? "active" : ""}`}
-                  >
-                    <span className="gg-nav-icon">{item.icon}</span>
-                    <span className="gg-nav-label">{item.label}</span>
-                    {item.badge && (
-                      <span className={`gg-nav-badge ${item.badge === "Pro" ? "pro" : "india"}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </ReactRouterLink>
-                );
-              })}
-            </div>
-
-            <div className="gg-sidebar-footer">
-              <div className="gg-store-pill">
-                <span className="gg-store-dot" />
-                <span className="gg-store-name" title={shop}>
-                  {shop.replace(".myshopify.com", "")}
-                </span>
-              </div>
-            </div>
-          </nav>
+            </InlineStack>
+          </header>
 
           {/* Main Content Area */}
-          <main className="gg-main-content">
+          <main style={{ padding: "0 0 40px 0" }}>
             {isNavigating ? (
-              <div className="gg-skeleton-container">
-                <div className="skeleton-header skeleton-pulse" />
-                <div className="skeleton-grid">
-                  <div className="skeleton-pulse skeleton-card" />
-                  <div className="skeleton-pulse skeleton-card" />
-                  <div className="skeleton-pulse skeleton-card" />
+              <div className="skeleton-container" style={{ padding: "24px" }}>
+                <div className="skeleton-pulse skeleton-card" style={{ height: "40px", marginBottom: "16px" }} />
+                <div className="skeleton-row" style={{ gap: "16px" }}>
+                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
+                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
+                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
                 </div>
-                <div className="skeleton-pulse skeleton-chart" style={{ marginBottom: 16 }} />
-                <div className="skeleton-row" style={{ flexDirection: "column", gap: 10 }}>
-                  <div className="skeleton-pulse skeleton-line" style={{ width: "100%" }} />
-                  <div className="skeleton-pulse skeleton-line" style={{ width: "90%" }} />
-                  <div className="skeleton-pulse skeleton-line" style={{ width: "80%" }} />
-                  <div className="skeleton-pulse skeleton-line" style={{ width: "75%" }} />
-                </div>
+                <div className="skeleton-pulse skeleton-chart" style={{ height: "240px", marginTop: "16px" }} />
               </div>
             ) : (
               <div className="gg-page-enter">
