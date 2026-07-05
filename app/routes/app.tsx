@@ -141,15 +141,15 @@ export default function App() {
   return (
     <AppProvider apiKey={apiKey}>
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
-        {/* Top Dunning Banner for RBI Mandate Failures */}
+        {/* Top Dunning Banner for RBI Mandate Failures — Simple Warning */}
         {isDunningActive && (
           <div style={{ padding: "12px 20px" }}>
-            <Banner tone="critical" title="⚠️ Payment Action Required — RBI Mandate Notice">
+            <Banner tone="warning" title="⚠️ Payment Action Required — RBI Mandate Notice">
               <p style={{ margin: 0, fontSize: "13px" }}>
                 Shopify was unable to process your subscription payment. Under RBI regulations for Indian cards and UPI mandates, please update your payment method or approve the mandate in your bank app to keep ProfitRx active.
               </p>
               <div style={{ marginTop: "8px" }}>
-                <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" size="micro">
+                <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="secondary" size="micro">
                   Update Payment Method →
                 </Button>
               </div>
