@@ -29,7 +29,7 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
   // Fetch all orders
   const orders = await prisma.order.findMany({
@@ -46,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Fetch products to map titles
   let products: any[] = [];
   try {
-    products = await ShopifyService.getProducts(request);
+    products = await ShopifyService.getProducts(admin);
   } catch (err) {
     console.error("Failed to fetch products:", err);
   }

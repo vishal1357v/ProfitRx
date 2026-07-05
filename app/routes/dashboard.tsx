@@ -80,9 +80,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let products: any[] = [];
   try {
-    products = await ShopifyService.getProducts(request);
+    products = await ShopifyService.getProducts(admin);
   } catch (err) {
-    console.error("Failed to fetch products for dashboard:", err);
+    console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
   }
   const productMap = new Map(products.map((p) => [p.id, p.title]));
 

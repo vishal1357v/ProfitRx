@@ -21,13 +21,13 @@ import prisma from "../db.server";
 import { ShopifyService } from "../services/shopify.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
 
   // 1. Fetch products from Shopify
   let products: any[] = [];
   try {
-    products = await ShopifyService.getProducts(request);
+    products = await ShopifyService.getProducts(admin);
   } catch (err) {
     console.error("Failed to load products for cogs:", err);
   }
