@@ -43,23 +43,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       throw authErr;
     }
 
-    // For unexpected non-Response errors, log and attempt a top-level recovery.
-    console.error("[app.tsx authenticate.admin threw non-Response error]:", authErr);
+    // For non-Response errors (e.g. "Unexpected Server Error" from wrong API secret),
+    // DO NOT delete the session — that makes things worse. Just redirect to re-auth.
+    console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
 
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
     const host = url.searchParams.get("host") || "";
 
-    // Wipe stale DB session so next attempt gets a clean OAuth flow
-    if (shop) {
-      try {
-        await prisma.session.deleteMany({ where: { shop } });
-      } catch (dbErr) {
-        console.error("[app.tsx Session Heal] DB delete error:", dbErr);
-      }
-    }
-
-    // Throw a redirect so it breaks out at the top level (not inside an iframe)
     throw redirect(`/auth/login?shop=${shop}&host=${host}`);
   }
 
