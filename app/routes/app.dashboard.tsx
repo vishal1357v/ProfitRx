@@ -1,1 +1,1 @@
-export { loader, default } from "./dashboard";
+export { loader, headers, default } from "./dashboard";

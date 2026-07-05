@@ -1,23 +1,31 @@
 import { useState } from "react";
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, redirect } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useLoaderData } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, DataTable, Divider, Banner, TextField,
+  Badge, DataTable, Divider, Banner, TextField, Button,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
 import { CustomerIntelligenceService } from "../services/customer-intelligence.service";
 import { canAccessFeature } from "../services/feature-access.service";
 
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const url = new URL(request.url);
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
   const hasAccess = await canAccessFeature(shop, "ltv_cohort");
-  if (!hasAccess) {
-    return redirect("/app/pricing?upgrade=pro");
-  }
 
   const [cohorts, channelQuality, customers] = await Promise.all([
     CustomerIntelligenceService.getLTVCohorts(shop),
@@ -25,7 +33,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     CustomerIntelligenceService.getCustomerDirectory(shop),
   ]);
 
-  return { cohorts, channelQuality, customers };
+  return { hasAccess, shop, host, cohorts, channelQuality, customers };
 };
 
 // ── Retention Curve Chart ─────────────────────────────────
@@ -132,8 +140,27 @@ const CHANNEL_META: Record<string, { icon: string; color: string }> = {
 };
 
 export default function CustomersRoute() {
-  const { cohorts, channelQuality, customers } = useLoaderData<typeof loader>();
+  const { hasAccess, shop = "", host = "", cohorts = [], channelQuality = [], customers = [] } = useLoaderData<typeof loader>();
   const [searchQuery, setSearchQuery] = useState("");
+
+  if (!hasAccess) {
+    return (
+      <Page title="👥 Customer LTV & Cohort Retention">
+        <Layout>
+          <Layout.Section>
+            <Banner tone="info" title="🔒 Pro Plan Feature Required">
+              <p>Customer LTV & Cohort Retention analysis require a Pro plan upgrade.</p>
+              <div style={{ marginTop: "12px" }}>
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="primary">
+                  Upgrade to Pro Tier →
+                </Button>
+              </div>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
 
   const filteredCustomers = customers.filter((c: any) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

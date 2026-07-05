@@ -1,6 +1,11 @@
 import { useState } from "react";
-import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useSubmit, useNavigation } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, Button, TextField, Select, DataTable, Banner, Divider,

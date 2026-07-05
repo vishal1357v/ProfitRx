@@ -1,5 +1,10 @@
-import type { LoaderFunctionArgs } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, Button, Divider, Banner,

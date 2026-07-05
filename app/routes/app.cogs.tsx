@@ -1,1 +1,1 @@
-export { default, loader, action } from "./cogs";
+export { default, loader, action, headers } from "./cogs";

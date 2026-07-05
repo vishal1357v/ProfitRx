@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, redirect } from "react-router";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useNavigation } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, TextField, Button, Banner, Divider, Select, Modal,
@@ -11,14 +12,21 @@ import { ProfitIntelligenceService } from "../services/profit-intelligence.servi
 import { canAccessFeature } from "../services/feature-access.service";
 import { AdSpendService } from "../services/ad-spend.service";
 
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const url = new URL(request.url);
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
   const hasAccess = await canAccessFeature(shop, "roas_adspend");
-  if (!hasAccess) {
-    return redirect("/app/pricing?upgrade=pro");
-  }
 
   const [roas, adSpendRecords, connectedPlatforms] = await Promise.all([
     ProfitIntelligenceService.getROAS(shop),
@@ -46,7 +54,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }));
 
   return {
+    hasAccess,
     shop,
+    host,
     roas,
     connectedPlatforms,
     adSpendRecords: adSpendRecords.map((a: any) => ({
@@ -136,9 +146,28 @@ function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: numb
 
 // ─────────────────────────────────────────────────────────
 export default function ROASRoute() {
-  const { shop, roas, connectedPlatforms, adSpendRecords, revenueChart } = useLoaderData<typeof loader>();
+  const { hasAccess, shop, host = "", roas, connectedPlatforms, adSpendRecords, revenueChart } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+
+  if (!hasAccess) {
+    return (
+      <Page title="📈 Ad Spend Sync & Blended ROAS">
+        <Layout>
+          <Layout.Section>
+            <Banner tone="info" title="🔒 Pro Plan Feature Required">
+              <p>Ad Spend Sync and Blended ROAS analytics require a Pro plan upgrade.</p>
+              <div style={{ marginTop: "12px" }}>
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="primary">
+                  Upgrade to Pro Tier →
+                </Button>
+              </div>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
 
   const currentMonth = new Date().toISOString().substring(0, 7);
   const [month, setMonth] = useState(currentMonth);

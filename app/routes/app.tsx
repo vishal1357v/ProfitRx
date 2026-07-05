@@ -14,8 +14,25 @@ function RemixLink({ url, children, external, ...props }: any) {
       </a>
     );
   }
+
+  // Auto-append shop and host params if missing from relative URL
+  let targetUrl = url;
+  if (typeof window !== "undefined" && url.startsWith("/")) {
+    const currentParams = new URLSearchParams(window.location.search);
+    const shopParam = currentParams.get("shop");
+    const hostParam = currentParams.get("host");
+
+    if (shopParam || hostParam) {
+      const [path, existingQuery] = url.split("?");
+      const targetParams = new URLSearchParams(existingQuery || "");
+      if (shopParam && !targetParams.has("shop")) targetParams.set("shop", shopParam);
+      if (hostParam && !targetParams.has("host")) targetParams.set("host", hostParam);
+      targetUrl = `${path}?${targetParams.toString()}`;
+    }
+  }
+
   return (
-    <ReactRouterLink to={url} {...props}>
+    <ReactRouterLink to={targetUrl} {...props}>
       {children}
     </ReactRouterLink>
   );
@@ -78,7 +95,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const isFreePlan = localSub.plan === "FREE" || isBypass;
 
   // ── Step 3: Require billing for paid plans ─────────────────────────────────
-  if (!isFreePlan && !url.pathname.includes("/app/pricing")) {
+  if (!isFreePlan && !url.pathname.includes("/app/pricing") && !url.pathname.includes("/app/billing")) {
     try {
       await billing.require({
         plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"] as any,
@@ -120,14 +137,14 @@ const NAV_ITEMS = [
   { label: "COGS Catalog", url: "/app/cogs", icon: "📦" },
   { label: "COD Risk Shield", url: "/app/cod-rules", icon: "🛡️", badge: "India" },
   { label: "COD Analytics", url: "/app/cod-dashboard", icon: "⚡" },
-  { label: "RTO Analytics", url: "/app/rto", icon: "🚚", feature: "basic_rto" },
-  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: "🗺️", feature: "rto_heatmap", badge: "Pro" },
-  { label: "Profit Leaks", url: "/app/profit-leaks", icon: "🔍", feature: "basic_insights" },
-  { label: "Customer LTV", url: "/app/customers", icon: "👥", feature: "ltv_cohort", badge: "Pro" },
-  { label: "Ad Spend Sync", url: "/app/roas", icon: "📈", feature: "blended_roas", badge: "Pro" },
-  { label: "Alerts", url: "/app/alerts", icon: "🔔", feature: "basic_alerts" },
+  { label: "RTO Analytics", url: "/app/rto", icon: "🚚" },
+  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: "🗺️", badge: "Pro" },
+  { label: "Profit Leaks", url: "/app/profit-leaks", icon: "🔍" },
+  { label: "Customer LTV", url: "/app/customers", icon: "👥", badge: "Pro" },
+  { label: "Ad Spend Sync", url: "/app/roas", icon: "📈", badge: "Pro" },
+  { label: "Alerts", url: "/app/alerts", icon: "🔔" },
   { label: "Store Health", url: "/app/health", icon: "❤️" },
-  { label: "Plans & Billing", url: "/app/pricing", icon: "💎" },
+  { label: "Plans & Billing", url: "/app/billing", icon: "💎" },
   { label: "Settings", url: "/app/settings", icon: "⚙️" },
 ];
 
@@ -180,7 +197,7 @@ export default function App() {
                 </InlineStack>
 
                 <nav style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBlock: "4px" }}>
-                  {NAV_ITEMS.filter((item) => !item.feature || features.includes(item.feature)).map((item) => {
+                  {NAV_ITEMS.map((item) => {
                     const isActive = location.pathname === item.url || (item.url !== "/app/dashboard" && location.pathname.startsWith(item.url));
                     const fullUrl = `${item.url}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`;
 

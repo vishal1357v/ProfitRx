@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, redirect } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useLoaderData } from "react-router";
+import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, ProgressBar, Divider, DataTable, Button, Banner,
@@ -11,16 +12,21 @@ import { ProfitIntelligenceService } from "../services/profit-intelligence.servi
 import { ProfitService } from "../services/profit.service";
 import { canAccessFeature } from "../services/feature-access.service";
 
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
   const hasAccess = await canAccessFeature(shop, "high_risk_areas");
-  if (!hasAccess) {
-    return redirect("/app/pricing?upgrade=growth");
-  }
 
   // Pincode stats
   const pincodeStats = await ProfitIntelligenceService.getPincodeStats(shop, 30);
@@ -81,6 +87,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }));
 
   return {
+    hasAccess,
     pincodeStats: pincodeStats.map((p: any) => ({
       pincode: p.pincode,
       city: p.city,
@@ -145,8 +152,27 @@ function StatCard({ icon, label, value, sub, color }: {
 }
 
 export default function RTOHeatmapRoute() {
-  const { shop, host, pincodeStats, codStats, prepaidStats, pendingCODWithRisk, totalOrders } = useLoaderData<typeof loader>();
+  const { hasAccess, shop, host, pincodeStats = [], codStats, prepaidStats, pendingCODWithRisk = [], totalOrders = 0 } = useLoaderData<typeof loader>();
   const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
+
+  if (!hasAccess) {
+    return (
+      <Page title="🗺️ Pincode RTO Heatmap">
+        <Layout>
+          <Layout.Section>
+            <Banner tone="info" title="🔒 Growth Plan Feature Required">
+              <p>Pincode RTO Heatmap & Pre-shipment Risk Scoring require a Growth or Pro plan upgrade.</p>
+              <div style={{ marginTop: "12px" }}>
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="primary">
+                  Upgrade to Growth Tier →
+                </Button>
+              </div>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
 
   const handleBlockHighRiskPincodes = () => {
     const highRiskCount = pincodeStats.filter((p: any) => p.riskLevel === "CRITICAL" || p.riskLevel === "HIGH").length || 3;
@@ -155,7 +181,7 @@ export default function RTOHeatmapRoute() {
 
   const maxRto = Math.max(...pincodeStats.map((p: any) => p.rtoRate), 1);
 
-  const riskRows = pendingCODWithRisk.map((o) => {
+  const riskRows = pendingCODWithRisk.map((o: any) => {
     const risk = RISK_COLORS[o.riskLevel as keyof typeof RISK_COLORS] || RISK_COLORS.LOW;
     return [
       <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>#{o.orderNumber}</span>,
