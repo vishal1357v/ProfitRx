@@ -10,13 +10,19 @@ import { CODManagementService } from "../services/cod-management.service";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const url = new URL(request.url);
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
-  const data = await CODManagementService.getCODProfitBreakdown(shop);
-  return { shop, data };
+  const data = await CODManagementService.getCODProfitBreakdown(shop, host);
+  return { shop, host, data };
 };
 
 export default function CODProfitDashboardRoute() {
-  const { shop, data } = useLoaderData<typeof loader>();
+  const { shop, host, data } = useLoaderData<typeof loader>();
 
   return (
     <Page title="💸 COD Profit Dashboard">
@@ -40,7 +46,7 @@ export default function CODProfitDashboardRoute() {
                   True net profit for COD orders calculated after deducting COD handling fees, return freight, product loss, and packaging costs.
                 </Text>
               </BlockStack>
-              <Button variant="primary" tone="critical" url={`/app/cod-rules?shop=${shop}`}>
+              <Button variant="primary" tone="critical" url={`/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}>
                 Configure COD Rules →
               </Button>
             </InlineStack>

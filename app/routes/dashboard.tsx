@@ -39,6 +39,7 @@ const isCodGateway = (gateway: string | null) => {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let session: any;
   let billing: any;
+  let admin: any;
   let shop = "";
   let host = "";
 
@@ -49,6 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const auth = await authenticate.admin(request);
     session = auth.session;
     billing = auth.billing;
+    admin = auth.admin;
     shop = session.shop;
   } catch (authErr: any) {
     if (authErr instanceof Response) throw authErr;

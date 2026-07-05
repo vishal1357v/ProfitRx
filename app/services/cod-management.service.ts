@@ -178,32 +178,39 @@ export class CODManagementService {
   /**
    * Calculate COD vs Prepaid Profitability & Actionable Insights
    */
-  static async getCODProfitBreakdown(shop: string) {
+  static async getCODProfitBreakdown(shop: string, host: string = "") {
     const orders = await prisma.order.findMany({ where: { shop } });
-    const settings = await prisma.storeSettings.findUnique({ where: { shop } });
-    const cogsDict = await ProfitService.getCOGS(shop);
+    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
     const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop } });
+    const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } });
+
+    const cogsDict: Record<string, number> = {};
+    for (const c of cogsRecords) {
+      cogsDict[c.productId] = c.cogs ?? 0;
+    }
 
     let codOrders = 0;
     let codRevenue = 0;
     let codCogs = 0;
     let codFees = 0;
-    let codRtoCount = 0;
     let codRtoLoss = 0;
-
+    let codRtoCount = 0;
     let prepaidOrders = 0;
     let prepaidRevenue = 0;
     let prepaidCogs = 0;
     let prepaidFees = 0;
 
     const evalSettings = {
+      defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
+      defaultPackaging: settings?.defaultPackaging ?? 10,
       defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
       defaultCODHandling: settings?.defaultCODHandling ?? 40,
       defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
     };
 
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""] || 0;
+      const c = cogsDict[o.productId || ""] || (o.totalPrice * (evalSettings.defaultCOGSPct / 100));
       const { fees } = ProfitService.calculateOrderProfit(o, c, evalSettings);
 
       if (o.isCOD) {
@@ -236,6 +243,7 @@ export class CODManagementService {
     const estimatedPincodeSavings = highRiskPincodes.reduce((sum, p) => sum + p.totalLoss, 0) || 3200;
 
     const codSettings = await this.getCODSettings(shop);
+    const hostQuery = host ? `&host=${encodeURIComponent(host)}` : "";
 
     const insights = [
       {
@@ -244,7 +252,7 @@ export class CODManagementService {
         title: `Block High-RTO Pincodes (${highRiskPincodes.length > 0 ? highRiskPincodes.map((p) => p.pincode).join(", ") : "110053, 635109"})`,
         impact: `Save ~₹${Math.round(estimatedPincodeSavings).toLocaleString("en-IN")}/mo`,
         description: "Pincodes with >30% return rates drain profit. Restrict COD in these pincodes.",
-        actionUrl: `/app/cod-rules?shop=${shop}`,
+        actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
         actionText: "Block Pincodes →",
       },
       {
@@ -253,7 +261,7 @@ export class CODManagementService {
         title: "Add COD Fee of ₹40",
         impact: `Estimated savings ~₹${Math.round(codOrders * 30).toLocaleString("en-IN")}/mo`,
         description: "Incentivize buyers to switch to Prepaid orders by adding a small handling fee.",
-        actionUrl: `/app/cod-rules?shop=${shop}`,
+        actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
         actionText: "Enable COD Fee →",
       },
       {
@@ -262,7 +270,7 @@ export class CODManagementService {
         title: "Enable WhatsApp OTP Verification",
         impact: "Reduces RTO by 15-20%",
         description: "Confirm buyer phone numbers before fulfillment to stop fake impulsiveness.",
-        actionUrl: `/app/cod-rules?shop=${shop}`,
+        actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
         actionText: "Enable OTP Verification →",
       },
       {
@@ -271,7 +279,7 @@ export class CODManagementService {
         title: "Switch Courier in UP Zone",
         impact: "Save ~₹900/mo",
         description: "High shipping overage detected in North Zone. Swap default logistics provider.",
-        actionUrl: `/app/settings?shop=${shop}`,
+        actionUrl: `/app/settings?shop=${shop}${hostQuery}`,
         actionText: "Review Courier Settings →",
       },
     ];
