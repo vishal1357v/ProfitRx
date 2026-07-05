@@ -33,13 +33,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const apiKey = process.env.SHOPIFY_API_KEY || "";
       const apiSecret = process.env.SHOPIFY_API_SECRET || "";
       const isSecretSameAsKey = apiKey && apiSecret && apiKey === apiSecret;
+      const hasAngleBrackets = apiSecret.startsWith("<") || apiSecret.endsWith(">");
 
       return {
         SHOPIFY_API_KEY: apiKey ? `${apiKey.slice(0, 6)}...` : "MISSING ❌",
         SHOPIFY_API_SECRET: apiSecret
           ? isSecretSameAsKey
-            ? "INVALID ❌ (SHOPIFY_API_SECRET equals SHOPIFY_API_KEY! You must copy the Client Secret from Partner Dashboard → App setup)"
-            : "SET ✅"
+            ? "INVALID ❌ (equals API_KEY — copy Client Secret from Partner Dashboard)"
+            : hasAngleBrackets
+              ? "INVALID ❌ — contains angle brackets < > — remove them in Vercel env vars! Value should be: shpss_xxxx not <shpss_xxxx>"
+              : "SET ✅"
           : "MISSING ❌",
         SHOPIFY_APP_URL: configuredAppUrl || "MISSING ❌",
         SCOPES: process.env.SCOPES || "MISSING ❌",
@@ -49,17 +52,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     }),
 
     testStep("url_match", async () => {
-      const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
-      const activeAppUrl = (rawAppUrl === "https://greek-god-saas.vercel.app" || !rawAppUrl)
-        ? "https://greek-god-saas-git-main-greek-god.vercel.app"
-        : rawAppUrl;
-
-      const isMatch = activeAppUrl.replace(/\/$/, "") === incomingNormalized.replace(/\/$/, "");
+      const rawAppUrl = (process.env.SHOPIFY_APP_URL || "").replace(/\/$/, "");
+      const isMatch = rawAppUrl === incomingNormalized;
       return {
-        configuredAppUrl: rawAppUrl,
-        activeAppUrl,
+        configuredAppUrl: rawAppUrl || "MISSING ❌",
         incomingOrigin,
-        match: isMatch ? "MATCH ✅" : `MISMATCH ❌ — fix SHOPIFY_APP_URL in Vercel env vars to equal "${incomingNormalized}"`,
+        match: isMatch ? "MATCH ✅" : `MISMATCH ❌ — SHOPIFY_APP_URL is "${rawAppUrl}" but request came from "${incomingNormalized}"`,
       };
     }),
 
