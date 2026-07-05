@@ -3,6 +3,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 
@@ -158,6 +159,21 @@ export default function App() {
 
   return (
     <AppProvider apiKey={apiKey}>
+      <NavMenu>
+        <a href="/app/dashboard" rel="home">Dashboard</a>
+        <a href="/app/cogs">COGS Catalog</a>
+        <a href="/app/cod-rules">COD Risk Shield</a>
+        <a href="/app/cod-dashboard">COD Analytics</a>
+        <a href="/app/rto">RTO Analytics</a>
+        <a href="/app/rto-heatmap">Pincode Heatmap</a>
+        <a href="/app/profit-leaks">Profit Leaks</a>
+        <a href="/app/customers">Customer LTV</a>
+        <a href="/app/roas">Ad Spend Sync</a>
+        <a href="/app/alerts">Alerts</a>
+        <a href="/app/health">Store Health</a>
+        <a href="/app/billing">Plans & Billing</a>
+        <a href="/app/settings">Settings</a>
+      </NavMenu>
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
         {/* Top Dunning Banner for RBI Mandate Failures — Simple Warning */}
         {isDunningActive && (
