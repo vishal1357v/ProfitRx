@@ -20,7 +20,16 @@ import {
   Grid,
   Text,
   Badge,
+  Box,
+  Select,
+  Icon,
 } from "@shopify/polaris";
+import {
+  SearchIcon,
+  ImportIcon,
+  RefreshIcon,
+  ProductIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ShopifyService } from "../services/shopify.service";
@@ -202,6 +211,8 @@ export default function COGSPage() {
 
   const [defaultPct, setDefaultPct] = useState(defaultCOGSPct.toString());
   const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [bulkCost, setBulkCost] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [csvMessage, setCsvMessage] = useState<string | null>(null);
@@ -306,10 +317,37 @@ export default function COGSPage() {
     reader.readAsText(file);
   };
 
-  // Filter products based on search query
-  const filteredProducts = products.filter((product: any) =>
-    product.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleBulkApply = () => {
+    if (!bulkCost || isNaN(parseFloat(bulkCost)) || parseFloat(bulkCost) < 0) {
+      setError("Please enter a valid positive number for bulk override.");
+      return;
+    }
+    setError(null);
+    const newCogs = { ...cogsValues };
+    filteredProducts.forEach((p) => {
+      newCogs[p.id] = bulkCost;
+    });
+    setCogsValues(newCogs);
+    setBulkCost("");
+    setCsvMessage(`Applied override of ₹${bulkCost} to ${filteredProducts.length} filtered items. Click "Save All Costs" to commit.`);
+  };
+
+  // Filter products based on search query and source filter
+  const filteredProducts = products.filter((product: any) => {
+    const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (sourceFilter === "all") return true;
+
+    const record = cogsRecordMap.get(product.id);
+    const nativeCost = product.shopifyNativeCost ?? record?.shopifyNative;
+    const isNativeSource = record?.source === "shopify_native" || (!record?.manualOverride && nativeCost != null);
+
+    if (sourceFilter === "native") return isNativeSource;
+    if (sourceFilter === "manual") return !isNativeSource;
+
+    return true;
+  });
 
   const rows = filteredProducts.map((product: any) => {
     const record = cogsRecordMap.get(product.id);
@@ -352,7 +390,7 @@ export default function COGSPage() {
             </Banner>
           )}
           {error && (
-            <Banner tone="critical">
+            <Banner tone="critical" onDismiss={() => setError(null)}>
               {error}
             </Banner>
           )}
@@ -366,60 +404,114 @@ export default function COGSPage() {
         {/* Product Catalog Sheet */}
         <Layout.Section>
           <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text variant="headingMd" as="h2">
-                    Product Catalog Cost Sheet ({filteredProducts.length} items)
-                  </Text>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    💡 Last synced: <strong>{lastUpdated}</strong>
-                  </Text>
-                </BlockStack>
-                
-                <InlineStack gap="200" blockAlign="center">
-                  <Button variant="secondary" onClick={handleSyncNativeCosts} loading={isSubmitting}>
-                    🔄 Sync Costs Now
-                  </Button>
+            <Box padding="400">
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="050">
+                    <Text variant="headingMd" as="h2">
+                      Product Catalog Cost Sheet ({filteredProducts.length} items)
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      💡 Last synced: <strong>{lastUpdated}</strong>
+                    </Text>
+                  </BlockStack>
 
-                  <div style={{ display: "inline-block" }}>
-                    <label htmlFor="csv-file-picker" style={{ display: "inline-block", padding: "6px 12px", backgroundColor: "var(--gg-surface-2)", border: "1px solid var(--gg-border)", borderRadius: "6px", fontSize: "13px", fontWeight: 500, color: "var(--gg-text-primary)", cursor: "pointer" }}>
-                      📥 Bulk Import CSV
-                    </label>
-                    <input
-                      id="csv-file-picker"
-                      type="file"
-                      accept=".csv"
-                      onChange={handleCSVImport}
-                      style={{ display: "none" }}
-                    />
-                  </div>
+                  <InlineStack gap="200" blockAlign="center">
+                    <Button variant="secondary" onClick={handleSyncNativeCosts} loading={isSubmitting} icon={RefreshIcon}>
+                      Sync Costs Now
+                    </Button>
+
+                    <div style={{ display: "inline-block" }}>
+                      <label
+                        htmlFor="csv-file-picker"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          backgroundColor: "var(--gg-surface-2)",
+                          border: "1px solid var(--gg-border)",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: "var(--gg-text-primary)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Icon source={ImportIcon} />
+                        Bulk Import CSV
+                      </label>
+                      <input
+                        id="csv-file-picker"
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCSVImport}
+                        style={{ display: "none" }}
+                      />
+                    </div>
+                  </InlineStack>
                 </InlineStack>
-              </InlineStack>
 
-              <TextField
-                label="Search catalog products"
-                labelHidden
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search products by title..."
-                autoComplete="off"
-              />
+                <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
+                  <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1 }}>
+                    <TextField
+                      label="Search catalog products"
+                      labelHidden
+                      value={searchQuery}
+                      onChange={setSearchQuery}
+                      placeholder="Search products by title..."
+                      autoComplete="off"
+                      prefix={<Icon source={SearchIcon} />}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell>
+                    <Select
+                      label="Filter by cost source"
+                      labelHidden
+                      options={[
+                        { label: "All Sources", value: "all" },
+                        { label: "Shopify Native Only", value: "native" },
+                        { label: "Manual Overrides Only", value: "manual" },
+                      ]}
+                      value={sourceFilter}
+                      onChange={setSourceFilter}
+                    />
+                  </Grid.Cell>
+                  <Grid.Cell>
+                    <InlineStack gap="150">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Bulk Override Price"
+                          labelHidden
+                          type="number"
+                          value={bulkCost}
+                          onChange={setBulkCost}
+                          placeholder="Bulk Cost (₹)"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <Button onClick={handleBulkApply} variant="secondary">
+                        {`Apply to ${filteredProducts.length} Items`}
+                      </Button>
+                    </InlineStack>
+                  </Grid.Cell>
+                </Grid>
 
-              <DataTable
-                columnContentTypes={["text", "text", "text", "text", "text"]}
-                headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
-                rows={rows}
-              />
+                <DataTable
+                  columnContentTypes={["text", "text", "text", "text", "text"]}
+                  headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
+                  rows={rows}
+                />
 
-              <Divider />
-              
-              <InlineStack align="end">
-                <Button variant="primary" onClick={handleSaveCosts} loading={isSubmitting}>
-                  Save All Costs
-                </Button>
-              </InlineStack>
-            </BlockStack>
+                <Divider />
+
+                <InlineStack align="end">
+                  <Button variant="primary" onClick={handleSaveCosts} loading={isSubmitting}>
+                    Save All Costs
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Box>
           </Card>
         </Layout.Section>
 
@@ -428,51 +520,55 @@ export default function COGSPage() {
           <BlockStack gap="400">
             {/* Global Cost Rule settings */}
             <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  Global Default Cost Rule
-                </Text>
-                <Text variant="bodySm" as="p" tone="subdued">
-                  If a product has no specific cost defined, we calculate cost as a flat percentage of the selling price.
-                </Text>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    Global Default Cost Rule
+                  </Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    If a product has no specific cost defined, we calculate cost as a flat percentage of the selling price.
+                  </Text>
 
-                <form onSubmit={handleDefaultPctSave}>
-                  <BlockStack gap="200">
-                    <TextField
-                      label="Default COGS Percentage"
-                      type="number"
-                      value={defaultPct}
-                      onChange={setDefaultPct}
-                      suffix="%"
-                      autoComplete="off"
-                    />
-                    <Button submit loading={isSubmitting} variant="secondary" fullWidth>
-                      Update Default Rule
-                    </Button>
-                  </BlockStack>
-                </form>
-              </BlockStack>
+                  <form onSubmit={handleDefaultPctSave}>
+                    <BlockStack gap="200">
+                      <TextField
+                        label="Default COGS Percentage"
+                        type="number"
+                        value={defaultPct}
+                        onChange={setDefaultPct}
+                        suffix="%"
+                        autoComplete="off"
+                      />
+                      <Button submit loading={isSubmitting} variant="secondary" fullWidth>
+                        Update Default Rule
+                      </Button>
+                    </BlockStack>
+                  </form>
+                </BlockStack>
+              </Box>
             </Card>
 
             {/* History Logs */}
             <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  COGS Update History
-                </Text>
-                <BlockStack gap="100">
-                  <Text variant="bodyMd" as="p">
-                    Last update timestamp:
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">
+                    COGS Update History
                   </Text>
-                  <Badge tone="attention">
-                    {lastUpdated}
-                  </Badge>
+                  <BlockStack gap="100">
+                    <Text variant="bodyMd" as="p">
+                      Last update timestamp:
+                    </Text>
+                    <Badge tone="attention">
+                      {lastUpdated}
+                    </Badge>
+                  </BlockStack>
+                  <Divider />
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    We calculate historical profits using the COGS setting active at the time of order sync.
+                  </Text>
                 </BlockStack>
-                <Divider />
-                <Text variant="bodySm" as="p" tone="subdued">
-                  We calculate historical profits using the COGS setting active at the time of order sync.
-                </Text>
-              </BlockStack>
+              </Box>
             </Card>
           </BlockStack>
         </Layout.Section>

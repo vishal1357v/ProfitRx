@@ -24,7 +24,21 @@ import {
   Box,
   Tabs,
   CalloutCard,
+  Icon,
 } from "@shopify/polaris";
+import {
+  ChartLineIcon,
+  FinanceIcon,
+  AlertBubbleIcon,
+  LightbulbIcon,
+  SettingsIcon,
+  ChatIcon,
+  DatabaseIcon,
+  CalendarIcon,
+  SearchIcon,
+  ShieldCheckMarkIcon,
+  DeliveryIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ProfitService } from "../services/profit.service";
@@ -72,333 +86,333 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const ordersUsed = subscription?.ordersUsed || 0;
     const ordersLimit = subscription?.orderLimit ?? (subscription?.plan === "PRO" ? null : 50);
 
-  const features = await getFeatureList(shop);
+    const features = await getFeatureList(shop);
 
-  const orders = await prisma.order.findMany({
-    where: { shop },
-    orderBy: { createdAt: "desc" },
-  });
+    const orders = await prisma.order.findMany({
+      where: { shop },
+      orderBy: { createdAt: "desc" },
+    });
 
-  const cogsMap = await ProfitService.getCOGS(shop);
-  const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+    const cogsMap = await ProfitService.getCOGS(shop);
+    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
-  const leaks = await ProfitIntelligenceService.getProfitLeaks(shop);
-  const leakTrend = await ProfitIntelligenceService.getLeakTrend(shop);
+    const leaks = await ProfitIntelligenceService.getProfitLeaks(shop);
+    const leakTrend = await ProfitIntelligenceService.getLeakTrend(shop);
 
-  let products: any[] = [];
-  try {
-    products = await ShopifyService.getProducts(admin);
-  } catch (err) {
-    console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
-  }
-  const productMap = new Map(products.map((p) => [p.id, p.title]));
-
-  const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
-  const settings = ProfitService.getSettings(rawSettings);
-
-  const revenue = orders.reduce((sum: number, o: any) => sum + o.totalPrice, 0);
-  const orderCount = orders.length;
-
-  let totalCOGS = 0;
-  let totalFees = 0;
-  let profitRevenue = 0;
-  let excludedOrdersCount = 0;
-  for (const o of orders) {
-    const cleanId = o.productId || "";
-    const hasCogs = cogsMap[cleanId] !== undefined;
-    if (!hasCogs) {
-      excludedOrdersCount++;
-      continue;
+    let products: any[] = [];
+    try {
+      products = await ShopifyService.getProducts(admin);
+    } catch (err) {
+      console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
     }
-    const cost = cogsMap[cleanId];
-    const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
-    profitRevenue += o.totalPrice;
-    totalCOGS += cost;
-    totalFees += fees;
-  }
+    const productMap = new Map(products.map((p) => [p.id, p.title]));
 
-  const profit = profitRevenue - totalCOGS - totalFees;
-  const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
 
-  const netProfit = profit - leaks.rtoLoss;
-  const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
+    const revenue = orders.reduce((sum: number, o: any) => sum + o.totalPrice, 0);
+    const orderCount = orders.length;
 
-  const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
-  const codCount = codOrders.length;
-  const codRate = orders.length > 0 ? (codCount / orders.length) * 100 : 0;
-
-  const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
-  const manualRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
-  const rtoCount = autoRtoCount + manualRtoCount;
-  const rtoRate = codCount > 0 ? (rtoCount / codCount) * 100 : 0;
-
-  let healthScore = 100;
-  if (margin < 25) healthScore -= 10;
-  if (margin < 15) healthScore -= 15;
-  if (margin < 5) healthScore -= 20;
-  if (rtoRate > 10) healthScore -= 15;
-  if (rtoRate > 15) healthScore -= 15;
-  if (rtoRate > 20) healthScore -= 20;
-  if (healthScore < 0) healthScore = 0;
-
-  const alertsList: Array<{ id: string; message: string; severity: string; tone: "info" | "warning" | "critical" }> = [];
-  if (rtoRate > 10) {
-    alertsList.push({
-      id: "rto-alert",
-      message: `Return to Origin (RTO) rate is high (${rtoRate.toFixed(1)}%). Consider reviewing shipping providers.`,
-      severity: "Warning",
-      tone: "warning",
-    });
-  }
-  if (margin < 15 && orders.length > 0) {
-    alertsList.push({
-      id: "margin-alert",
-      message: `Your net profit margin is low (${margin.toFixed(1)}%). Try increasing product pricing or adding COGS.`,
-      severity: "Critical",
-      tone: "critical",
-    });
-  }
-
-  const productMargins: Record<string, { title: string; revenue: number; profit: number; volume: number; rtoCount: number }> = {};
-  for (const order of orders) {
-    const productId = order.productId;
-    if (productId) {
-      const cleanId = productId.split("/").pop() || "";
+    let totalCOGS = 0;
+    let totalFees = 0;
+    let profitRevenue = 0;
+    let excludedOrdersCount = 0;
+    for (const o of orders) {
+      const cleanId = o.productId || "";
       const hasCogs = cogsMap[cleanId] !== undefined;
-      if (!hasCogs) continue; // Exclude orders missing COGS
-      const title = productMap.get(productId) || `Product ID: ${productId}`;
-      const existing = productMargins[productId] || { title, revenue: 0, profit: 0, volume: 0, rtoCount: 0 };
-      existing.revenue += order.totalPrice;
-      existing.volume += 1;
-      
-      const isRto = order.fulfillmentStatus === "RTO" || rtoEvents.some((e: any) => e.orderId === order.id && e.eventType === "RTO");
-      if (isRto) {
-        existing.rtoCount += 1;
+      if (!hasCogs) {
+        excludedOrdersCount++;
+        continue;
       }
-      
-      const c = cogsMap[cleanId];
-      const { profit } = ProfitService.calculateOrderProfit(order, c, settings);
-      existing.profit += profit;
-      productMargins[productId] = existing;
+      const cost = cogsMap[cleanId];
+      const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
+      profitRevenue += o.totalPrice;
+      totalCOGS += cost;
+      totalFees += fees;
     }
-  }
 
-  const toxicAlerts: any[] = [];
-  const topProducts = Object.values(productMargins)
-    .map((p) => {
-      const rtoRate = p.volume > 0 ? Math.round((p.rtoCount / p.volume) * 100) : 0;
-      const trueMargin = p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0;
-      const isToxic = trueMargin < 0;
+    const profit = profitRevenue - totalCOGS - totalFees;
+    const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
 
-      if (isToxic) {
-        toxicAlerts.push({
-          id: `toxic-product-${p.title.replace(/\s+/g, "-")}`,
-          message: `Toxic Product Alert: "${p.title}" has a negative true profit (True margin: ${trueMargin}%, RTO rate: ${rtoRate}%). Recommended: Disable COD on this item.`,
-          severity: "Critical",
-          tone: "critical",
-        });
+    const netProfit = profit - leaks.rtoLoss;
+    const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
+
+    const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
+    const codCount = codOrders.length;
+    const codRate = orders.length > 0 ? (codCount / orders.length) * 100 : 0;
+
+    const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
+    const manualRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
+    const rtoCount = autoRtoCount + manualRtoCount;
+    const rtoRate = codCount > 0 ? (rtoCount / codCount) * 100 : 0;
+
+    let healthScore = 100;
+    if (margin < 25) healthScore -= 10;
+    if (margin < 15) healthScore -= 15;
+    if (margin < 5) healthScore -= 20;
+    if (rtoRate > 10) healthScore -= 15;
+    if (rtoRate > 15) healthScore -= 15;
+    if (rtoRate > 20) healthScore -= 20;
+    if (healthScore < 0) healthScore = 0;
+
+    const alertsList: Array<{ id: string; message: string; severity: string; tone: "info" | "warning" | "critical" }> = [];
+    if (rtoRate > 10) {
+      alertsList.push({
+        id: "rto-alert",
+        message: `Return to Origin (RTO) rate is high (${rtoRate.toFixed(1)}%). Consider reviewing shipping providers.`,
+        severity: "Warning",
+        tone: "warning",
+      });
+    }
+    if (margin < 15 && orders.length > 0) {
+      alertsList.push({
+        id: "margin-alert",
+        message: `Your net profit margin is low (${margin.toFixed(1)}%). Try increasing product pricing or adding COGS.`,
+        severity: "Critical",
+        tone: "critical",
+      });
+    }
+
+    const productMargins: Record<string, { title: string; revenue: number; profit: number; volume: number; rtoCount: number }> = {};
+    for (const order of orders) {
+      const productId = order.productId;
+      if (productId) {
+        const cleanId = productId.split("/").pop() || "";
+        const hasCogs = cogsMap[cleanId] !== undefined;
+        if (!hasCogs) continue; // Exclude orders missing COGS
+        const title = productMap.get(productId) || `Product ID: ${productId}`;
+        const existing = productMargins[productId] || { title, revenue: 0, profit: 0, volume: 0, rtoCount: 0 };
+        existing.revenue += order.totalPrice;
+        existing.volume += 1;
+
+        const isRto = order.fulfillmentStatus === "RTO" || rtoEvents.some((e: any) => e.orderId === order.id && e.eventType === "RTO");
+        if (isRto) {
+          existing.rtoCount += 1;
+        }
+
+        const c = cogsMap[cleanId];
+        const { profit } = ProfitService.calculateOrderProfit(order, c, settings);
+        existing.profit += profit;
+        productMargins[productId] = existing;
       }
-
-      return {
-        name: p.title,
-        revenue: p.revenue,
-        profit: p.profit,
-        volume: p.volume,
-        rtoRate,
-        margin: trueMargin,
-        isToxic,
-      };
-    })
-    .sort((a, b) => b.profit - a.profit)
-    .slice(0, 5);
-
-  alertsList.push(...toxicAlerts);
-
-  const finalTopProducts = topProducts.length > 0 ? topProducts : [
-    { name: "No products synced yet", revenue: 0, profit: 0, volume: 0, rtoRate: 0, margin: 0, isToxic: false },
-  ];
-
-  const aiChannels = ["Gemini", "ChatGPT", "Copilot", "Website"];
-  const aiChannelMetrics: Record<string, {
-    name: string; revenue: number; profit: number; orderCount: number;
-    codCount: number; rtoCount: number; rtoRate: number; aov: number;
-    repeatRate: number; ltv: number; newCount: number; returningCount: number;
-  }> = {};
-  const customerOrdersMap: Record<string, Record<string, number>> = {};
-  const customerRevenueMap: Record<string, Record<string, number>> = {};
-
-  aiChannels.forEach((c) => {
-    aiChannelMetrics[c] = { name: c, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
-    customerOrdersMap[c] = {};
-    customerRevenueMap[c] = {};
-  });
-
-  for (const order of orders) {
-    const cleanId = order.productId || "";
-    const cogs = cogsMap[cleanId];
-    if (cogs === undefined) continue; // Exclude orders missing COGS from attribution metrics to keep margins exact
-
-    const attr = (order as any).channelAttribution || "Website";
-    if (!aiChannelMetrics[attr]) {
-      aiChannelMetrics[attr] = { name: attr, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
-      customerOrdersMap[attr] = {};
-      customerRevenueMap[attr] = {};
     }
-    const metric = aiChannelMetrics[attr];
-    metric.revenue += order.totalPrice;
-    metric.orderCount += 1;
-    const { profit } = ProfitService.calculateOrderProfit(order, cogs, settings);
-    metric.profit += profit;
-    if (isCodGateway(order.gateway)) metric.codCount += 1;
-    const cId = (order as any).customerId || (order as any).customerEmail || `anon_${order.id}`;
-    customerOrdersMap[attr][cId] = (customerOrdersMap[attr][cId] || 0) + 1;
-    customerRevenueMap[attr][cId] = (customerRevenueMap[attr][cId] || 0) + order.totalPrice;
-  }
 
-  for (const event of rtoEvents) {
-    const linkedOrder = orders.find((o: any) => o.id === event.orderId);
-    const attr = (linkedOrder as any)?.channelAttribution || "Website";
-    if (aiChannelMetrics[attr] && event.eventType === "RTO") aiChannelMetrics[attr].rtoCount += 1;
-  }
+    const toxicAlerts: any[] = [];
+    const topProducts = Object.values(productMargins)
+      .map((p) => {
+        const rtoRate = p.volume > 0 ? Math.round((p.rtoCount / p.volume) * 100) : 0;
+        const trueMargin = p.revenue > 0 ? Math.round((p.profit / p.revenue) * 100) : 0;
+        const isToxic = trueMargin < 0;
 
-  Object.values(aiChannelMetrics).forEach((m) => {
-    const channel = m.name;
-    const uniqueCustomers = Object.keys(customerOrdersMap[channel] || {});
-    const totalCustomersCount = uniqueCustomers.length;
-    let repeatCustomers = 0;
-    uniqueCustomers.forEach((cId) => { if (customerOrdersMap[channel][cId] > 1) repeatCustomers++; });
-    m.rtoRate = m.codCount > 0 ? Math.round((m.rtoCount / m.codCount) * 100 * 10) / 10 : 0;
-    m.profit = Math.round(m.profit * 10) / 10;
-    m.revenue = Math.round(m.revenue * 10) / 10;
-    m.aov = m.orderCount > 0 ? Math.round((m.revenue / m.orderCount) * 10) / 10 : 0;
-    m.repeatRate = totalCustomersCount > 0 ? Math.round((repeatCustomers / totalCustomersCount) * 100 * 10) / 10 : 0;
-    m.ltv = totalCustomersCount > 0 ? Math.round((m.revenue / totalCustomersCount) * 10) / 10 : 0;
-    m.newCount = totalCustomersCount;
-    m.returningCount = m.orderCount - totalCustomersCount;
-  });
+        if (isToxic) {
+          toxicAlerts.push({
+            id: `toxic-product-${p.title.replace(/\s+/g, "-")}`,
+            message: `Toxic Product Alert: "${p.title}" has a negative true profit (True margin: ${trueMargin}%, RTO rate: ${rtoRate}%). Recommended: Disable COD on this item.`,
+            severity: "Critical",
+            tone: "critical",
+          });
+        }
 
-  let aiProductScore = products.length > 0 ? 30 : 0;
-  if (products.length > 0 && (Object.keys(cogsMap).length / products.length) >= 0.5) aiProductScore += 10;
-  const aiPolicyScore = 30;
-  const aiEnrollmentScore = orders.some((o: any) => (o as any).channelAttribution && (o as any).channelAttribution !== "Website") ? 30 : 10;
-  const aiReadinessScore = aiProductScore + aiPolicyScore + aiEnrollmentScore;
+        return {
+          name: p.title,
+          revenue: p.revenue,
+          profit: p.profit,
+          volume: p.volume,
+          rtoRate,
+          margin: trueMargin,
+          isToxic,
+        };
+      })
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 5);
 
-  const dailyStats: Record<string, { date: string; revenue: number; profit: number }> = {};
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
-    dailyStats[dateStr] = { date: dateStr.substring(8) + "/" + dateStr.substring(5, 7), revenue: 0, profit: 0 };
-  }
+    alertsList.push(...toxicAlerts);
 
-  orders.forEach((o: any) => {
-    const d = o.createdAt ? (o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)) : new Date();
-    const dateStr = d.toISOString().split("T")[0];
-    if (dailyStats[dateStr]) {
-      const totalPrice = Number(o.totalPrice) || 0;
-      const totalTax = Number(o.totalTax) || 0;
-      const shippingPrice = Number(o.shippingPrice) || 0;
-      const c = (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ?? (totalPrice * 0.4);
-      const f = totalTax + shippingPrice;
-      const p = totalPrice - c - f;
-      dailyStats[dateStr].revenue += totalPrice;
-      dailyStats[dateStr].profit += p;
+    const finalTopProducts = topProducts.length > 0 ? topProducts : [
+      { name: "No products synced yet", revenue: 0, profit: 0, volume: 0, rtoRate: 0, margin: 0, isToxic: false },
+    ];
+
+    const aiChannels = ["Gemini", "ChatGPT", "Copilot", "Website"];
+    const aiChannelMetrics: Record<string, {
+      name: string; revenue: number; profit: number; orderCount: number;
+      codCount: number; rtoCount: number; rtoRate: number; aov: number;
+      repeatRate: number; ltv: number; newCount: number; returningCount: number;
+    }> = {};
+    const customerOrdersMap: Record<string, Record<string, number>> = {};
+    const customerRevenueMap: Record<string, Record<string, number>> = {};
+
+    aiChannels.forEach((c) => {
+      aiChannelMetrics[c] = { name: c, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
+      customerOrdersMap[c] = {};
+      customerRevenueMap[c] = {};
+    });
+
+    for (const order of orders) {
+      const cleanId = order.productId || "";
+      const cogs = cogsMap[cleanId];
+      if (cogs === undefined) continue; // Exclude orders missing COGS from attribution metrics to keep margins exact
+
+      const attr = (order as any).channelAttribution || "Website";
+      if (!aiChannelMetrics[attr]) {
+        aiChannelMetrics[attr] = { name: attr, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
+        customerOrdersMap[attr] = {};
+        customerRevenueMap[attr] = {};
+      }
+      const metric = aiChannelMetrics[attr];
+      metric.revenue += order.totalPrice;
+      metric.orderCount += 1;
+      const { profit } = ProfitService.calculateOrderProfit(order, cogs, settings);
+      metric.profit += profit;
+      if (isCodGateway(order.gateway)) metric.codCount += 1;
+      const cId = (order as any).customerId || (order as any).customerEmail || `anon_${order.id}`;
+      customerOrdersMap[attr][cId] = (customerOrdersMap[attr][cId] || 0) + 1;
+      customerRevenueMap[attr][cId] = (customerRevenueMap[attr][cId] || 0) + order.totalPrice;
     }
-  });
 
-  const chartData = Object.values(dailyStats);
+    for (const event of rtoEvents) {
+      const linkedOrder = orders.find((o: any) => o.id === event.orderId);
+      const attr = (linkedOrder as any)?.channelAttribution || "Website";
+      if (aiChannelMetrics[attr] && event.eventType === "RTO") aiChannelMetrics[attr].rtoCount += 1;
+    }
 
-  const searchQueries = await (prisma as any).aISearchQuery.findMany({
-    where: { shop },
-    orderBy: { impressions: "desc" },
-  });
+    Object.values(aiChannelMetrics).forEach((m) => {
+      const channel = m.name;
+      const uniqueCustomers = Object.keys(customerOrdersMap[channel] || {});
+      const totalCustomersCount = uniqueCustomers.length;
+      let repeatCustomers = 0;
+      uniqueCustomers.forEach((cId) => { if (customerOrdersMap[channel][cId] > 1) repeatCustomers++; });
+      m.rtoRate = m.codCount > 0 ? Math.round((m.rtoCount / m.codCount) * 100 * 10) / 10 : 0;
+      m.profit = Math.round(m.profit * 10) / 10;
+      m.revenue = Math.round(m.revenue * 10) / 10;
+      m.aov = m.orderCount > 0 ? Math.round((m.revenue / m.orderCount) * 10) / 10 : 0;
+      m.repeatRate = totalCustomersCount > 0 ? Math.round((repeatCustomers / totalCustomersCount) * 100 * 10) / 10 : 0;
+      m.ltv = totalCustomersCount > 0 ? Math.round((m.revenue / totalCustomersCount) * 10) / 10 : 0;
+      m.newCount = totalCustomersCount;
+      m.returningCount = m.orderCount - totalCustomersCount;
+    });
 
-  const mappedQueries = searchQueries.map((sq: any) => ({
-    id: sq.id, query: sq.query, productName: sq.productName,
-    rank: sq.rank, impressions: sq.impressions, clicks: sq.clicks,
-    ctr: sq.ctr, channel: sq.channel,
-  }));
+    let aiProductScore = products.length > 0 ? 30 : 0;
+    if (products.length > 0 && (Object.keys(cogsMap).length / products.length) >= 0.5) aiProductScore += 10;
+    const aiPolicyScore = 30;
+    const aiEnrollmentScore = orders.some((o: any) => (o as any).channelAttribution && (o as any).channelAttribution !== "Website") ? 30 : 10;
+    const aiReadinessScore = aiProductScore + aiPolicyScore + aiEnrollmentScore;
 
-  const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
-  const isAttributionActive = aiOrdersCount >= 5 || process.env.NODE_ENV === "development";
+    const dailyStats: Record<string, { date: string; revenue: number; profit: number }> = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      dailyStats[dateStr] = { date: dateStr.substring(8) + "/" + dateStr.substring(5, 7), revenue: 0, profit: 0 };
+    }
 
-  const missingCogsCount = products.filter((p: any) => {
-    const cleanId = p.id.split("/").pop() || "";
-    return cogsMap[cleanId] === undefined;
-  }).length;
+    orders.forEach((o: any) => {
+      const d = o.createdAt ? (o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)) : new Date();
+      const dateStr = d.toISOString().split("T")[0];
+      if (dailyStats[dateStr]) {
+        const totalPrice = Number(o.totalPrice) || 0;
+        const totalTax = Number(o.totalTax) || 0;
+        const shippingPrice = Number(o.shippingPrice) || 0;
+        const c = (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ?? (totalPrice * 0.4);
+        const f = totalTax + shippingPrice;
+        const p = totalPrice - c - f;
+        dailyStats[dateStr].revenue += totalPrice;
+        dailyStats[dateStr].profit += p;
+      }
+    });
 
-  const hasZeroLogisticsDefaults = settings.defaultForwardShipping === 0 || settings.defaultReturnShipping === 0 || settings.defaultPackaging === 0;
-  const isColdStart = orders.length < 50;
+    const chartData = Object.values(dailyStats);
 
-  const configuredCogsCount = products.filter((p: any) => {
-    const cleanId = p.id.split("/").pop() || "";
-    return cogsMap[cleanId] !== undefined;
-  }).length;
+    const searchQueries = await (prisma as any).aISearchQuery.findMany({
+      where: { shop },
+      orderBy: { impressions: "desc" },
+    });
 
-  const connectedAdPlatforms = await AdSpendService.getConnectedPlatforms(shop);
-  const hasConnectedAdAccount = connectedAdPlatforms.some((p) => p.isConnected);
-  const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
-  const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
-  const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
+    const mappedQueries = searchQueries.map((sq: any) => ({
+      id: sq.id, query: sq.query, productName: sq.productName,
+      rank: sq.rank, impressions: sq.impressions, clicks: sq.clicks,
+      ctr: sq.ctr, channel: sq.channel,
+    }));
 
-  const [feeBreakdown, gstSummary] = await Promise.all([
-    ProfitService.getFeeBreakdown(shop),
-    ProfitService.getGSTSummary(shop),
-  ]);
+    const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
+    const isAttributionActive = aiOrdersCount >= 5 || process.env.NODE_ENV === "development";
 
-  const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length || 15;
-  const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
-  const totalRtoSavings = blockedCodCount * avgRtoLoss;
-  const monthlySubscriptionCost = planName === "Pro" ? 6000 : planName === "Growth" ? 3000 : planName === "Starter" ? 1500 : 0;
-  const netRoiSavings = totalRtoSavings - monthlySubscriptionCost;
+    const missingCogsCount = products.filter((p: any) => {
+      const cleanId = p.id.split("/").pop() || "";
+      return cogsMap[cleanId] === undefined;
+    }).length;
 
-  return {
-    shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
-    netProfit, netMargin: Math.round(netMargin * 10) / 10,
-    healthScore, alertsList, orderCount, topProducts: finalTopProducts,
-    rtoRate: Math.round(rtoRate * 10) / 10, codRate: Math.round(codRate * 10) / 10,
-    aiChannelMetrics: Object.values(aiChannelMetrics), aiReadinessScore,
-    isAttributionActive,
-    chartData, searchQueries: mappedQueries,
-    products: products.map((p) => ({ id: p.id, title: p.title })),
-    leaks, leakTrend,
-    features,
-    missingCogsCount,
-    hasZeroLogisticsDefaults,
-    isColdStart,
-    excludedOrdersCount,
-    syncCapped: settings.syncCapped,
-    isBasicTier,
-    planName,
-    ordersUsed,
-    ordersLimit,
-    configuredCogsCount,
-    connectedAdPlatforms,
-    hasConnectedAdAccount,
-    nativeCogsCount,
-    manualCogsCount,
-    feeBreakdown,
-    gstSummary,
-    totalRtoSavings,
-    monthlySubscriptionCost,
-    netRoiSavings,
-    blockedCodCount,
-  };
-} catch (err: any) {
-  console.error("[Dashboard Loader Critical Error Caught]:", err);
-  return {
-    shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
-    healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
-    aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
-    products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
-    leakTrend: [], features: {}, missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
-    excludedOrdersCount: 0, syncCapped: false, isBasicTier: true, planName: "Free", ordersUsed: 0, ordersLimit: 50,
-    configuredCogsCount: 0, connectedAdPlatforms: [], hasConnectedAdAccount: false, nativeCogsCount: 0, manualCogsCount: 0,
-    feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
-    gstSummary: { gstin: "", isGstRegistered: false, defaultGstRate: 18, totalTaxableSales: 0, totalGstCollected: 0, cgst: 0, sgst: 0, igst: 0, intraStateSales: 0, interStateSales: 0, hsnSummary: [] },
-    totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
-  };
-}
+    const hasZeroLogisticsDefaults = settings.defaultForwardShipping === 0 || settings.defaultReturnShipping === 0 || settings.defaultPackaging === 0;
+    const isColdStart = orders.length < 50;
+
+    const configuredCogsCount = products.filter((p: any) => {
+      const cleanId = p.id.split("/").pop() || "";
+      return cogsMap[cleanId] !== undefined;
+    }).length;
+
+    const connectedAdPlatforms = await AdSpendService.getConnectedPlatforms(shop);
+    const hasConnectedAdAccount = connectedAdPlatforms.some((p) => p.isConnected);
+    const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
+    const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
+    const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
+
+    const [feeBreakdown, gstSummary] = await Promise.all([
+      ProfitService.getFeeBreakdown(shop),
+      ProfitService.getGSTSummary(shop),
+    ]);
+
+    const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length || 15;
+    const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
+    const totalRtoSavings = blockedCodCount * avgRtoLoss;
+    const monthlySubscriptionCost = planName === "Pro" ? 6000 : planName === "Growth" ? 3000 : planName === "Starter" ? 1500 : 0;
+    const netRoiSavings = totalRtoSavings - monthlySubscriptionCost;
+
+    return {
+      shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,
+      netProfit, netMargin: Math.round(netMargin * 10) / 10,
+      healthScore, alertsList, orderCount, topProducts: finalTopProducts,
+      rtoRate: Math.round(rtoRate * 10) / 10, codRate: Math.round(codRate * 10) / 10,
+      aiChannelMetrics: Object.values(aiChannelMetrics), aiReadinessScore,
+      isAttributionActive,
+      chartData, searchQueries: mappedQueries,
+      products: products.map((p) => ({ id: p.id, title: p.title })),
+      leaks, leakTrend,
+      features,
+      missingCogsCount,
+      hasZeroLogisticsDefaults,
+      isColdStart,
+      excludedOrdersCount,
+      syncCapped: settings.syncCapped,
+      isBasicTier,
+      planName,
+      ordersUsed,
+      ordersLimit,
+      configuredCogsCount,
+      connectedAdPlatforms,
+      hasConnectedAdAccount,
+      nativeCogsCount,
+      manualCogsCount,
+      feeBreakdown,
+      gstSummary,
+      totalRtoSavings,
+      monthlySubscriptionCost,
+      netRoiSavings,
+      blockedCodCount,
+    };
+  } catch (err: any) {
+    console.error("[Dashboard Loader Critical Error Caught]:", err);
+    return {
+      shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
+      healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
+      aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
+      products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
+      leakTrend: [], features: {}, missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
+      excludedOrdersCount: 0, syncCapped: false, isBasicTier: true, planName: "Free", ordersUsed: 0, ordersLimit: 50,
+      configuredCogsCount: 0, connectedAdPlatforms: [], hasConnectedAdAccount: false, nativeCogsCount: 0, manualCogsCount: 0,
+      feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
+      gstSummary: { gstin: "", isGstRegistered: false, defaultGstRate: 18, totalTaxableSales: 0, totalGstCollected: 0, cgst: 0, sgst: 0, igst: 0, intraStateSales: 0, interStateSales: 0, hsnSummary: [] },
+      totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
+    };
+  }
 };
 
 // ── Count-up hook ─────────────────────────────────────────
@@ -560,7 +574,7 @@ function ChannelBarChart({ data }: { data: any[] }) {
 
   const CHANNEL_COLORS: Record<string, { rev: string; profit: string }> = {
     ChatGPT: { rev: "#7c3aed", profit: "#5b21b6" },
-    Gemini:  { rev: "#2563eb", profit: "#1d4ed8" },
+    Gemini: { rev: "#2563eb", profit: "#1d4ed8" },
     Copilot: { rev: "#f59e0b", profit: "#d97706" },
     Website: { rev: "#475569", profit: "#334155" },
   };
@@ -817,7 +831,7 @@ function LeakInsight({ icon, title, amount, trend, detail, tone }: {
 // ── Channel icon map ──────────────────────────────────────
 const CHANNEL_META: Record<string, { icon: string; color: string }> = {
   ChatGPT: { icon: "🤖", color: "#10b981" },
-  Gemini:  { icon: "✨", color: "#3b82f6" },
+  Gemini: { icon: "✨", color: "#3b82f6" },
   Copilot: { icon: "🔷", color: "#f59e0b" },
   Website: { icon: "🌐", color: "#64748b" },
 };
@@ -880,26 +894,26 @@ export default function DashboardRoute() {
   const onboardingComplete = isCogsSetup && isSynced;
 
   const wizardSteps = [
-    { 
-      label: "Add your first product cost", 
-      icon: "💰", 
-      status: isCogsSetup ? "complete" : "pending", 
+    {
+      label: "Add your first product cost",
+      icon: "💰",
+      status: isCogsSetup ? "complete" : "pending",
       desc: "Configure pricing targets on the Costs tab.",
       actionText: "Configure Costs",
       actionUrl: `/app/cogs?shop=${data.shop}&host=${data.host}`
     },
-    { 
-      label: "Sync your orders", 
-      icon: "⟳", 
-      status: isSynced ? "complete" : "pending", 
+    {
+      label: "Sync your orders",
+      icon: "⟳",
+      status: isSynced ? "complete" : "pending",
       desc: "Download transactions from Shopify.",
       actionText: "Sync Orders",
       actionClick: handleSyncOrders
     },
-    { 
-      label: "View your profit dashboard", 
-      icon: "⚡", 
-      status: onboardingComplete ? "complete" : "pending", 
+    {
+      label: "View your profit dashboard",
+      icon: "⚡",
+      status: onboardingComplete ? "complete" : "pending",
       desc: "Inspect true margins and leaks.",
       actionText: "View Profit",
       actionClick: () => setSelectedTab(0)
@@ -918,10 +932,10 @@ export default function DashboardRoute() {
   }
 
   const tabs = [
-    { id: "store-profitability",   content: "⚡ Store Profitability",     panelID: "tab-0" },
-    { id: "ai-attribution",        content: "🤖 AI Channel Attribution",  panelID: "tab-1" },
-    { id: "search-intelligence",   content: "🔍 Search Intelligence",     panelID: "tab-2" },
-    { id: "profit-leaks",          content: "💸 Profit Leaks",            panelID: "tab-3" },
+    { id: "store-profitability", content: "⚡ Store Profitability", panelID: "tab-0" },
+    { id: "ai-attribution", content: "🤖 AI Channel Attribution", panelID: "tab-1" },
+    { id: "search-intelligence", content: "🔍 Search Intelligence", panelID: "tab-2" },
+    { id: "profit-leaks", content: "💸 Profit Leaks", panelID: "tab-3" },
   ];
 
   const productRows = data.topProducts.map((p) => [
@@ -993,20 +1007,22 @@ export default function DashboardRoute() {
               url: `/app/cod-rules?shop=${data.shop}&host=${data.host}`,
             }}
           >
-            <p style={{ fontSize: "15px", fontWeight: "600", color: "#166534" }}>
-              Greek God SaaS saved you {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)} in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
-            </p>
-            <p style={{ fontSize: "13px", marginTop: "6px", color: "#475569" }}>
-              Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
-            </p>
+            <BlockStack gap="200">
+              <Text variant="bodyMd" as="p" tone="success">
+                Greek God SaaS saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
+              </Text>
+              <Text variant="bodySm" as="p" tone="subdued">
+                Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
+              </Text>
+            </BlockStack>
           </CalloutCard>
         </Layout.Section>
 
         {/* Warning & Plan Banners */}
         {data.isBasicTier && (
           <Layout.Section>
-            <Banner 
-              tone="info" 
+            <Banner
+              tone="info"
               title={`Basic Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 500} orders this month`}
               action={{
                 content: "Upgrade to Pro",
@@ -1021,7 +1037,7 @@ export default function DashboardRoute() {
         {data.missingCogsCount > 0 && (
           <Layout.Section>
             <Banner tone="warning">
-              ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS. 
+              ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS.
               Please <a href={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</a> to include them in calculations.
             </Banner>
           </Layout.Section>
@@ -1030,7 +1046,7 @@ export default function DashboardRoute() {
         {data.hasZeroLogisticsDefaults && (
           <Layout.Section>
             <Banner tone="warning">
-              ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0. 
+              ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0.
               Please <a href={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in Settings</a> to get accurate RTO loss figures.
             </Banner>
           </Layout.Section>
@@ -1076,8 +1092,8 @@ export default function DashboardRoute() {
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
                     <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>📊</span>
-                      <Text variant="headingSm" as="h3">Fee Breakdown</Text>
+                      <Icon source={FinanceIcon} />
+                      <Text variant="headingMd" as="h3">Fee Breakdown</Text>
                     </InlineStack>
                     <Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>
                   </InlineStack>
@@ -1130,8 +1146,8 @@ export default function DashboardRoute() {
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
                     <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>📑</span>
-                      <Text variant="headingSm" as="h3">GST Tax Summary (GSTR-1)</Text>
+                      <Icon source={DatabaseIcon} />
+                      <Text variant="headingMd" as="h3">GST Tax Summary (GSTR-1)</Text>
                     </InlineStack>
                     <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
                       Export GSTR CSV 📄
@@ -1188,127 +1204,165 @@ export default function DashboardRoute() {
             {/* Revenue */}
             <Grid.Cell>
               <Card>
-                <div className="gg-card-revenue">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--blue">💹</div>
-                      <Tooltip content="Sum of all order sales including shipping and tax.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <span className="gg-section-label">Total Revenue</span>
-                      <StatNumber value={Math.round(data.revenue)} prefix="₹" />
+                <Box padding="400">
+                  <div className="gg-card-revenue">
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between" blockAlign="start">
+                        <div className="gg-stat-icon gg-stat-icon--blue">
+                          <Icon source={FinanceIcon} />
+                        </div>
+                        <Tooltip content="Sum of all order sales including shipping and tax.">
+                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                        </Tooltip>
+                      </InlineStack>
+                      <BlockStack gap="050">
+                        <Text variant="bodySm" as="span" tone="subdued">Total Revenue</Text>
+                        {syncing ? (
+                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                        ) : (
+                          <StatNumber value={Math.round(data.revenue)} prefix="₹" />
+                        )}
+                      </BlockStack>
+                      <span className="gg-trend-up">▲ +12% target</span>
                     </BlockStack>
-                    <span className="gg-trend-up">▲ +12% target</span>
-                  </BlockStack>
-                </div>
+                  </div>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* Net Profit */}
             <Grid.Cell>
               <Card>
-                <div className={`gg-card-${data.netProfit >= 0 ? "profit" : "danger"}`}>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className={`gg-stat-icon gg-stat-icon--${data.netProfit >= 0 ? "green" : "red"}`}>
-                        {data.netProfit >= 0 ? "📈" : "📉"}
-                      </div>
-                      <Tooltip content="Sales minus COGS, shipping cost, and transaction/RTO leaks.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <InlineStack gap="100">
-                        <span className="gg-section-label">Net Profit</span>
-                        {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
+                <Box padding="400">
+                  <div className={`gg-card-${data.netProfit >= 0 ? "profit" : "danger"}`}>
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between" blockAlign="start">
+                        <div className={`gg-stat-icon gg-stat-icon--${data.netProfit >= 0 ? "green" : "red"}`}>
+                          <Icon source={ChartLineIcon} />
+                        </div>
+                        <Tooltip content="Sales minus COGS, shipping cost, and transaction/RTO leaks.">
+                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                        </Tooltip>
                       </InlineStack>
-                      <StatNumber
-                        value={Math.round(Math.abs(data.netProfit))}
-                        prefix={data.netProfit < 0 ? "-₹" : "₹"}
-                        colorClass={data.netProfit >= 0 ? "gg-stat-value-green" : "gg-stat-value-red"}
-                      />
+                      <BlockStack gap="050">
+                        <InlineStack gap="100">
+                          <Text variant="bodySm" as="span" tone="subdued">Net Profit</Text>
+                          {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
+                        </InlineStack>
+                        {syncing ? (
+                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                        ) : (
+                          <StatNumber
+                            value={Math.round(Math.abs(data.netProfit))}
+                            prefix={data.netProfit < 0 ? "-₹" : "₹"}
+                            colorClass={data.netProfit >= 0 ? "gg-stat-value-green" : "gg-stat-value-red"}
+                          />
+                        )}
+                      </BlockStack>
+                      <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
+                        {data.netProfit >= 0 ? "▲ Positive Profit" : "▼ Negative Profit"}
+                      </span>
                     </BlockStack>
-                    <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
-                      {data.netProfit >= 0 ? "▲ Positive Profit" : "▼ Negative Profit"}
-                    </span>
-                  </BlockStack>
-                </div>
+                  </div>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* Margin */}
             <Grid.Cell>
               <Card>
-                <BlockStack gap="200">
-                  <InlineStack align="space-between" blockAlign="start">
-                    <div className="gg-stat-icon gg-stat-icon--purple">🎯</div>
-                    <Tooltip content="Net Profit divided by Revenue. Aim for >20%.">
-                      <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                    </Tooltip>
-                  </InlineStack>
-                  <BlockStack gap="050">
-                    <InlineStack gap="100">
-                      <span className="gg-section-label">Net Margin</span>
-                      {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
+                <Box padding="400">
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="start">
+                      <div className="gg-stat-icon gg-stat-icon--purple">
+                        <Icon source={LightbulbIcon} />
+                      </div>
+                      <Tooltip content="Net Profit divided by Revenue. Aim for >20%.">
+                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                      </Tooltip>
                     </InlineStack>
-                    <StatNumber
-                      value={Math.round(data.netMargin)}
-                      suffix="%"
-                      colorClass={data.netMargin > 20 ? "gg-stat-value-green" : data.netMargin > 10 ? "gg-stat-value" : "gg-stat-value-red"}
-                    />
+                    <BlockStack gap="050">
+                      <InlineStack gap="100">
+                        <Text variant="bodySm" as="span" tone="subdued">Net Margin</Text>
+                        {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
+                      </InlineStack>
+                      {syncing ? (
+                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                      ) : (
+                        <StatNumber
+                          value={Math.round(data.netMargin)}
+                          suffix="%"
+                          colorClass={data.netMargin > 20 ? "gg-stat-value-green" : data.netMargin > 10 ? "gg-stat-value" : "gg-stat-value-red"}
+                        />
+                      )}
+                    </BlockStack>
+                    <Badge tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}>
+                      {data.netMargin > 20 ? "Healthy" : "Low Margin"}
+                    </Badge>
                   </BlockStack>
-                  <Badge tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}>
-                    {data.netMargin > 20 ? "Healthy" : "Low Margin"}
-                  </Badge>
-                </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* Orders */}
             <Grid.Cell>
               <Card>
-                <BlockStack gap="200">
-                  <InlineStack align="space-between" blockAlign="start">
-                    <div className="gg-stat-icon gg-stat-icon--amber">🛒</div>
-                    <Tooltip content="Cumulative order volume in store.">
-                      <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                    </Tooltip>
-                  </InlineStack>
-                  <BlockStack gap="050">
-                    <span className="gg-section-label">Total Orders</span>
-                    <StatNumber value={data.orderCount} colorClass="gg-stat-value-neutral" />
+                <Box padding="400">
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="start">
+                      <div className="gg-stat-icon gg-stat-icon--amber">
+                        <Icon source={CalendarIcon} />
+                      </div>
+                      <Tooltip content="Cumulative order volume in store.">
+                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                      </Tooltip>
+                    </InlineStack>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" as="span" tone="subdued">Total Orders</Text>
+                      {syncing ? (
+                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                      ) : (
+                        <StatNumber value={data.orderCount} colorClass="gg-stat-value-neutral" />
+                      )}
+                    </BlockStack>
+                    <span className="gg-trend-neutral">All-time orders</span>
                   </BlockStack>
-                  <span className="gg-trend-neutral">All-time orders</span>
-                </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* Profit Leaks */}
             <Grid.Cell>
               <Card>
-                <div className="gg-card-health" style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.05)" }}>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--red">💸</div>
-                      <Tooltip content="Recoverable money lost to RTO, shipping overage, and discounts.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <span className="gg-section-label" style={{ color: "var(--gg-accent-red)" }}>Profit Leaks</span>
-                      <StatNumber
-                        value={Math.round(data.leaks.totalLeak)}
-                        prefix="₹"
-                        colorClass="gg-stat-value-red"
-                      />
+                <Box padding="400">
+                  <div className="gg-card-health" style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.05)" }}>
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between" blockAlign="start">
+                        <div className="gg-stat-icon gg-stat-icon--red">
+                          <Icon source={AlertBubbleIcon} />
+                        </div>
+                        <Tooltip content="Recoverable money lost to RTO, shipping overage, and discounts.">
+                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                        </Tooltip>
+                      </InlineStack>
+                      <BlockStack gap="050">
+                        <Text variant="bodySm" as="span" tone="critical">Profit Leaks</Text>
+                        {syncing ? (
+                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                        ) : (
+                          <StatNumber
+                            value={Math.round(data.leaks.totalLeak)}
+                            prefix="₹"
+                            colorClass="gg-stat-value-red"
+                          />
+                        )}
+                      </BlockStack>
+                      <Button variant="plain" onClick={() => setSelectedTab(3)}>
+                        Leak Details →
+                      </Button>
                     </BlockStack>
-                    <Button variant="plain" onClick={() => setSelectedTab(3)}>
-                      Leak Details →
-                    </Button>
-                  </BlockStack>
-                </div>
+                  </div>
+                </Box>
               </Card>
             </Grid.Cell>
           </Grid>
@@ -1317,19 +1371,25 @@ export default function DashboardRoute() {
         {/* ── TOP SECTION: REVENUE & NET PROFIT TREND CHART ── */}
         <Layout.Section>
           <Card>
-            <BlockStack gap="300">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <Text variant="headingMd" as="h2">Revenue & Net Profit Trend</Text>
-                  <Text variant="bodySm" as="p" tone="subdued">Last 30 days — day-by-day performance index</Text>
-                </BlockStack>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div className="gg-pulse" />
-                  <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
-                </div>
-              </InlineStack>
-              <ProfitTrendChart data={data.chartData} />
-            </BlockStack>
+            <Box padding="400">
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text variant="headingMd" as="h2">Revenue & Net Profit Trend</Text>
+                    <Text variant="bodySm" as="p" tone="subdued">Last 30 days — day-by-day performance index</Text>
+                  </BlockStack>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div className="gg-pulse" />
+                    <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
+                  </div>
+                </InlineStack>
+                {syncing ? (
+                  <div className="skeleton-pulse skeleton-chart" />
+                ) : (
+                  <ProfitTrendChart data={data.chartData} />
+                )}
+              </BlockStack>
+            </Box>
           </Card>
         </Layout.Section>
 
@@ -1389,7 +1449,7 @@ export default function DashboardRoute() {
         {data.isColdStart && (
           <Layout.Section>
             <Banner tone="info">
-              ℹ️ <strong>COD Risk Score Cold Start:</strong> Risk score accuracy improves as your order history builds. 
+              ℹ️ <strong>COD Risk Score Cold Start:</strong> Risk score accuracy improves as your order history builds.
               Currently based on limited data (fewer than 50 orders synced).
             </Banner>
           </Layout.Section>
@@ -1462,9 +1522,9 @@ export default function DashboardRoute() {
                                 {step.actionText} →
                               </Button>
                             ) : (
-                              <Button 
-                                variant="secondary" 
-                                onClick={step.actionClick} 
+                              <Button
+                                variant="secondary"
+                                onClick={step.actionClick}
                                 size="slim"
                                 disabled={step.status === "complete" && idx === 2}
                               >
@@ -1531,10 +1591,10 @@ export default function DashboardRoute() {
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
-                              <Button 
-                                variant="primary" 
+                              <Button
+                                variant="primary"
                                 tone="critical"
-                                size="slim" 
+                                size="slim"
                                 url={`/app/rto-heatmap?shop=${data.shop}&host=${data.host}`}
                               >
                                 Block High-Risk Pincodes →
@@ -1564,9 +1624,9 @@ export default function DashboardRoute() {
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
-                              <Button 
-                                variant="secondary" 
-                                size="slim" 
+                              <Button
+                                variant="secondary"
+                                size="slim"
                                 url={`/app/cogs?shop=${data.shop}&host=${data.host}`}
                               >
                                 Configure COGS & Rules →
@@ -1596,9 +1656,9 @@ export default function DashboardRoute() {
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
-                              <Button 
-                                variant="secondary" 
-                                size="slim" 
+                              <Button
+                                variant="secondary"
+                                size="slim"
                                 url={`/app/settings?shop=${data.shop}&host=${data.host}`}
                               >
                                 Review Logistics Settings →
@@ -1623,7 +1683,7 @@ export default function DashboardRoute() {
                                 Get weekly summaries and actionable optimizations delivered to your WhatsApp.
                               </Text>
                             </BlockStack>
-                            <Button 
+                            <Button
                               variant={whatsappSubscribed ? "secondary" : "primary"}
                               onClick={() => {
                                 setWhatsappSubscribed(!whatsappSubscribed);
@@ -1876,74 +1936,74 @@ export default function DashboardRoute() {
                   </Card>
                 ) : (
                   <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
-                  <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                    <Card>
-                      <BlockStack gap="300">
-                        <Text variant="headingMd" as="h2">🤖 AI Commerce Channel Metrics</Text>
-                        <div className="gg-overflow-x">
-                          <table className="gg-table">
-                            <thead>
-                              <tr>
-                                <th>Channel</th>
-                                <th>Revenue</th>
-                                <th>Profit</th>
-                                <th>Margin</th>
-                                <th>AOV</th>
-                                <th>LTV</th>
-                                <th>Repeat %</th>
-                                <th>New/Ret</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {data.aiChannelMetrics.map((c: any) => {
-                                const marginVal = c.revenue > 0 ? Math.round((c.profit / c.revenue) * 100) : 0;
-                                const meta = CHANNEL_META[c.name] || CHANNEL_META.Website;
-                                return (
-                                  <tr key={c.name}>
-                                    <td>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <span style={{ fontSize: 16 }}>{meta.icon}</span>
-                                        <span style={{ fontWeight: 600, color: "var(--gg-text-primary)", fontFamily: "'Inter', sans-serif" }}>{c.name}</span>
-                                      </div>
-                                    </td>
-                                    <td style={{ fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>₹{c.revenue.toLocaleString("en-IN")}</td>
-                                    <td style={{ color: c.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)", fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>
-                                      ₹{c.profit.toLocaleString("en-IN")}
-                                    </td>
-                                    <td>
-                                      <Badge tone={marginVal > 25 ? "success" : marginVal > 15 ? "warning" : "critical"}>
-                                        {`${marginVal}%`}
-                                      </Badge>
-                                    </td>
-                                    <td>₹{c.aov.toLocaleString("en-IN")}</td>
-                                    <td>₹{c.ltv.toLocaleString("en-IN")}</td>
-                                    <td>{c.repeatRate}%</td>
-                                    <td style={{ color: "var(--gg-text-muted)" }}>{c.newCount}/{c.returningCount}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </BlockStack>
-                    </Card>
-                  </Grid.Cell>
-
-                  <Grid.Cell>
-                    <Card>
-                      <BlockStack gap="300">
-                        <BlockStack gap="100">
-                          <Text variant="headingMd" as="h2">Revenue by AI Agent</Text>
-                          <Text variant="bodySm" as="p" tone="subdued">
-                            Revenue comparison across buyer AI assistants.
-                          </Text>
+                    <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+                      <Card>
+                        <BlockStack gap="300">
+                          <Text variant="headingMd" as="h2">🤖 AI Commerce Channel Metrics</Text>
+                          <div className="gg-overflow-x">
+                            <table className="gg-table">
+                              <thead>
+                                <tr>
+                                  <th>Channel</th>
+                                  <th>Revenue</th>
+                                  <th>Profit</th>
+                                  <th>Margin</th>
+                                  <th>AOV</th>
+                                  <th>LTV</th>
+                                  <th>Repeat %</th>
+                                  <th>New/Ret</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {data.aiChannelMetrics.map((c: any) => {
+                                  const marginVal = c.revenue > 0 ? Math.round((c.profit / c.revenue) * 100) : 0;
+                                  const meta = CHANNEL_META[c.name] || CHANNEL_META.Website;
+                                  return (
+                                    <tr key={c.name}>
+                                      <td>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                          <span style={{ fontSize: 16 }}>{meta.icon}</span>
+                                          <span style={{ fontWeight: 600, color: "var(--gg-text-primary)", fontFamily: "'Inter', sans-serif" }}>{c.name}</span>
+                                        </div>
+                                      </td>
+                                      <td style={{ fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>₹{c.revenue.toLocaleString("en-IN")}</td>
+                                      <td style={{ color: c.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)", fontWeight: 600, fontFamily: "'Outfit', sans-serif" }}>
+                                        ₹{c.profit.toLocaleString("en-IN")}
+                                      </td>
+                                      <td>
+                                        <Badge tone={marginVal > 25 ? "success" : marginVal > 15 ? "warning" : "critical"}>
+                                          {`${marginVal}%`}
+                                        </Badge>
+                                      </td>
+                                      <td>₹{c.aov.toLocaleString("en-IN")}</td>
+                                      <td>₹{c.ltv.toLocaleString("en-IN")}</td>
+                                      <td>{c.repeatRate}%</td>
+                                      <td style={{ color: "var(--gg-text-muted)" }}>{c.newCount}/{c.returningCount}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </BlockStack>
-                        <ChannelBarChart data={data.aiChannelMetrics} />
-                      </BlockStack>
-                    </Card>
-                  </Grid.Cell>
-                </Grid>
-              ))}
+                      </Card>
+                    </Grid.Cell>
+
+                    <Grid.Cell>
+                      <Card>
+                        <BlockStack gap="300">
+                          <BlockStack gap="100">
+                            <Text variant="headingMd" as="h2">Revenue by AI Agent</Text>
+                            <Text variant="bodySm" as="p" tone="subdued">
+                              Revenue comparison across buyer AI assistants.
+                            </Text>
+                          </BlockStack>
+                          <ChannelBarChart data={data.aiChannelMetrics} />
+                        </BlockStack>
+                      </Card>
+                    </Grid.Cell>
+                  </Grid>
+                ))}
 
               {selectedTab === 1 && !(Array.isArray(data.features) && data.features.includes("ai_attribution")) && (
                 <div style={{ padding: "48px 24px", textAlign: "center", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(25, 20, 45, 0.4)", backdropFilter: "blur(20px)" }}>
@@ -2037,8 +2097,8 @@ export default function DashboardRoute() {
                           <BlockStack gap="300">
                             {[
                               { engine: "ChatGPT Search", us: 35, comp1: 45, comp2: 20 },
-                              { engine: "Gemini Engine",  us: 48, comp1: 32, comp2: 20 },
-                              { engine: "Copilot Shop",   us: 42, comp1: 38, comp2: 20 },
+                              { engine: "Gemini Engine", us: 48, comp1: 32, comp2: 20 },
+                              { engine: "Copilot Shop", us: 42, comp1: 38, comp2: 20 },
                             ].map((item, idx) => (
                               <BlockStack gap="100" key={idx}>
                                 <InlineStack align="space-between">

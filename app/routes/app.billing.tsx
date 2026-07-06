@@ -19,7 +19,13 @@ import {
   Badge,
   Banner,
   Box,
+  Icon,
 } from "@shopify/polaris";
+import {
+  CheckIcon,
+  XIcon,
+  FinanceIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { getSubscription } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
@@ -158,7 +164,7 @@ export default function BillingPage() {
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="100">
                 <InlineStack gap="150" blockAlign="center">
-                  <span style={{ fontSize: 20 }}>💰</span>
+                  <Icon source={FinanceIcon} tone="success" />
                   <Text variant="headingLg" as="h2">Value Delivered This Month</Text>
                   <Badge tone="success">10x ROI Return</Badge>
                 </InlineStack>
@@ -223,39 +229,41 @@ export default function BillingPage() {
 
             <Grid.Cell>
               <Card>
-                <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <BlockStack gap="300">
-                    <Text variant="headingMd" as="h2">Manage Plan</Text>
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      Change tiers, update billing information, or review transaction histories inside Shopify Billing portal.
-                    </Text>
-                    <BlockStack gap="200">
-                      <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" fullWidth>
-                        Change Plan Tier
-                      </Button>
-                      <Form method="POST">
-                        <input type="hidden" name="intent" value="sync_subscription" />
-                        <Button variant="secondary" submit fullWidth loading={isSubmitting}>
-                          Sync Subscription with Shopify
+                <Box padding="400">
+                  <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <BlockStack gap="300">
+                      <Text variant="headingMd" as="h2">Manage Plan</Text>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Change tiers, update billing information, or review transaction histories inside Shopify Billing portal.
+                      </Text>
+                      <BlockStack gap="200">
+                        <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" fullWidth>
+                          Change Plan Tier
                         </Button>
-                      </Form>
-                      {plan !== "FREE" && (
                         <Form method="POST">
-                          <input type="hidden" name="intent" value="cancel_subscription" />
-                          <Button
-                            variant="plain"
-                            tone="critical"
-                            submit
-                            fullWidth
-                            loading={isSubmitting}
-                          >
-                            Cancel Subscription
+                          <input type="hidden" name="intent" value="sync_subscription" />
+                          <Button variant="secondary" submit fullWidth loading={isSubmitting}>
+                            Sync Subscription with Shopify
                           </Button>
                         </Form>
-                      )}
+                        {plan !== "FREE" && (
+                          <Form method="POST">
+                            <input type="hidden" name="intent" value="cancel_subscription" />
+                            <Button
+                              variant="plain"
+                              tone="critical"
+                              submit
+                              fullWidth
+                              loading={isSubmitting}
+                            >
+                              Cancel Subscription
+                            </Button>
+                          </Form>
+                        )}
+                      </BlockStack>
                     </BlockStack>
-                  </BlockStack>
-                </div>
+                  </div>
+                </Box>
               </Card>
             </Grid.Cell>
           </Grid>
@@ -266,34 +274,38 @@ export default function BillingPage() {
           <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
             <Grid.Cell>
               <Card>
-                <BlockStack gap="300">
-                  <Text variant="headingMd" as="h2">Included in Your Tier</Text>
-                  <BlockStack gap="150">
-                    {planInfo.includes.map((feat, idx) => (
-                      <InlineStack gap="150" key={idx} blockAlign="center">
-                        <span style={{ color: "var(--gg-accent-green)" }}>✓</span>
-                        <span style={{ fontSize: 13, color: "var(--gg-text-primary)" }}>{feat}</span>
-                      </InlineStack>
-                    ))}
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <Text variant="headingMd" as="h2">Included in Your Tier</Text>
+                    <BlockStack gap="150">
+                      {planInfo.includes.map((feat, idx) => (
+                        <InlineStack gap="150" key={idx} blockAlign="center">
+                          <Icon source={CheckIcon} tone="success" />
+                          <span style={{ fontSize: 13, color: "var(--gg-text-primary)" }}>{feat}</span>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
                   </BlockStack>
-                </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
 
             <Grid.Cell>
               {planInfo.lacks.length > 0 && (
                 <Card>
-                  <BlockStack gap="300">
-                    <Text variant="headingMd" as="h2">Locked (Requires Upgrade)</Text>
-                    <BlockStack gap="150">
-                      {planInfo.lacks.map((feat, idx) => (
-                        <InlineStack gap="150" key={idx} blockAlign="center">
-                          <span style={{ color: "var(--gg-accent-red)" }}>✗</span>
-                          <span style={{ fontSize: 13, color: "var(--gg-text-muted)" }}>{feat}</span>
-                        </InlineStack>
-                      ))}
+                  <Box padding="400">
+                    <BlockStack gap="300">
+                      <Text variant="headingMd" as="h2">Locked (Requires Upgrade)</Text>
+                      <BlockStack gap="150">
+                        {planInfo.lacks.map((feat, idx) => (
+                          <InlineStack gap="150" key={idx} blockAlign="center">
+                            <Icon source={XIcon} tone="critical" />
+                            <span style={{ fontSize: 13, color: "var(--gg-text-muted)" }}>{feat}</span>
+                          </InlineStack>
+                        ))}
+                      </BlockStack>
                     </BlockStack>
-                  </BlockStack>
+                  </Box>
                 </Card>
               )}
             </Grid.Cell>

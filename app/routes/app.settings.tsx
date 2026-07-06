@@ -9,7 +9,14 @@ export const headers: HeadersFunction = (headersArgs) => {
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Button,
   Grid, TextField, Select, Banner, Divider, Badge,
+  Box, Icon, Frame, Toast,
 } from "@shopify/polaris";
+import {
+  DatabaseIcon,
+  FinanceIcon,
+  DeliveryIcon,
+  NotificationIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ProfitService } from "../services/profit.service";
@@ -155,213 +162,238 @@ export default function SettingsRoute() {
   };
 
   return (
-    <Page title="🇮🇳 Logistics, GST & Store Settings">
-      <Layout>
-        {saved && (
+    <Frame>
+      <Page title="🇮🇳 Logistics, GST & Store Settings">
+        <Layout>
+          {/* ── GST Compliance Card ─────────────────────────── */}
           <Layout.Section>
-            <Banner tone="success">Settings updated successfully!</Banner>
-          </Layout.Section>
-        )}
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <BlockStack gap="100">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Icon source={DatabaseIcon} />
+                        <Text variant="headingMd" as="h2">GST Compliance & Tax Reporting (GSTR-1 / GSTR-3B)</Text>
+                        <Badge tone={isGstReg ? "success" : "attention"}>
+                          {isGstReg ? "GST Registered" : "Unregistered"}
+                        </Badge>
+                      </InlineStack>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Configure your GSTIN and tax rates to auto-generate CGST/SGST/IGST reports for your accountant.
+                      </Text>
+                    </BlockStack>
+                    <Button
+                      url={`/api/gst-report?shop=${shop}&format=csv`}
+                      external
+                      variant="primary"
+                    >
+                      Download GSTR-1 CSV Report 📄
+                    </Button>
+                  </InlineStack>
 
-        {/* ── GST Compliance Card ─────────────────────────── */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="center">
-                    <span style={{ fontSize: 24 }}>📑</span>
-                    <Text variant="headingMd" as="h2">GST Compliance & Tax Reporting (GSTR-1 / GSTR-3B)</Text>
-                    <Badge tone={isGstReg ? "success" : undefined}>
-                      {isGstReg ? "GST Registered" : "Unregistered"}
-                    </Badge>
+                  <Divider />
+
+                  <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
+                    <Grid.Cell>
+                      <TextField
+                        label="Merchant GSTIN Number"
+                        value={gstin}
+                        onChange={setGstin}
+                        placeholder="e.g. 27AAAAA0000A1Z5"
+                        helpText="15-digit Goods & Services Tax Identification Number."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <Select
+                        label="Default GST Rate (%)"
+                        options={[
+                          { label: "18% Standard GST Rate", value: "18" },
+                          { label: "12% Reduced Rate", value: "12" },
+                          { label: "5% Essential Goods", value: "5" },
+                          { label: "28% Premium Goods", value: "28" },
+                          { label: "0% Exempt Goods", value: "0" },
+                        ]}
+                        value={gstRate}
+                        onChange={setGstRate}
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="200">
+                        <Text variant="bodySm" as="span" fontWeight="bold">Registration Status</Text>
+                        <Button
+                          variant={isGstReg ? "primary" : "secondary"}
+                          tone={isGstReg ? "critical" : undefined}
+                          onClick={() => setIsGstReg(!isGstReg)}
+                        >
+                          {isGstReg ? "Disable GST Tracking" : "Enable GST Registration"}
+                        </Button>
+                      </BlockStack>
+                    </Grid.Cell>
+                  </Grid>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+
+          {/* ── Cost Overrides ───────────────────────────────── */}
+          <Layout.Section>
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="400">
+                  <InlineStack gap="150" blockAlign="center">
+                    <Icon source={FinanceIcon} />
+                    <Text variant="headingMd" as="h2">💰 Payment Gateway & Logistics Cost Rules</Text>
                   </InlineStack>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Configure your GSTIN and tax rates to auto-generate CGST/SGST/IGST reports for your accountant.
+                    Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure 100% true net profit tracking.
                   </Text>
+                  <Divider />
+                  <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 3 }}>
+                    <Grid.Cell>
+                      <TextField
+                        label="Forward Shipping Cost"
+                        value={forwardShipping}
+                        onChange={setForwardShipping}
+                        type="number"
+                        prefix="₹"
+                        helpText="Average cost paid to courier to ship forward (e.g. ₹60)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <TextField
+                        label="Return Shipping Cost (RTO)"
+                        value={returnShipping}
+                        onChange={setReturnShipping}
+                        type="number"
+                        prefix="₹"
+                        helpText="Average cost paid to courier to return package (e.g. ₹70)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <TextField
+                        label="COD Handling Fee"
+                        value={codHandling}
+                        onChange={setCodHandling}
+                        type="number"
+                        prefix="₹"
+                        helpText="Flat fee charged by courier on COD orders (e.g. ₹40)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <TextField
+                        label="Packaging Cost"
+                        value={packaging}
+                        onChange={setPackaging}
+                        type="number"
+                        prefix="₹"
+                        helpText="Box, tape, label material cost per order (e.g. ₹10)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <TextField
+                        label="Payment Gateway Fee"
+                        value={gatewayFee}
+                        onChange={setGatewayFee}
+                        type="number"
+                        suffix="%"
+                        helpText="Gateway % fee (Razorpay / PayU default 2%)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <TextField
+                        label="Gateway Fixed Fee"
+                        value={gatewayFixed}
+                        onChange={setGatewayFixed}
+                        type="number"
+                        prefix="₹"
+                        helpText="Fixed per-transaction charge (e.g. ₹0 - ₹3)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                  </Grid>
                 </BlockStack>
-                <Button
-                  url={`/api/gst-report?shop=${shop}&format=csv`}
-                  external
-                  variant="primary"
-                >
-                  Download GSTR-1 CSV Report 📄
+              </Box>
+            </Card>
+          </Layout.Section>
+
+          {/* ── Courier Keywords & Health Alerts ───────────── */}
+          <Layout.Section variant="oneThird">
+            <BlockStack gap="400">
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <InlineStack gap="150" blockAlign="center">
+                      <Icon source={DeliveryIcon} />
+                      <Text variant="headingMd" as="h2">🚚 Courier Custom Keywords</Text>
+                    </InlineStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Enter comma-separated keywords written by courier apps (Delhivery, Shiprocket, Bluedart) to detect RTO status.
+                    </Text>
+                    <TextField
+                      label="Detection Keywords"
+                      labelHidden
+                      value={rtoPattern}
+                      onChange={setRtoPattern}
+                      helpText="e.g. rto, returned, undelivered, rto-initiated, delhivery_rto"
+                      autoComplete="off"
+                    />
+                  </BlockStack>
+                </Box>
+              </Card>
+
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <InlineStack gap="150" blockAlign="center">
+                      <Icon source={NotificationIcon} />
+                      <Text variant="headingMd" as="h2">Alert Limits</Text>
+                    </InlineStack>
+                    <TextField
+                      label="Alert Email Address"
+                      value={email}
+                      onChange={setEmail}
+                      type="email"
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="RTO Rate Alarm Limit"
+                      value={rtoLimit}
+                      onChange={setRtoLimit}
+                      type="number"
+                      suffix="%"
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Net Margin Alarm Limit"
+                      value={marginLimit}
+                      onChange={setMarginLimit}
+                      type="number"
+                      suffix="%"
+                      autoComplete="off"
+                    />
+                  </BlockStack>
+                </Box>
+              </Card>
+
+              <InlineStack align="end">
+                <Button variant="primary" onClick={handleSave} loading={isSaving}>
+                  Save All Settings →
                 </Button>
               </InlineStack>
-
-              <Divider />
-
-              <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                <Grid.Cell>
-                  <TextField
-                    label="Merchant GSTIN Number"
-                    value={gstin}
-                    onChange={setGstin}
-                    placeholder="e.g. 27AAAAA0000A1Z5"
-                    helpText="15-digit Goods & Services Tax Identification Number."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <Select
-                    label="Default GST Rate (%)"
-                    options={[
-                      { label: "18% Standard GST Rate", value: "18" },
-                      { label: "12% Reduced Rate", value: "12" },
-                      { label: "5% Essential Goods", value: "5" },
-                      { label: "28% Premium Goods", value: "28" },
-                      { label: "0% Exempt Goods", value: "0" },
-                    ]}
-                    value={gstRate}
-                    onChange={setGstRate}
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <BlockStack gap="200">
-                    <Text variant="bodySm" as="span" fontWeight="bold">Registration Status</Text>
-                    <Button
-                      variant={isGstReg ? "primary" : "secondary"}
-                      onClick={() => setIsGstReg(!isGstReg)}
-                    >
-                      {isGstReg ? "Disable GST Tracking" : "Enable GST Registration"}
-                    </Button>
-                  </BlockStack>
-                </Grid.Cell>
-              </Grid>
             </BlockStack>
-          </Card>
-        </Layout.Section>
-
-        {/* ── Cost Overrides ───────────────────────────────── */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text variant="headingMd" as="h2">💰 Payment Gateway & Logistics Cost Rules</Text>
-              <Text variant="bodySm" as="p" tone="subdued">
-                Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure 100% true net profit tracking.
-              </Text>
-              <Divider />
-              <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 3 }}>
-                <Grid.Cell>
-                  <TextField
-                    label="Forward Shipping Cost (₹)"
-                    value={forwardShipping}
-                    onChange={setForwardShipping}
-                    type="number"
-                    helpText="Average cost paid to courier to ship forward (e.g. ₹60)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <TextField
-                    label="Return Shipping Cost (RTO) (₹)"
-                    value={returnShipping}
-                    onChange={setReturnShipping}
-                    type="number"
-                    helpText="Average cost paid to courier to return an undelivered package (e.g. ₹70)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <TextField
-                    label="COD Handling Fee (₹)"
-                    value={codHandling}
-                    onChange={setCodHandling}
-                    type="number"
-                    helpText="Flat fee charged by courier on COD orders (e.g. ₹40)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <TextField
-                    label="Packaging Cost (₹)"
-                    value={packaging}
-                    onChange={setPackaging}
-                    type="number"
-                    helpText="Box, tape, label material cost per order (e.g. ₹10)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <TextField
-                    label="Payment Gateway Fee (%)"
-                    value={gatewayFee}
-                    onChange={setGatewayFee}
-                    type="number"
-                    helpText="Gateway % fee (Razorpay / PayU / CCAvenue default 2%)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-                <Grid.Cell>
-                  <TextField
-                    label="Gateway Fixed Fee (₹)"
-                    value={gatewayFixed}
-                    onChange={setGatewayFixed}
-                    type="number"
-                    helpText="Fixed per-transaction charge if applicable (e.g. ₹0 - ₹3)."
-                    autoComplete="off"
-                  />
-                </Grid.Cell>
-              </Grid>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-
-        {/* ── Courier Keywords & Health Alerts ───────────── */}
-        <Layout.Section variant="oneThird">
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">🚚 Courier Custom Keywords</Text>
-                <Text variant="bodySm" as="p" tone="subdued">
-                  Enter comma-separated keywords written by courier apps (Delhivery, Shiprocket, Bluedart) to detect RTO status.
-                </Text>
-                <TextField
-                  label="Detection Keywords"
-                  labelHidden
-                  value={rtoPattern}
-                  onChange={setRtoPattern}
-                  helpText="e.g. rto, returned, undelivered, rto-initiated, delhivery_rto"
-                  autoComplete="off"
-                />
-              </BlockStack>
-            </Card>
-
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">🔔 Health Alert Limits</Text>
-                <TextField
-                  label="Alert Email Address"
-                  value={email}
-                  onChange={setEmail}
-                  type="email"
-                  autoComplete="off"
-                />
-                <TextField
-                  label="RTO Rate Alarm Limit (%)"
-                  value={rtoLimit}
-                  onChange={setRtoLimit}
-                  type="number"
-                  autoComplete="off"
-                />
-                <TextField
-                  label="Net Margin Alarm Limit (%)"
-                  value={marginLimit}
-                  onChange={setMarginLimit}
-                  type="number"
-                  autoComplete="off"
-                />
-              </BlockStack>
-            </Card>
-
-            <InlineStack align="end">
-              <Button variant="primary" onClick={handleSave} loading={isSaving}>
-                Save All Settings →
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-    </Page>
+          </Layout.Section>
+        </Layout>
+      </Page>
+      {saved && (
+        <Toast content="Settings saved successfully!" onDismiss={() => setSaved(false)} />
+      )}
+    </Frame>
   );
 }

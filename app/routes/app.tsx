@@ -4,8 +4,25 @@ import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigat
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
+import {
+  HomeIcon,
+  ProductIcon,
+  ShieldCheckMarkIcon,
+  ChartVerticalIcon,
+  DeliveryIcon,
+  LocationIcon,
+  SearchIcon,
+  PersonIcon,
+  ChartLineIcon,
+  NotificationIcon,
+  HeartIcon,
+  PaymentIcon,
+  SettingsIcon,
+} from "@shopify/polaris-icons";
+
+
 
 function RemixLink({ url, children, external, ...props }: any) {
   if (external || !url || /^https?:\/\//.test(url)) {
@@ -134,20 +151,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const NAV_ITEMS = [
-  { label: "Dashboard", url: "/app/dashboard", icon: "📊" },
-  { label: "COGS Catalog", url: "/app/cogs", icon: "📦" },
-  { label: "COD Risk Shield", url: "/app/cod-rules", icon: "🛡️", badge: "India" },
-  { label: "COD Analytics", url: "/app/cod-dashboard", icon: "⚡" },
-  { label: "RTO Analytics", url: "/app/rto", icon: "🚚" },
-  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: "🗺️", badge: "Pro" },
-  { label: "Profit Leaks", url: "/app/profit-leaks", icon: "🔍" },
-  { label: "Customer LTV", url: "/app/customers", icon: "👥", badge: "Pro" },
-  { label: "Ad Spend Sync", url: "/app/roas", icon: "📈", badge: "Pro" },
-  { label: "Alerts", url: "/app/alerts", icon: "🔔" },
-  { label: "Store Health", url: "/app/health", icon: "❤️" },
-  { label: "Plans & Billing", url: "/app/billing", icon: "💎" },
-  { label: "Settings", url: "/app/settings", icon: "⚙️" },
+  { label: "Dashboard", url: "/app/dashboard", icon: HomeIcon },
+  { label: "COGS Catalog", url: "/app/cogs", icon: ProductIcon },
+  { label: "COD Risk Shield", url: "/app/cod-rules", icon: ShieldCheckMarkIcon, badge: "India" },
+  { label: "COD Analytics", url: "/app/cod-dashboard", icon: ChartVerticalIcon },
+  { label: "RTO Analytics", url: "/app/rto", icon: DeliveryIcon },
+  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: LocationIcon, badge: "Pro" },
+  { label: "Profit Leaks", url: "/app/profit-leaks", icon: SearchIcon },
+  { label: "Customer LTV", url: "/app/customers", icon: PersonIcon, badge: "Pro" },
+  { label: "Ad Spend Sync", url: "/app/roas", icon: ChartLineIcon, badge: "Pro" },
+  { label: "Alerts", url: "/app/alerts", icon: NotificationIcon },
+  { label: "Store Health", url: "/app/health", icon: HeartIcon },
+  { label: "Plans & Billing", url: "/app/billing", icon: PaymentIcon },
+  { label: "Settings", url: "/app/settings", icon: SettingsIcon },
 ];
+
 
 export default function App() {
   const { apiKey, shop, host, features = [], billingStatus } = useLoaderData<typeof loader>();
@@ -221,6 +239,7 @@ export default function App() {
                       <ReactRouterLink
                         key={item.url}
                         to={fullUrl}
+                        className={`gg-nav-link ${isActive ? "active" : ""}`}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -228,16 +247,12 @@ export default function App() {
                           padding: "6px 12px",
                           borderRadius: "8px",
                           fontSize: "13px",
-                          fontWeight: isActive ? 600 : 500,
-                          color: isActive ? "#38bdf8" : "var(--gg-text-secondary)",
-                          backgroundColor: isActive ? "rgba(56, 189, 248, 0.12)" : "transparent",
-                          border: isActive ? "1px solid rgba(56, 189, 248, 0.3)" : "1px solid transparent",
                           textDecoration: "none",
                           whiteSpace: "nowrap",
                           transition: "all 0.2s ease",
                         }}
                       >
-                        <span style={{ fontSize: "14px" }}>{item.icon}</span>
+                        <Icon source={item.icon} tone={isActive ? "primary" : "subdued"} />
                         <span>{item.label}</span>
                         {item.badge && (
                           <span style={{
@@ -257,6 +272,7 @@ export default function App() {
                     );
                   })}
                 </nav>
+
               </InlineStack>
 
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

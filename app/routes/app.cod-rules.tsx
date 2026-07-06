@@ -9,7 +9,14 @@ export const headers: HeadersFunction = (headersArgs) => {
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, Button, TextField, Select, DataTable, Banner, Divider,
+  Box, Icon,
 } from "@shopify/polaris";
+import {
+  ShieldCheckMarkIcon,
+  ChatIcon,
+  PaymentIcon,
+  FinanceIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { CODManagementService } from "../services/cod-management.service";
 import prisma from "../db.server";
@@ -169,61 +176,65 @@ export default function CODRulesRoute() {
         {/* ── Rule 1: COD Pincode Blocking ─────────────────── */}
         <Layout.Section>
           <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="100">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Text variant="headingMd" as="h2">🛑 1. COD Pincode Blocking</Text>
-                    <Badge tone={blockingEnabled ? "success" : undefined}>
-                      {blockingEnabled ? "Active" : "Disabled"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Block Cash-on-Delivery in high-risk pincodes with elevated RTO and return history.
-                  </Text>
-                </BlockStack>
-                <Button
-                  variant={blockingEnabled ? "primary" : "secondary"}
-                  onClick={() => setBlockingEnabled(!blockingEnabled)}
-                >
-                  {blockingEnabled ? "Disable Blocking" : "Enable Blocking"}
-                </Button>
-              </InlineStack>
-
-              <Divider />
-
-              <BlockStack gap="300">
-                <Text variant="headingSm" as="h3">Bulk Pincode Import / Export</Text>
-                <TextField
-                  label="Blocked Pincodes (comma or newline separated)"
-                  value={bulkInput}
-                  onChange={setBulkInput}
-                  multiline={3}
-                  placeholder="e.g. 110053, 110078, 635109, 400001"
-                  autoComplete="off"
-                />
-                <InlineStack align="end">
-                  <Button variant="secondary" onClick={handleBulkImport}>
-                    {`Update Blocked Pincodes List (${blockedPincodes.length} Blocked)`}
+            <Box padding="400">
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <InlineStack gap="200" blockAlign="center">
+                      <Icon source={ShieldCheckMarkIcon} />
+                      <Text variant="headingMd" as="h2">🛑 1. COD Pincode Blocking</Text>
+                      <Badge tone={blockingEnabled ? "success" : "attention"}>
+                        {blockingEnabled ? "Active Shield Enabled" : "Shield Disabled"}
+                      </Badge>
+                    </InlineStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Block Cash-on-Delivery in high-risk pincodes with elevated RTO and return history.
+                    </Text>
+                  </BlockStack>
+                  <Button
+                    variant="primary"
+                    tone={blockingEnabled ? "critical" : undefined}
+                    onClick={() => setBlockingEnabled(!blockingEnabled)}
+                  >
+                    {blockingEnabled ? "Disable Shield" : "Enable Shield"}
                   </Button>
                 </InlineStack>
-              </BlockStack>
 
-              <Divider />
+                <Divider />
 
-              <BlockStack gap="200">
-                <Text variant="headingSm" as="h3">Pincode RTO Analytics & Quick Toggles</Text>
-                {pincodeRows.length === 0 ? (
-                  <Banner tone="info">No pincode analytics synced yet. Sync orders from Dashboard to populate RTO rates.</Banner>
-                ) : (
-                  <DataTable
-                    columnContentTypes={["text", "text", "text", "text", "numeric", "text"]}
-                    headings={["Pincode", "City", "Order Volume", "RTO Rate %", "RTO Loss", "COD Action"]}
-                    rows={pincodeRows}
+                <BlockStack gap="300">
+                  <Text variant="headingSm" as="h3">Bulk Pincode Import / Export</Text>
+                  <TextField
+                    label="Blocked Pincodes (comma or newline separated)"
+                    value={bulkInput}
+                    onChange={setBulkInput}
+                    multiline={3}
+                    placeholder="e.g. 110053, 110078, 635109, 400001"
+                    autoComplete="off"
                   />
-                )}
+                  <InlineStack align="end">
+                    <Button variant="secondary" onClick={handleBulkImport}>
+                      {`Update Blocked Pincodes List (${blockedPincodes.length} Blocked)`}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h3">Pincode RTO Analytics & Quick Toggles</Text>
+                  {pincodeRows.length === 0 ? (
+                    <Banner tone="info">No pincode analytics synced yet. Sync orders from Dashboard to populate RTO rates.</Banner>
+                  ) : (
+                    <DataTable
+                      columnContentTypes={["text", "text", "text", "text", "numeric", "text"]}
+                      headings={["Pincode", "City", "Order Volume", "RTO Rate %", "RTO Loss", "COD Action"]}
+                      rows={pincodeRows}
+                    />
+                  )}
+                </BlockStack>
               </BlockStack>
-            </BlockStack>
+            </Box>
           </Card>
         </Layout.Section>
 
@@ -232,107 +243,127 @@ export default function CODRulesRoute() {
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
             <Grid.Cell>
               <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>📱</span>
-                      <Text variant="headingSm" as="h3">2. OTP Verification</Text>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <InlineStack gap="150" blockAlign="center">
+                        <Icon source={ChatIcon} />
+                        <Text variant="headingSm" as="h3">2. OTP Verification</Text>
+                      </InlineStack>
+                      <Badge tone={otpEnabled ? "success" : "attention"}>
+                        {otpEnabled ? "Active" : "Off"}
+                      </Badge>
                     </InlineStack>
-                    <Badge tone={otpEnabled ? "success" : undefined}>
-                      {otpEnabled ? "Active" : "Off"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Send a 6-digit WhatsApp/SMS OTP when a COD order is placed. Order is confirmed only after OTP verification.
-                  </Text>
-                  <Button
-                    variant={otpEnabled ? "primary" : "secondary"}
-                    onClick={() => setOtpEnabled(!otpEnabled)}
-                  >
-                    {otpEnabled ? "Disable OTP" : "Enable OTP"}
-                  </Button>
-                </BlockStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Send a 6-digit WhatsApp/SMS OTP when a COD order is placed. Order is confirmed only after OTP verification.
+                    </Text>
+                    {otpEnabled && (
+                      <TextField
+                        label="WhatsApp Notification Template"
+                        value="Hello {{customer_name}}, please verify your order for {{store_name}} with OTP: {{otp_code}}."
+                        disabled
+                        autoComplete="off"
+                        helpText="Customize message via premium add-on integration."
+                      />
+                    )}
+                    <Button
+                      variant={otpEnabled ? "primary" : "secondary"}
+                      tone={otpEnabled ? "critical" : undefined}
+                      onClick={() => setOtpEnabled(!otpEnabled)}
+                    >
+                      {otpEnabled ? "Disable OTP" : "Enable OTP"}
+                    </Button>
+                  </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* ── Rule 3: Partial Upfront Payments ─────────── */}
             <Grid.Cell>
               <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>💳</span>
-                      <Text variant="headingSm" as="h3">3. Partial Deposit</Text>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <InlineStack gap="150" blockAlign="center">
+                        <Icon source={PaymentIcon} />
+                        <Text variant="headingSm" as="h3">3. Partial Deposit</Text>
+                      </InlineStack>
+                      <Badge tone={partialEnabled ? "success" : "attention"}>
+                        {partialEnabled ? "Active" : "Off"}
+                      </Badge>
                     </InlineStack>
-                    <Badge tone={partialEnabled ? "success" : undefined}>
-                      {partialEnabled ? "Active" : "Off"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Collect a small deposit upfront on COD orders to eliminate fake buyers. Deducted from final COD price.
-                  </Text>
-                  <TextField
-                    label="Deposit Amount (₹)"
-                    type="number"
-                    value={partialAmount}
-                    onChange={setPartialAmount}
-                    autoComplete="off"
-                  />
-                  <Button
-                    variant={partialEnabled ? "primary" : "secondary"}
-                    onClick={() => setPartialEnabled(!partialEnabled)}
-                  >
-                    {partialEnabled ? "Disable Deposit" : "Enable Deposit"}
-                  </Button>
-                </BlockStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Collect a small deposit upfront on COD orders to eliminate fake buyers. Deducted from final COD price.
+                    </Text>
+                    <TextField
+                      label="Deposit Amount"
+                      type="number"
+                      value={partialAmount}
+                      onChange={setPartialAmount}
+                      prefix="₹"
+                      autoComplete="off"
+                    />
+                    <Button
+                      variant={partialEnabled ? "primary" : "secondary"}
+                      tone={partialEnabled ? "critical" : undefined}
+                      onClick={() => setPartialEnabled(!partialEnabled)}
+                    >
+                      {partialEnabled ? "Disable Deposit" : "Enable Deposit"}
+                    </Button>
+                  </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
 
             {/* ── Rule 4: Extra COD Fees ───────────────────── */}
             <Grid.Cell>
               <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>🏷️</span>
-                      <Text variant="headingSm" as="h3">4. COD Extra Fee</Text>
+                <Box padding="400">
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <InlineStack gap="150" blockAlign="center">
+                        <Icon source={FinanceIcon} />
+                        <Text variant="headingSm" as="h3">4. COD Extra Fee</Text>
+                      </InlineStack>
+                      <Badge tone={feeEnabled ? "success" : "attention"}>
+                        {feeEnabled ? "Active" : "Off"}
+                      </Badge>
                     </InlineStack>
-                    <Badge tone={feeEnabled ? "success" : undefined}>
-                      {feeEnabled ? "Active" : "Off"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Add a handling fee to COD checkout to incentivize customers to switch to Prepaid orders.
-                  </Text>
-                  <InlineStack gap="200">
-                    <div style={{ flex: 1 }}>
-                      <TextField
-                        label="Fee Amount"
-                        type="number"
-                        value={feeAmount}
-                        onChange={setFeeAmount}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div style={{ width: 110 }}>
-                      <Select
-                        label="Type"
-                        options={[
-                          { label: "Fixed ₹", value: "fixed" },
-                          { label: "Percentage %", value: "percentage" },
-                        ]}
-                        value={feeType}
-                        onChange={(val) => setFeeType(val as "fixed" | "percentage")}
-                      />
-                    </div>
-                  </InlineStack>
-                  <Button
-                    variant={feeEnabled ? "primary" : "secondary"}
-                    onClick={() => setFeeEnabled(!feeEnabled)}
-                  >
-                    {feeEnabled ? "Disable Fee" : "Enable COD Fee"}
-                  </Button>
-                </BlockStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Add a handling fee to COD checkout to incentivize customers to switch to Prepaid orders.
+                    </Text>
+                    <InlineStack gap="200">
+                      <div style={{ flex: 1 }}>
+                        <TextField
+                          label="Fee Amount"
+                          type="number"
+                          value={feeAmount}
+                          onChange={setFeeAmount}
+                          prefix="₹"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div style={{ width: 110 }}>
+                        <Select
+                          label="Type"
+                          options={[
+                            { label: "Fixed ₹", value: "fixed" },
+                            { label: "Percentage %", value: "percentage" },
+                          ]}
+                          value={feeType}
+                          onChange={(val) => setFeeType(val as "fixed" | "percentage")}
+                        />
+                      </div>
+                    </InlineStack>
+                    <Button
+                      variant={feeEnabled ? "primary" : "secondary"}
+                      tone={feeEnabled ? "critical" : undefined}
+                      onClick={() => setFeeEnabled(!feeEnabled)}
+                    >
+                      {feeEnabled ? "Disable Fee" : "Enable COD Fee"}
+                    </Button>
+                  </BlockStack>
+                </Box>
               </Card>
             </Grid.Cell>
           </Grid>
@@ -341,14 +372,16 @@ export default function CODRulesRoute() {
         {/* ── Save Settings Bar ────────────────────────────── */}
         <Layout.Section>
           <Card>
-            <InlineStack align="space-between" blockAlign="center">
-              <Text variant="bodyMd" as="p">
-                Apply all COD management rules to your Shopify storefront.
-              </Text>
-              <Button variant="primary" loading={isSaving} onClick={handleSaveRules}>
-                Save All COD Rules →
-              </Button>
-            </InlineStack>
+            <Box padding="400">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text variant="bodyMd" as="p">
+                  Apply all COD management rules to your Shopify storefront.
+                </Text>
+                <Button variant="primary" loading={isSaving} onClick={handleSaveRules}>
+                  Save All COD Rules →
+                </Button>
+              </InlineStack>
+            </Box>
           </Card>
         </Layout.Section>
 
