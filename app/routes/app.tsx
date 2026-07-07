@@ -4,7 +4,7 @@ import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigat
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon, Popover, ActionList } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import {
   HomeIcon,
@@ -150,22 +150,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-const NAV_ITEMS = [
-  { label: "Dashboard", url: "/app/dashboard", icon: HomeIcon },
-  { label: "COGS Catalog", url: "/app/cogs", icon: ProductIcon },
-  { label: "COD Risk Shield", url: "/app/cod-rules", icon: ShieldCheckMarkIcon, badge: "India" },
-  { label: "COD Analytics", url: "/app/cod-dashboard", icon: ChartVerticalIcon },
-  { label: "RTO Analytics", url: "/app/rto", icon: DeliveryIcon },
-  { label: "Pincode Heatmap", url: "/app/rto-heatmap", icon: LocationIcon, badge: "Pro" },
-  { label: "Profit Leaks", url: "/app/profit-leaks", icon: SearchIcon },
-  { label: "Customer LTV", url: "/app/customers", icon: PersonIcon, badge: "Pro" },
-  { label: "Ad Spend Sync", url: "/app/roas", icon: ChartLineIcon, badge: "Pro" },
-  { label: "Alerts", url: "/app/alerts", icon: NotificationIcon },
-  { label: "Store Health", url: "/app/health", icon: HeartIcon },
-  { label: "Plans & Billing", url: "/app/billing", icon: PaymentIcon },
-  { label: "Settings", url: "/app/settings", icon: SettingsIcon },
-];
-
 
 export default function App() {
   const { apiKey, shop, host, features = [], billingStatus } = useLoaderData<typeof loader>();
@@ -174,6 +158,25 @@ export default function App() {
   const isNavigating = navigation.state !== "idle";
 
   const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
+
+  // Popover Group States
+  const [activePopover, setActivePopover] = useState<string | null>(null);
+  const togglePopover = (group: string) => {
+    setActivePopover(activePopover === group ? null : group);
+  };
+
+  const isDashboardActive = location.pathname === "/app/dashboard" || location.pathname === "/app" || location.pathname === "/app/";
+  const isCodRulesActive = location.pathname === "/app/cod-rules";
+
+  const isOperationsActive = ["/app/cogs", "/app/roas", "/app/profit-leaks"].some(
+    (path) => location.pathname === path || location.pathname.startsWith(path + "/")
+  );
+  const isAnalyticsActive = ["/app/cod-dashboard", "/app/rto", "/app/rto-heatmap", "/app/customers"].some(
+    (path) => location.pathname === path || location.pathname.startsWith(path + "/")
+  );
+  const isSystemActive = ["/app/health", "/app/alerts", "/app/billing", "/app/settings"].some(
+    (path) => location.pathname === path || location.pathname.startsWith(path + "/")
+  );
 
   return (
     <AppProvider apiKey={apiKey} embedded>
@@ -230,16 +233,66 @@ export default function App() {
                   </Text>
                 </InlineStack>
 
-                <nav style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBlock: "4px" }}>
-                  {NAV_ITEMS.map((item) => {
-                    const isActive = location.pathname === item.url || (item.url !== "/app/dashboard" && location.pathname.startsWith(item.url));
-                    const fullUrl = `${item.url}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`;
+                <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  {/* Direct Link 1: Dashboard */}
+                  <ReactRouterLink
+                    to={`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    className={`gg-nav-link ${isDashboardActive ? "active" : ""}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    <Icon source={HomeIcon} tone={isDashboardActive ? "primary" : "subdued"} />
+                    <span>Dashboard</span>
+                  </ReactRouterLink>
 
-                    return (
-                      <ReactRouterLink
-                        key={item.url}
-                        to={fullUrl}
-                        className={`gg-nav-link ${isActive ? "active" : ""}`}
+                  {/* Direct Link 2: COD Risk Shield */}
+                  <ReactRouterLink
+                    to={`/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    className={`gg-nav-link ${isCodRulesActive ? "active" : ""}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    <Icon source={ShieldCheckMarkIcon} tone={isCodRulesActive ? "primary" : "subdued"} />
+                    <span>COD Risk Shield</span>
+                    <span style={{
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      padding: "1px 5px",
+                      borderRadius: "4px",
+                      backgroundColor: "rgba(16, 185, 129, 0.2)",
+                      color: "#34d399",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}>
+                      India
+                    </span>
+                  </ReactRouterLink>
+
+                  {/* Popover Group 1: Operations */}
+                  <Popover
+                    active={activePopover === "operations"}
+                    activator={
+                      <button
+                        onClick={() => togglePopover("operations")}
+                        className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
@@ -247,30 +300,154 @@ export default function App() {
                           padding: "6px 12px",
                           borderRadius: "8px",
                           fontSize: "13px",
-                          textDecoration: "none",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          color: "inherit",
                           whiteSpace: "nowrap",
                           transition: "all 0.2s ease",
                         }}
                       >
-                        <Icon source={item.icon} tone={isActive ? "primary" : "subdued"} />
-                        <span>{item.label}</span>
-                        {item.badge && (
-                          <span style={{
-                            fontSize: "9px",
-                            fontWeight: 700,
-                            padding: "1px 5px",
-                            borderRadius: "4px",
-                            backgroundColor: item.badge === "Pro" ? "rgba(124, 58, 237, 0.2)" : "rgba(16, 185, 129, 0.2)",
-                            color: item.badge === "Pro" ? "#c084fc" : "#34d399",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                          }}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </ReactRouterLink>
-                    );
-                  })}
+                        <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
+                        <span>Operations</span>
+                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                      </button>
+                    }
+                    onClose={() => setActivePopover(null)}
+                  >
+                    <ActionList
+                      items={[
+                        {
+                          content: "COGS Catalog",
+                          url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: ProductIcon,
+                        },
+                        {
+                          content: "Ad Spend Sync (ROAS)",
+                          url: `/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: ChartLineIcon,
+                        },
+                        {
+                          content: "Profit Leaks",
+                          url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: SearchIcon,
+                        },
+                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                    />
+                  </Popover>
+
+                  {/* Popover Group 2: Analytics */}
+                  <Popover
+                    active={activePopover === "analytics"}
+                    activator={
+                      <button
+                        onClick={() => togglePopover("analytics")}
+                        className={`gg-nav-link ${isAnalyticsActive ? "active" : ""}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          color: "inherit",
+                          whiteSpace: "nowrap",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        <Icon source={ChartVerticalIcon} tone={isAnalyticsActive ? "primary" : "subdued"} />
+                        <span>Analytics</span>
+                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                      </button>
+                    }
+                    onClose={() => setActivePopover(null)}
+                  >
+                    <ActionList
+                      items={[
+                        {
+                          content: "COD Analytics",
+                          url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: ChartVerticalIcon,
+                        },
+                        {
+                          content: "RTO Analytics",
+                          url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: DeliveryIcon,
+                        },
+                        {
+                          content: "Pincode Heatmap",
+                          url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: LocationIcon,
+                        },
+                        {
+                          content: "Customer LTV",
+                          url: `/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: PersonIcon,
+                        },
+                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                    />
+                  </Popover>
+
+                  {/* Popover Group 3: Settings & System */}
+                  <Popover
+                    active={activePopover === "system"}
+                    activator={
+                      <button
+                        onClick={() => togglePopover("system")}
+                        className={`gg-nav-link ${isSystemActive ? "active" : ""}`}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "8px",
+                          fontSize: "13px",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          color: "inherit",
+                          whiteSpace: "nowrap",
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        <Icon source={SettingsIcon} tone={isSystemActive ? "primary" : "subdued"} />
+                        <span>System & Settings</span>
+                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                      </button>
+                    }
+                    onClose={() => setActivePopover(null)}
+                  >
+                    <ActionList
+                      items={[
+                        {
+                          content: "General Settings",
+                          url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: SettingsIcon,
+                        },
+                        {
+                          content: "Plans & Billing",
+                          url: `/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: PaymentIcon,
+                        },
+                        {
+                          content: "Alerts Setup",
+                          url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: NotificationIcon,
+                        },
+                        {
+                          content: "Store Health",
+                          url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                          icon: HeartIcon,
+                        },
+                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                    />
+                  </Popover>
                 </nav>
 
               </InlineStack>
