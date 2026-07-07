@@ -176,7 +176,7 @@ export default function App() {
   const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
 
   return (
-    <AppProvider apiKey={apiKey}>
+    <AppProvider apiKey={apiKey} embedded>
       <NavMenu>
         <a href="/app/dashboard" rel="home">Dashboard</a>
         <a href="/app/cogs">COGS Catalog</a>
