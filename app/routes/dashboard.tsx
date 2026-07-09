@@ -847,6 +847,7 @@ export default function DashboardRoute() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
   const [whatsappSubscribed, setWhatsappSubscribed] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -895,20 +896,20 @@ export default function DashboardRoute() {
 
   const wizardSteps = [
     {
-      label: "Add your first product cost",
-      icon: "💰",
-      status: isCogsSetup ? "complete" : "pending",
-      desc: "Configure pricing targets on the Costs tab.",
-      actionText: "Configure Costs",
-      actionUrl: `/app/cogs?shop=${data.shop}&host=${data.host}`
-    },
-    {
       label: "Sync your orders",
       icon: "⟳",
       status: isSynced ? "complete" : "pending",
       desc: "Download transactions from Shopify.",
       actionText: "Sync Orders",
       actionClick: handleSyncOrders
+    },
+    {
+      label: "Set your product costs",
+      icon: "💸",
+      status: isCogsSetup ? "complete" : "pending",
+      desc: "Configure pricing targets on the Costs tab.",
+      actionText: "Configure Costs",
+      actionUrl: `/app/cogs?shop=${data.shop}&host=${data.host}`
     },
     {
       label: "View your profit dashboard",
@@ -997,26 +998,7 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
-        {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
-        <Layout.Section>
-          <CalloutCard
-            title="⚡ Proof of ROI: Greek God SaaS Pays for Itself"
-            illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
-            primaryAction={{
-              content: "Manage COD Risk Shield Rules",
-              url: `/app/cod-rules?shop=${data.shop}&host=${data.host}`,
-            }}
-          >
-            <BlockStack gap="200">
-              <Text variant="bodyMd" as="p" tone="success">
-                Greek God SaaS saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
-              </Text>
-              <Text variant="bodySm" as="p" tone="subdued">
-                Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
-              </Text>
-            </BlockStack>
-          </CalloutCard>
-        </Layout.Section>
+
 
         {/* Warning & Plan Banners */}
         {data.isBasicTier && (
@@ -1052,151 +1034,7 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
-        {/* ── COD MANAGEMENT & PROFIT INTELLIGENCE MOAT ── */}
-        <Layout.Section>
-          <div style={{
-            padding: "20px",
-            borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(16,185,129,0.06) 100%)",
-            border: "1px solid rgba(56,189,248,0.25)",
-          }}>
-            <InlineStack align="space-between" blockAlign="center">
-              <BlockStack gap="100">
-                <InlineStack gap="200" blockAlign="center">
-                  <span style={{ fontSize: 22 }}>🛡️</span>
-                  <Text variant="headingMd" as="h2">COD Management & Profit Intelligence</Text>
-                  <Badge tone="success">Active Moat Engine</Badge>
-                </InlineStack>
-                <Text variant="bodySm" as="p" tone="subdued">
-                  Greek God combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
-                </Text>
-              </BlockStack>
-              <InlineStack gap="200">
-                <Button url={`/app/cod-rules?shop=${data.shop}&host=${data.host}`} variant="secondary">
-                  Configure COD Rules →
-                </Button>
-                <Button url={`/app/cod-dashboard?shop=${data.shop}&host=${data.host}`} variant="primary">
-                  COD Profit Dashboard →
-                </Button>
-              </InlineStack>
-            </InlineStack>
-          </div>
-        </Layout.Section>
 
-        {/* ── FEE BREAKDOWN & GST TAX COMPLIANCE SUMMARY ── */}
-        <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-            {/* Fee Breakdown Card */}
-            <Grid.Cell>
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <Icon source={FinanceIcon} />
-                      <Text variant="headingMd" as="h3">Fee Breakdown</Text>
-                    </InlineStack>
-                    <Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>
-                  </InlineStack>
-                  <Divider />
-                  <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Gateway Fees</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.gatewayFees.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">COD Fees</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.codHandlingFees.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Forward Freight</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.forwardShipping.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Return Freight</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="critical">₹{data.feeBreakdown.returnShipping.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Packaging</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.packagingCosts.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Net Overhead</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="subdued">100% Calculated</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                  </Grid>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-
-            {/* GST Compliance Summary Card */}
-            <Grid.Cell>
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <Icon source={DatabaseIcon} />
-                      <Text variant="headingMd" as="h3">GST Tax Summary (GSTR-1)</Text>
-                    </InlineStack>
-                    <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
-                      Export GSTR CSV 📄
-                    </Button>
-                  </InlineStack>
-                  <Divider />
-                  <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Taxable Sales</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.totalTaxableSales.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">CGST (Intra)</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.cgst.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">SGST (Intra)</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.sgst.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">IGST (Inter)</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.igst.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">Total GST</span>
-                        <Text variant="bodyMd" as="p" fontWeight="bold" tone="success">₹{data.gstSummary.totalGstCollected.toLocaleString("en-IN")}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                    <Grid.Cell>
-                      <BlockStack gap="050">
-                        <span className="gg-section-label">GSTIN</span>
-                        <Text variant="bodySm" as="p" tone="subdued">{data.gstSummary.gstin || "Not set"}</Text>
-                      </BlockStack>
-                    </Grid.Cell>
-                  </Grid>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-          </Grid>
-        </Layout.Section>
 
         {/* ── TOP SECTION: PROFIT & ALL CORE STATISTICS CARDS ── */}
         <Layout.Section>
@@ -1371,7 +1209,7 @@ export default function DashboardRoute() {
         {/* ── TOP SECTION: REVENUE & NET PROFIT TREND CHART ── */}
         <Layout.Section>
           <Card>
-            <Box padding="400">
+            <Box padding="500">
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="100">
@@ -1393,58 +1231,252 @@ export default function DashboardRoute() {
           </Card>
         </Layout.Section>
 
-        {/* Full Automation Status Cards */}
+        {/* ── Toggle Button for Advanced Reports ── */}
         <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
-            <Grid.Cell>
-              <Card>
-                <BlockStack gap="200">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>📦</span>
-                      <Text variant="headingSm" as="h3">COGS Auto-Sync Status</Text>
-                    </InlineStack>
-                    <Badge tone={data.nativeCogsCount > 0 ? "success" : "info"}>
-                      {data.nativeCogsCount > 0 ? "Shopify Native Active ✅" : "Configured"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    {data.nativeCogsCount > 0
-                      ? `We found your native COGS in Shopify for ${data.nativeCogsCount} items. No manual entry needed!`
-                      : `Syncing costs automatically from Shopify variants.`}
-                  </Text>
-                  <Button url={`/app/cogs?shop=${data.shop}&host=${data.host}`} variant="plain">
-                    Manage Cost Rules →
-                  </Button>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-
-            <Grid.Cell>
-              <Card>
-                <BlockStack gap="200">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 20 }}>🔗</span>
-                      <Text variant="headingSm" as="h3">Ad Accounts Auto-Sync</Text>
-                    </InlineStack>
-                    <Badge tone={data.hasConnectedAdAccount ? "success" : "attention"}>
-                      {data.hasConnectedAdAccount ? "Auto-Sync Connected ✅" : "Not Connected"}
-                    </Badge>
-                  </InlineStack>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    {data.hasConnectedAdAccount
-                      ? `Connected to ad accounts. Pulling daily campaign spend automatically.`
-                      : `Connect your ad accounts (Meta, Google, TikTok) to see your true ROAS and CAC.`}
-                  </Text>
-                  <Button url={`/app/roas?shop=${data.shop}&host=${data.host}`} variant="plain">
-                    {data.hasConnectedAdAccount ? "View Ad Spend →" : "Connect Ad Accounts →"}
-                  </Button>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-          </Grid>
+          <Box paddingBlock="200">
+            <InlineStack align="center">
+              <Button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                variant="secondary"
+                id="toggle-advanced-metrics-btn"
+              >
+                {showAdvanced ? "▲ Hide Advanced Analytics & Sync Status" : "▼ Show Advanced Analytics & Sync Status"}
+              </Button>
+            </InlineStack>
+          </Box>
         </Layout.Section>
+
+        {showAdvanced && (
+          <>
+            {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
+            <Layout.Section>
+              <CalloutCard
+                title="⚡ Proof of ROI: Greek God SaaS Pays for Itself"
+                illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
+                primaryAction={{
+                  content: "Manage COD Risk Shield Rules",
+                  url: `/app/cod-rules?shop=${data.shop}&host=${data.host}`,
+                }}
+              >
+                <BlockStack gap="200">
+                  <Text variant="bodyMd" as="p" tone="success">
+                    Greek God SaaS saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
+                  </Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
+                  </Text>
+                </BlockStack>
+              </CalloutCard>
+            </Layout.Section>
+
+            {/* ── COD MANAGEMENT & PROFIT INTELLIGENCE MOAT ── */}
+            <Layout.Section>
+              <div style={{
+                padding: "25px",
+                borderRadius: "var(--gg-radius-lg)",
+                background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(16,185,129,0.06) 100%)",
+                border: "1px solid rgba(56,189,248,0.25)",
+              }}>
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <InlineStack gap="200" blockAlign="center">
+                      <span style={{ fontSize: 22 }}>🛡️</span>
+                      <Text variant="headingMd" as="h2">COD Management & Profit Intelligence</Text>
+                      <Badge tone="success">Active Moat Engine</Badge>
+                    </InlineStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Greek God combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
+                    </Text>
+                  </BlockStack>
+                  <InlineStack gap="200">
+                    <Button url={`/app/cod-rules?shop=${data.shop}&host=${data.host}`} variant="secondary">
+                      Configure COD Rules →
+                    </Button>
+                    <Button url={`/app/cod-dashboard?shop=${data.shop}&host=${data.host}`} variant="primary">
+                      COD Profit Dashboard →
+                    </Button>
+                  </InlineStack>
+                </InlineStack>
+              </div>
+            </Layout.Section>
+
+            {/* ── FEE BREAKDOWN & GST TAX COMPLIANCE SUMMARY ── */}
+            <Layout.Section>
+              <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+                {/* Fee Breakdown Card */}
+                <Grid.Cell>
+                  <Card>
+                    <Box padding="500">
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="150" blockAlign="center">
+                            <Icon source={FinanceIcon} />
+                            <Text variant="headingMd" as="h3">Fee Breakdown</Text>
+                          </InlineStack>
+                          <Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>
+                        </InlineStack>
+                        <Divider />
+                        <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Gateway Fees</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.gatewayFees.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">COD Fees</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.codHandlingFees.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Forward Freight</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.forwardShipping.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Return Freight</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="critical">₹{data.feeBreakdown.returnShipping.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Packaging</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.packagingCosts.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Net Overhead</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="subdued">100% Calculated</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                        </Grid>
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                </Grid.Cell>
+
+                {/* GST Compliance Summary Card */}
+                <Grid.Cell>
+                  <Card>
+                    <Box padding="500">
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="150" blockAlign="center">
+                            <Icon source={DatabaseIcon} />
+                            <Text variant="headingMd" as="h3">GST Tax Summary (GSTR-1)</Text>
+                          </InlineStack>
+                          <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
+                            Export GSTR CSV 📄
+                          </Button>
+                        </InlineStack>
+                        <Divider />
+                        <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Taxable Sales</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.totalTaxableSales.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">CGST (Intra)</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.cgst.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">SGST (Intra)</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.sgst.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">IGST (Inter)</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.igst.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">Total GST</span>
+                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="success">₹{data.gstSummary.totalGstCollected.toLocaleString("en-IN")}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                          <Grid.Cell>
+                            <BlockStack gap="050">
+                              <span className="gg-section-label">GSTIN</span>
+                              <Text variant="bodySm" as="p" tone="subdued">{data.gstSummary.gstin || "Not set"}</Text>
+                            </BlockStack>
+                          </Grid.Cell>
+                        </Grid>
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                </Grid.Cell>
+              </Grid>
+            </Layout.Section>
+
+            {/* Automation Status Cards */}
+            <Layout.Section>
+              <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
+                <Grid.Cell>
+                  <Card>
+                    <Box padding="500">
+                      <BlockStack gap="200">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 20 }}>📦</span>
+                            <Text variant="headingSm" as="h3">COGS Auto-Sync Status</Text>
+                          </InlineStack>
+                          <Badge tone={data.nativeCogsCount > 0 ? "success" : "info"}>
+                            {data.nativeCogsCount > 0 ? "Shopify Native Active ✅" : "Configured"}
+                          </Badge>
+                        </InlineStack>
+                        <Text variant="bodySm" as="p" tone="subdued">
+                          {data.nativeCogsCount > 0
+                            ? `We found your native COGS in Shopify for ${data.nativeCogsCount} items. No manual entry needed!`
+                            : `Syncing costs automatically from Shopify variants.`}
+                        </Text>
+                        <Button url={`/app/cogs?shop=${data.shop}&host=${data.host}`} variant="plain">
+                          Manage Cost Rules →
+                        </Button>
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                </Grid.Cell>
+
+                <Grid.Cell>
+                  <Card>
+                    <Box padding="500">
+                      <BlockStack gap="200">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 20 }}>🔗</span>
+                            <Text variant="headingSm" as="h3">Ad Accounts Auto-Sync</Text>
+                          </InlineStack>
+                          <Badge tone={data.hasConnectedAdAccount ? "success" : "attention"}>
+                            {data.hasConnectedAdAccount ? "Auto-Sync Connected ✅" : "Not Connected"}
+                          </Badge>
+                        </InlineStack>
+                        <Text variant="bodySm" as="p" tone="subdued">
+                          {data.hasConnectedAdAccount
+                            ? `Connected to ad accounts. Pulling daily campaign spend automatically.`
+                            : `Connect your ad accounts (Meta, Google, TikTok) to see your true ROAS and CAC.`}
+                        </Text>
+                        <Button url={`/app/roas?shop=${data.shop}&host=${data.host}`} variant="plain">
+                          {data.hasConnectedAdAccount ? "View Ad Spend →" : "Connect Ad Accounts →"}
+                        </Button>
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                </Grid.Cell>
+              </Grid>
+            </Layout.Section>
+          </>
+        )}
 
         {data.isColdStart && (
           <Layout.Section>
@@ -1464,12 +1496,13 @@ export default function DashboardRoute() {
         )}
 
         {/* ── AI Onboarding Wizard ─────────────────────── */}
-        {!wizardDismissed && (
+        {!onboardingComplete && !wizardDismissed && (
           <Layout.Section>
             <Card>
-              <BlockStack gap="400">
-                <InlineStack align="space-between">
-                  <BlockStack gap="100">
+              <Box padding="500">
+                <BlockStack gap="400">
+                  <InlineStack align="space-between">
+                    <BlockStack gap="100">
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 20 }}>🤖</span>
                       <Text variant="headingMd" as="h2">
@@ -1538,8 +1571,9 @@ export default function DashboardRoute() {
                   ))}
                 </Grid>
               </BlockStack>
-            </Card>
-          </Layout.Section>
+            </Box>
+          </Card>
+        </Layout.Section>
         )}
 
         {/* ── Main Tabs ───────────────────────────────── */}
@@ -1671,122 +1705,124 @@ export default function DashboardRoute() {
                   </Card>
 
                   {/* Onboarding Accuracy and WhatsApp Digest Grid */}
-                  <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
-                    {/* Left: Weekly WhatsApp Profit Digest Card (spans 2 columns) */}
-                    <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                      <Card>
-                        <BlockStack gap="300">
-                          <InlineStack align="space-between" blockAlign="center">
-                            <BlockStack gap="100">
-                              <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
-                              <Text variant="bodySm" as="p" tone="subdued">
-                                Get weekly summaries and actionable optimizations delivered to your WhatsApp.
-                              </Text>
-                            </BlockStack>
-                            <Button
-                              variant={whatsappSubscribed ? "secondary" : "primary"}
-                              onClick={() => {
-                                setWhatsappSubscribed(!whatsappSubscribed);
-                                setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
-                                setSyncSuccess(true);
-                              }}
-                            >
-                              {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
-                            </Button>
-                          </InlineStack>
+                  {showAdvanced && (
+                    <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
+                      {/* Left: Weekly WhatsApp Profit Digest Card (spans 2 columns) */}
+                      <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+                        <Card>
+                          <BlockStack gap="300">
+                            <InlineStack align="space-between" blockAlign="center">
+                              <BlockStack gap="100">
+                                <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
+                                <Text variant="bodySm" as="p" tone="subdued">
+                                  Get weekly summaries and actionable optimizations delivered to your WhatsApp.
+                                </Text>
+                              </BlockStack>
+                              <Button
+                                variant={whatsappSubscribed ? "secondary" : "primary"}
+                                onClick={() => {
+                                  setWhatsappSubscribed(!whatsappSubscribed);
+                                  setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
+                                  setSyncSuccess(true);
+                                }}
+                              >
+                                {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
+                              </Button>
+                            </InlineStack>
 
-                          {/* WhatsApp Chat Preview Bubble */}
-                          <div style={{
-                            background: "#e5ddd5",
-                            borderRadius: "8px",
-                            padding: "16px",
-                            fontFamily: "sans-serif",
-                            position: "relative",
-                            border: "1px solid rgba(0,0,0,0.1)"
-                          }}>
+                            {/* WhatsApp Chat Preview Bubble */}
                             <div style={{
-                              background: "#fff",
-                              borderRadius: "7px",
-                              padding: "10px 14px",
-                              maxWidth: "85%",
-                              boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
-                              fontSize: "13px",
-                              lineHeight: "1.4",
+                              background: "#e5ddd5",
+                              borderRadius: "8px",
+                              padding: "16px",
+                              fontFamily: "sans-serif",
                               position: "relative",
-                              color: "#303030"
+                              border: "1px solid rgba(0,0,0,0.1)"
                             }}>
-                              <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
-                              <div>📅 <strong>Monday Morning Summary:</strong></div>
-                              <div style={{ marginBlock: "6px" }}>
-                                • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
-                                • <strong>Net Margin:</strong> {data.netMargin}% <br />
-                                • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
+                              <div style={{
+                                background: "#fff",
+                                borderRadius: "7px",
+                                padding: "10px 14px",
+                                maxWidth: "85%",
+                                boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
+                                fontSize: "13px",
+                                lineHeight: "1.4",
+                                position: "relative",
+                                color: "#303030"
+                              }}>
+                                <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
+                                <div>📅 <strong>Monday Morning Summary:</strong></div>
+                                <div style={{ marginBlock: "6px" }}>
+                                  • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
+                                  • <strong>Net Margin:</strong> {data.netMargin}% <br />
+                                  • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
+                                </div>
+                                <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
+                                  🎯 <strong>Your 3 Actions This Week:</strong>
+                                </div>
+                                <div style={{ marginTop: "4px" }}>
+                                  1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
+                                  2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
+                                  3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
+                                </div>
+                                <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
+                                <div style={{ clear: "both" }} />
                               </div>
-                              <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
-                                🎯 <strong>Your 3 Actions This Week:</strong>
-                              </div>
-                              <div style={{ marginTop: "4px" }}>
-                                1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
-                                2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
-                                3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
-                              </div>
-                              <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
-                              <div style={{ clear: "both" }} />
                             </div>
-                          </div>
-                        </BlockStack>
-                      </Card>
-                    </Grid.Cell>
-
-                    {/* Right: Profit Data Accuracy Score Card (spans 1 column) */}
-                    <Grid.Cell>
-                      <Card>
-                        <BlockStack gap="400">
-                          <BlockStack gap="100">
-                            <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
-                            <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
                           </BlockStack>
+                        </Card>
+                      </Grid.Cell>
 
-                          {/* Progress bar accuracy */}
-                          <BlockStack gap="200">
-                            <InlineStack align="space-between">
-                              <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
-                                {accuracyScore}% Accuracy
-                              </span>
-                            </InlineStack>
-                            <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
+                      {/* Right: Profit Data Accuracy Score Card (spans 1 column) */}
+                      <Grid.Cell>
+                        <Card>
+                          <BlockStack gap="400">
+                            <BlockStack gap="100">
+                              <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
+                              <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
+                            </BlockStack>
+
+                            {/* Progress bar accuracy */}
+                            <BlockStack gap="200">
+                              <InlineStack align="space-between">
+                                <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
+                                  {accuracyScore}% Accuracy
+                                </span>
+                              </InlineStack>
+                              <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
+                            </BlockStack>
+
+                            {/* Setup Tasks Checklist */}
+                            <BlockStack gap="200">
+                              <InlineStack gap="150" blockAlign="center">
+                                <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
+                                <BlockStack gap="0">
+                                  <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
+                                  <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
+                                </BlockStack>
+                              </InlineStack>
+
+                              <InlineStack gap="150" blockAlign="center">
+                                <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
+                                <BlockStack gap="0">
+                                  <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
+                                  <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
+                                </BlockStack>
+                              </InlineStack>
+
+                              <InlineStack gap="150" blockAlign="center">
+                                <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
+                                <BlockStack gap="0">
+                                  <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
+                                  <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
+                                </BlockStack>
+                              </InlineStack>
+                            </BlockStack>
                           </BlockStack>
-
-                          {/* Setup Tasks Checklist */}
-                          <BlockStack gap="200">
-                            <InlineStack gap="150" blockAlign="center">
-                              <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
-                              <BlockStack gap="0">
-                                <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
-                                <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
-                              </BlockStack>
-                            </InlineStack>
-
-                            <InlineStack gap="150" blockAlign="center">
-                              <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
-                              <BlockStack gap="0">
-                                <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
-                                <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
-                              </BlockStack>
-                            </InlineStack>
-
-                            <InlineStack gap="150" blockAlign="center">
-                              <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
-                              <BlockStack gap="0">
-                                <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
-                                <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
-                              </BlockStack>
-                            </InlineStack>
-                          </BlockStack>
-                        </BlockStack>
-                      </Card>
-                    </Grid.Cell>
-                  </Grid>
+                        </Card>
+                      </Grid.Cell>
+                    </Grid>
+                  )}
 
                   {/* Alerts Inbox */}
                   <Card>

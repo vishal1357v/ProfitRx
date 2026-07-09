@@ -168,6 +168,21 @@ export default function App() {
   const isDashboardActive = location.pathname === "/app/dashboard" || location.pathname === "/app" || location.pathname === "/app/";
   const isCodRulesActive = location.pathname === "/app/cod-rules";
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = (isDark: boolean) => {
+      if (isDark) {
+        document.body.classList.add("dark-theme");
+      } else {
+        document.body.classList.remove("dark-theme");
+      }
+    };
+    applyTheme(mediaQuery.matches);
+    const listener = (e: MediaQueryListEvent) => applyTheme(e.matches);
+    mediaQuery.addEventListener("change", listener);
+    return () => mediaQuery.removeEventListener("change", listener);
+  }, []);
+
   const isOperationsActive = ["/app/cogs", "/app/roas", "/app/profit-leaks"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );

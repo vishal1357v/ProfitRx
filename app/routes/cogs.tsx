@@ -23,6 +23,7 @@ import {
   Box,
   Select,
   Icon,
+  Pagination,
 } from "@shopify/polaris";
 import {
   SearchIcon,
@@ -212,6 +213,19 @@ export default function COGSPage() {
   const [defaultPct, setDefaultPct] = useState(defaultCOGSPct.toString());
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
+
+  const handleSourceFilterChange = (val: string) => {
+    setSourceFilter(val);
+    setCurrentPage(1);
+  };
+
   const [bulkCost, setBulkCost] = useState("");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -349,7 +363,10 @@ export default function COGSPage() {
     return true;
   });
 
-  const rows = filteredProducts.map((product: any) => {
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage) || 1;
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const rows = paginatedProducts.map((product: any) => {
     const record = cogsRecordMap.get(product.id);
     const nativeCost = product.shopifyNativeCost ?? record?.shopifyNative;
     const isNativeSource = record?.source === "shopify_native" || (!record?.manualOverride && nativeCost != null);
@@ -404,12 +421,12 @@ export default function COGSPage() {
         {/* Product Catalog Sheet */}
         <Layout.Section>
           <Card>
-            <Box padding="400">
+            <Box padding="500">
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="050">
                     <Text variant="headingMd" as="h2">
-                      Product Catalog Cost Sheet ({filteredProducts.length} items)
+                      Product Catalog Cost Sheet (Showing {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} of {filteredProducts.length} items)
                     </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
                       💡 Last synced: <strong>{lastUpdated}</strong>
@@ -458,7 +475,7 @@ export default function COGSPage() {
                       label="Search catalog products"
                       labelHidden
                       value={searchQuery}
-                      onChange={setSearchQuery}
+                      onChange={handleSearchChange}
                       placeholder="Search products by title..."
                       autoComplete="off"
                       prefix={<Icon source={SearchIcon} />}
@@ -474,7 +491,7 @@ export default function COGSPage() {
                         { label: "Manual Overrides Only", value: "manual" },
                       ]}
                       value={sourceFilter}
-                      onChange={setSourceFilter}
+                      onChange={handleSourceFilterChange}
                     />
                   </Grid.Cell>
                   <Grid.Cell>
@@ -503,6 +520,18 @@ export default function COGSPage() {
                   rows={rows}
                 />
 
+                <Box paddingBlock="200">
+                  <InlineStack align="center" gap="400">
+                    <Pagination
+                      hasPrevious={currentPage > 1}
+                      onPrevious={() => setCurrentPage(p => p - 1)}
+                      hasNext={currentPage < totalPages}
+                      onNext={() => setCurrentPage(p => p + 1)}
+                      label={`Page ${currentPage} of ${totalPages}`}
+                    />
+                  </InlineStack>
+                </Box>
+
                 <Divider />
 
                 <InlineStack align="end">
@@ -520,7 +549,7 @@ export default function COGSPage() {
           <BlockStack gap="400">
             {/* Global Cost Rule settings */}
             <Card>
-              <Box padding="400">
+              <Box padding="500">
                 <BlockStack gap="300">
                   <Text variant="headingMd" as="h2">
                     Global Default Cost Rule
@@ -550,7 +579,7 @@ export default function COGSPage() {
 
             {/* History Logs */}
             <Card>
-              <Box padding="400">
+              <Box padding="500">
                 <BlockStack gap="300">
                   <Text variant="headingMd" as="h2">
                     COGS Update History

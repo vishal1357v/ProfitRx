@@ -176,7 +176,7 @@ export default function CODRulesRoute() {
         {/* ── Rule 1: COD Pincode Blocking ─────────────────── */}
         <Layout.Section>
           <Card>
-            <Box padding="400">
+            <Box padding="500">
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="100">
@@ -243,7 +243,7 @@ export default function CODRulesRoute() {
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
             <Grid.Cell>
               <Card>
-                <Box padding="400">
+                <Box padding="500">
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
                       <InlineStack gap="150" blockAlign="center">
@@ -281,7 +281,7 @@ export default function CODRulesRoute() {
             {/* ── Rule 3: Partial Upfront Payments ─────────── */}
             <Grid.Cell>
               <Card>
-                <Box padding="400">
+                <Box padding="500">
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
                       <InlineStack gap="150" blockAlign="center">
@@ -295,14 +295,16 @@ export default function CODRulesRoute() {
                     <Text variant="bodySm" as="p" tone="subdued">
                       Collect a small deposit upfront on COD orders to eliminate fake buyers. Deducted from final COD price.
                     </Text>
-                    <TextField
-                      label="Deposit Amount"
-                      type="number"
-                      value={partialAmount}
-                      onChange={setPartialAmount}
-                      prefix="₹"
-                      autoComplete="off"
-                    />
+                    {partialEnabled && (
+                      <TextField
+                        label="Deposit Amount"
+                        type="number"
+                        value={partialAmount}
+                        onChange={setPartialAmount}
+                        prefix="₹"
+                        autoComplete="off"
+                      />
+                    )}
                     <Button
                       variant={partialEnabled ? "primary" : "secondary"}
                       tone={partialEnabled ? "critical" : undefined}
@@ -318,7 +320,7 @@ export default function CODRulesRoute() {
             {/* ── Rule 4: Extra COD Fees ───────────────────── */}
             <Grid.Cell>
               <Card>
-                <Box padding="400">
+                <Box padding="500">
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
                       <InlineStack gap="150" blockAlign="center">
@@ -332,29 +334,31 @@ export default function CODRulesRoute() {
                     <Text variant="bodySm" as="p" tone="subdued">
                       Add a handling fee to COD checkout to incentivize customers to switch to Prepaid orders.
                     </Text>
-                    <InlineStack gap="200">
-                      <div style={{ flex: 1 }}>
-                        <TextField
-                          label="Fee Amount"
-                          type="number"
-                          value={feeAmount}
-                          onChange={setFeeAmount}
-                          prefix="₹"
-                          autoComplete="off"
-                        />
-                      </div>
-                      <div style={{ width: 110 }}>
-                        <Select
-                          label="Type"
-                          options={[
-                            { label: "Fixed ₹", value: "fixed" },
-                            { label: "Percentage %", value: "percentage" },
-                          ]}
-                          value={feeType}
-                          onChange={(val) => setFeeType(val as "fixed" | "percentage")}
-                        />
-                      </div>
-                    </InlineStack>
+                    {feeEnabled && (
+                      <InlineStack gap="200">
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Fee Amount"
+                            type="number"
+                            value={feeAmount}
+                            onChange={setFeeAmount}
+                            prefix="₹"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div style={{ width: 110 }}>
+                          <Select
+                            label="Type"
+                            options={[
+                              { label: "Fixed ₹", value: "fixed" },
+                              { label: "Percentage %", value: "percentage" },
+                            ]}
+                            value={feeType}
+                            onChange={(val) => setFeeType(val as "fixed" | "percentage")}
+                          />
+                        </div>
+                      </InlineStack>
+                    )}
                     <Button
                       variant={feeEnabled ? "primary" : "secondary"}
                       tone={feeEnabled ? "critical" : undefined}
@@ -372,7 +376,7 @@ export default function CODRulesRoute() {
         {/* ── Save Settings Bar ────────────────────────────── */}
         <Layout.Section>
           <Card>
-            <Box padding="400">
+            <Box padding="500">
               <InlineStack align="space-between" blockAlign="center">
                 <Text variant="bodyMd" as="p">
                   Apply all COD management rules to your Shopify storefront.

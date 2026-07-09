@@ -168,7 +168,7 @@ export default function SettingsRoute() {
           {/* ── GST Compliance Card ─────────────────────────── */}
           <Layout.Section>
             <Card>
-              <Box padding="400">
+              <Box padding="500">
                 <BlockStack gap="400">
                   <InlineStack align="space-between" blockAlign="center">
                     <BlockStack gap="100">
@@ -240,7 +240,7 @@ export default function SettingsRoute() {
           {/* ── Cost Overrides ───────────────────────────────── */}
           <Layout.Section>
             <Card>
-              <Box padding="400">
+              <Box padding="500">
                 <BlockStack gap="400">
                   <InlineStack gap="150" blockAlign="center">
                     <Icon source={FinanceIcon} />
@@ -327,7 +327,7 @@ export default function SettingsRoute() {
           <Layout.Section variant="oneThird">
             <BlockStack gap="400">
               <Card>
-                <Box padding="400">
+                <Box padding="500">
                   <BlockStack gap="300">
                     <InlineStack gap="150" blockAlign="center">
                       <Icon source={DeliveryIcon} />
@@ -349,7 +349,7 @@ export default function SettingsRoute() {
               </Card>
 
               <Card>
-                <Box padding="400">
+                <Box padding="500">
                   <BlockStack gap="300">
                     <InlineStack gap="150" blockAlign="center">
                       <Icon source={NotificationIcon} />
