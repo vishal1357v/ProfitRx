@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { ShopifyService } from "../services/shopify.service";
 import { AdSpendService } from "../services/ad-spend.service";
+import { WhatsAppService } from "../services/whatsapp.service";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   // Verify Bearer Token
@@ -37,12 +38,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
         // 3. Sync Connected Ad Spend (Meta, Google, TikTok)
         const adSpendResult = await AdSpendService.syncAdSpend(session.shop);
 
+        // 4. Send Weekly WhatsApp Digest on Mondays (1 is Monday, 0 is Sunday, 6 is Saturday)
+        const today = new Date();
+        let whatsappDigestResult = { sent: false };
+        if (today.getDay() === 1) {
+          const digestRes = await WhatsAppService.sendWeeklyDigest(session.shop);
+          whatsappDigestResult = { sent: true, ...digestRes };
+        }
+
         results[session.shop] = {
           success: true,
           ordersSynced: orderResult.count,
           cogsSynced: cogsResult.synced,
           adPlatformsSynced: adSpendResult.connectedCount,
           adSpendSyncedTotal: adSpendResult.totalSyncedSpend,
+          whatsappDigestSent: whatsappDigestResult.sent,
         };
       } catch (err) {
         console.error(`[Auto-Sync Cron] Failed to sync ${session.shop}:`, err);
