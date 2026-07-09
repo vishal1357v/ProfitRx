@@ -266,13 +266,15 @@ export default function CODRulesRoute() {
                         helpText="Customize message via premium add-on integration."
                       />
                     )}
-                    <Button
-                      variant={otpEnabled ? "primary" : "secondary"}
-                      tone={otpEnabled ? "critical" : undefined}
-                      onClick={() => setOtpEnabled(!otpEnabled)}
-                    >
-                      {otpEnabled ? "Disable OTP" : "Enable OTP"}
-                    </Button>
+                    <div className="gg-mobile-full-width-btn">
+                      <Button
+                        variant={otpEnabled ? "primary" : "secondary"}
+                        tone={otpEnabled ? "critical" : undefined}
+                        onClick={() => setOtpEnabled(!otpEnabled)}
+                      >
+                        {otpEnabled ? "Disable OTP" : "Enable OTP"}
+                      </Button>
+                    </div>
                   </BlockStack>
                 </Box>
               </Card>
@@ -305,13 +307,15 @@ export default function CODRulesRoute() {
                         autoComplete="off"
                       />
                     )}
-                    <Button
-                      variant={partialEnabled ? "primary" : "secondary"}
-                      tone={partialEnabled ? "critical" : undefined}
-                      onClick={() => setPartialEnabled(!partialEnabled)}
-                    >
-                      {partialEnabled ? "Disable Deposit" : "Enable Deposit"}
-                    </Button>
+                    <div className="gg-mobile-full-width-btn">
+                      <Button
+                        variant={partialEnabled ? "primary" : "secondary"}
+                        tone={partialEnabled ? "critical" : undefined}
+                        onClick={() => setPartialEnabled(!partialEnabled)}
+                      >
+                        {partialEnabled ? "Disable Deposit" : "Enable Deposit"}
+                      </Button>
+                    </div>
                   </BlockStack>
                 </Box>
               </Card>
@@ -359,13 +363,15 @@ export default function CODRulesRoute() {
                         </div>
                       </InlineStack>
                     )}
-                    <Button
-                      variant={feeEnabled ? "primary" : "secondary"}
-                      tone={feeEnabled ? "critical" : undefined}
-                      onClick={() => setFeeEnabled(!feeEnabled)}
-                    >
-                      {feeEnabled ? "Disable Fee" : "Enable COD Fee"}
-                    </Button>
+                    <div className="gg-mobile-full-width-btn">
+                      <Button
+                        variant={feeEnabled ? "primary" : "secondary"}
+                        tone={feeEnabled ? "critical" : undefined}
+                        onClick={() => setFeeEnabled(!feeEnabled)}
+                      >
+                        {feeEnabled ? "Disable Fee" : "Enable COD Fee"}
+                      </Button>
+                    </div>
                   </BlockStack>
                 </Box>
               </Card>
@@ -381,9 +387,11 @@ export default function CODRulesRoute() {
                 <Text variant="bodyMd" as="p">
                   Apply all COD management rules to your Shopify storefront.
                 </Text>
-                <Button variant="primary" loading={isSaving} onClick={handleSaveRules}>
-                  Save All COD Rules →
-                </Button>
+                <div className="gg-mobile-full-width-btn">
+                  <Button variant="primary" loading={isSaving} onClick={handleSaveRules}>
+                    Save All COD Rules →
+                  </Button>
+                </div>
               </InlineStack>
             </Box>
           </Card>

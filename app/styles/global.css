@@ -1000,3 +1000,136 @@ body:not(.dark-theme) .skeleton-pulse {
 /* theme-text-primary backward compat */
 .theme-text-primary { transition: color var(--gg-transition); }
 body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; }
+
+/* ============================================================
+   22. MOBILE RESPONSIVENESS OVERRIDES
+   ============================================================ */
+.gg-mobile-only {
+  display: none !important;
+}
+
+.gg-desktop-only {
+  display: block !important;
+}
+
+.gg-main-nav {
+  display: flex !important;
+  gap: 8px;
+  align-items: center;
+}
+
+.gg-mobile-menu-toggle {
+  display: none !important;
+}
+
+.gg-mobile-category-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  padding-left: 8px;
+}
+
+.gg-mobile-sublink {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px !important;
+  font-size: 14px !important;
+  border-radius: var(--gg-radius-md);
+  color: var(--gg-text-secondary) !important;
+  text-decoration: none;
+  background: transparent;
+  transition: background var(--gg-transition), color var(--gg-transition);
+}
+
+.gg-mobile-sublink:hover,
+.gg-mobile-sublink.active {
+  color: var(--gg-text-primary) !important;
+  background: var(--gg-surface-hover) !important;
+}
+
+@media (max-width: 768px) {
+  .gg-mobile-only {
+    display: block !important;
+  }
+  
+  .gg-desktop-only {
+    display: none !important;
+  }
+
+  .gg-main-nav {
+    display: none !important;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--gg-bg-base);
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 20px !important;
+    z-index: 9999;
+    overflow-y: auto;
+    gap: 16px !important;
+    border-top: 1px solid var(--gg-border);
+  }
+  
+  .gg-main-nav.open {
+    display: flex !important;
+  }
+  
+  .gg-mobile-menu-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--gg-border);
+    background: var(--gg-surface-2);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--gg-text-primary);
+  }
+  
+  .gg-nav-link {
+    padding: 12px 16px !important;
+    font-size: 15px !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .gg-mobile-full-width-btn {
+    width: 100% !important;
+  }
+  .gg-mobile-full-width-btn > *,
+  .gg-mobile-full-width-btn .Polaris-Button {
+    width: 100% !important;
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  body {
+    font-size: 13px !important;
+  }
+  
+  .Polaris-Text--headingLg,
+  h1 {
+    font-size: 18px !important;
+  }
+  
+  .Polaris-Text--headingMd,
+  h2 {
+    font-size: 15px !important;
+  }
+  
+  .Polaris-Text--headingSm,
+  h3 {
+    font-size: 13px !important;
+  }
+}

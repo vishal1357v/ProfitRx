@@ -514,11 +514,63 @@ export default function COGSPage() {
                   </Grid.Cell>
                 </Grid>
 
-                <DataTable
-                  columnContentTypes={["text", "text", "text", "text", "text"]}
-                  headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
-                  rows={rows}
-                />
+                <div className="gg-desktop-only">
+                  <DataTable
+                    columnContentTypes={["text", "text", "text", "text", "text"]}
+                    headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
+                    rows={rows}
+                  />
+                </div>
+
+                <div className="gg-mobile-only">
+                  <BlockStack gap="300">
+                    {paginatedProducts.map((product: any) => {
+                      const record = cogsRecordMap.get(product.id);
+                      const nativeCost = product.shopifyNativeCost ?? record?.shopifyNative;
+                      const isNativeSource = record?.source === "shopify_native" || (!record?.manualOverride && nativeCost != null);
+
+                      return (
+                        <Card key={product.id}>
+                          <Box padding="300">
+                            <BlockStack gap="200">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text variant="bodyMd" as="p" fontWeight="bold">
+                                  {product.title}
+                                </Text>
+                                <Badge tone={isNativeSource ? "success" : "info"}>
+                                  {isNativeSource ? "Shopify Native" : "Manual Override"}
+                                </Badge>
+                              </InlineStack>
+
+                              <Divider />
+
+                              <Grid columns={{ xs: 2, sm: 2 }}>
+                                <Grid.Cell>
+                                  <Text variant="bodySm" as="p" tone="subdued">Selling Price</Text>
+                                  <Text variant="bodyMd" as="p" fontWeight="bold">₹{parseFloat(product.price || "0").toLocaleString()}</Text>
+                                </Grid.Cell>
+                                <Grid.Cell>
+                                  <Text variant="bodySm" as="p" tone="subdued">Native Cost</Text>
+                                  <Text variant="bodyMd" as="p">
+                                    {nativeCost != null ? `₹${parseFloat(nativeCost).toLocaleString()}` : "—"}
+                                  </Text>
+                                </Grid.Cell>
+                              </Grid>
+
+                              <div style={{ marginTop: "4px" }}>
+                                <CogsInput
+                                  productId={product.id}
+                                  initialValue={cogsValues[product.id] ?? ""}
+                                  onChange={(value) => handleCogsChange(product.id, value)}
+                                />
+                              </div>
+                            </BlockStack>
+                          </Box>
+                        </Card>
+                      );
+                    })}
+                  </BlockStack>
+                </div>
 
                 <Box paddingBlock="200">
                   <InlineStack align="center" gap="400">
@@ -535,9 +587,11 @@ export default function COGSPage() {
                 <Divider />
 
                 <InlineStack align="end">
-                  <Button variant="primary" onClick={handleSaveCosts} loading={isSubmitting}>
-                    Save All Costs
-                  </Button>
+                  <div className="gg-mobile-full-width-btn">
+                    <Button variant="primary" onClick={handleSaveCosts} loading={isSubmitting}>
+                      Save All Costs
+                    </Button>
+                  </div>
                 </InlineStack>
               </BlockStack>
             </Box>

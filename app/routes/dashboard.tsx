@@ -452,6 +452,8 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
   const height = 230;
   const padL = 52, padR = 16, padT = 16, padB = 36;
 
+  const labelInterval = data.length > 20 ? (typeof window !== "undefined" && window.innerWidth < 600 ? 10 : 5) : 3;
+
   const maxVal = Math.max(...data.map(d => Math.max(d.revenue, d.profit, 500)));
   const minVal = Math.min(...data.map(d => Math.min(d.revenue, d.profit, 0)));
   const range = maxVal - minVal || 500;
@@ -511,7 +513,7 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
         })}
 
         {/* X-axis labels */}
-        {data.filter((_, idx) => idx % 5 === 0).map((d, idx) => {
+        {data.filter((_, idx) => idx % labelInterval === 0).map((d, idx) => {
           const index = data.findIndex(item => item.date === d.date);
           return (
             <text key={idx} x={getX(index)} y={height - padB + 16}
@@ -1036,9 +1038,8 @@ export default function DashboardRoute() {
 
 
 
-        {/* ── TOP SECTION: PROFIT & ALL CORE STATISTICS CARDS ── */}
         <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 2, md: 5, lg: 5 }}>
+          <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 5 }}>
             {/* Revenue */}
             <Grid.Cell>
               <Card>

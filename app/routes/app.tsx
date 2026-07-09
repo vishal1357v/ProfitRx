@@ -161,6 +161,7 @@ export default function App() {
 
   // Popover Group States
   const [activePopover, setActivePopover] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const togglePopover = (group: string) => {
     setActivePopover(activePopover === group ? null : group);
   };
@@ -247,230 +248,369 @@ export default function App() {
                     ProfitRx <span style={{ color: "#38bdf8", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em", marginLeft: "4px" }}>India COD</span>
                   </Text>
                 </InlineStack>
+              </InlineStack>
 
-                <nav style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  {/* Direct Link 1: Dashboard */}
+              {/* Header Right Area: Hamburger on Mobile, Shop Badge on Desktop */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div className="gg-desktop-only">
+                  <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
+                </div>
+                <button
+                  className="gg-mobile-menu-toggle"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label="Toggle Menu"
+                >
+                  <span style={{ fontSize: "20px" }}>{mobileMenuOpen ? "✕" : "☰"}</span>
+                </button>
+              </div>
+            </InlineStack>
+
+            {/* Main Navigation Component (Wraps both Desktop and Mobile views via CSS) */}
+            <nav className={`gg-main-nav ${mobileMenuOpen ? "open" : ""}`}>
+              {/* DESKTOP-ONLY NAVIGATION (POPOVERS) */}
+              <div className="gg-desktop-only" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                {/* Direct Link 1: Dashboard */}
+                <ReactRouterLink
+                  to={`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                  className={`gg-nav-link ${isDashboardActive ? "active" : ""}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon source={HomeIcon} tone={isDashboardActive ? "primary" : "subdued"} />
+                  <span>Dashboard</span>
+                </ReactRouterLink>
+
+                {/* Direct Link 2: COD Risk Shield */}
+                <ReactRouterLink
+                  to={`/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                  className={`gg-nav-link ${isCodRulesActive ? "active" : ""}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon source={ShieldCheckMarkIcon} tone={isCodRulesActive ? "primary" : "subdued"} />
+                  <span>COD Risk Shield</span>
+                  <span style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    padding: "1px 5px",
+                    borderRadius: "4px",
+                    backgroundColor: "rgba(16, 185, 129, 0.2)",
+                    color: "#34d399",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}>
+                    India
+                  </span>
+                </ReactRouterLink>
+
+                {/* Popover Group 1: Operations */}
+                <Popover
+                  active={activePopover === "operations"}
+                  activator={
+                    <button
+                      onClick={() => togglePopover("operations")}
+                      className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        color: "inherit",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
+                      <span>Operations</span>
+                      <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                    </button>
+                  }
+                  onClose={() => setActivePopover(null)}
+                >
+                  <ActionList
+                    items={[
+                      {
+                        content: "COGS Catalog",
+                        url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ProductIcon,
+                      },
+                      {
+                        content: "Ad Spend Sync (ROAS)",
+                        url: `/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ChartLineIcon,
+                      },
+                      {
+                        content: "Profit Leaks",
+                        url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: SearchIcon,
+                      },
+                    ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                  />
+                </Popover>
+
+                {/* Popover Group 2: Analytics */}
+                <Popover
+                  active={activePopover === "analytics"}
+                  activator={
+                    <button
+                      onClick={() => togglePopover("analytics")}
+                      className={`gg-nav-link ${isAnalyticsActive ? "active" : ""}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        color: "inherit",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <Icon source={ChartVerticalIcon} tone={isAnalyticsActive ? "primary" : "subdued"} />
+                      <span>Analytics</span>
+                      <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                    </button>
+                  }
+                  onClose={() => setActivePopover(null)}
+                >
+                  <ActionList
+                    items={[
+                      {
+                        content: "COD Analytics",
+                        url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ChartVerticalIcon,
+                      },
+                      {
+                        content: "RTO Analytics",
+                        url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: DeliveryIcon,
+                      },
+                      {
+                        content: "Pincode Heatmap",
+                        url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: LocationIcon,
+                      },
+                      {
+                        content: "Customer LTV",
+                        url: `/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PersonIcon,
+                      },
+                    ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                  />
+                </Popover>
+
+                {/* Popover Group 3: Settings & System */}
+                <Popover
+                  active={activePopover === "system"}
+                  activator={
+                    <button
+                      onClick={() => togglePopover("system")}
+                      className={`gg-nav-link ${isSystemActive ? "active" : ""}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        color: "inherit",
+                        whiteSpace: "nowrap",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <Icon source={SettingsIcon} tone={isSystemActive ? "primary" : "subdued"} />
+                      <span>System & Settings</span>
+                      <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
+                    </button>
+                  }
+                  onClose={() => setActivePopover(null)}
+                >
+                  <ActionList
+                    items={[
+                      {
+                        content: "General Settings",
+                        url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: SettingsIcon,
+                      },
+                      {
+                        content: "Plans & Billing",
+                        url: `/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PaymentIcon,
+                      },
+                      {
+                        content: "Alerts Setup",
+                        url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: NotificationIcon,
+                      },
+                      {
+                        content: "Store Health",
+                        url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: HeartIcon,
+                      },
+                    ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
+                  />
+                </Popover>
+              </div>
+
+              {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}
+              <div className="gg-mobile-only" style={{ width: "100%" }}>
+                <BlockStack gap="100">
+                  {/* Store Badge on Mobile Header */}
+                  <div style={{ padding: "0 8px 10px 8px", borderBottom: "1px solid var(--gg-border)" }}>
+                    <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
+                  </div>
+
+                  {/* Direct links */}
                   <ReactRouterLink
                     to={`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    className={`gg-nav-link ${isDashboardActive ? "active" : ""}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 12px",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                      transition: "all 0.2s ease",
-                    }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
                   >
-                    <Icon source={HomeIcon} tone={isDashboardActive ? "primary" : "subdued"} />
+                    <Icon source={HomeIcon} />
                     <span>Dashboard</span>
                   </ReactRouterLink>
 
-                  {/* Direct Link 2: COD Risk Shield */}
                   <ReactRouterLink
                     to={`/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    className={`gg-nav-link ${isCodRulesActive ? "active" : ""}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 12px",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                      transition: "all 0.2s ease",
-                    }}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
                   >
-                    <Icon source={ShieldCheckMarkIcon} tone={isCodRulesActive ? "primary" : "subdued"} />
+                    <Icon source={ShieldCheckMarkIcon} />
                     <span>COD Risk Shield</span>
-                    <span style={{
-                      fontSize: "9px",
-                      fontWeight: 700,
-                      padding: "1px 5px",
-                      borderRadius: "4px",
-                      backgroundColor: "rgba(16, 185, 129, 0.2)",
-                      color: "#34d399",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                    }}>
-                      India
-                    </span>
                   </ReactRouterLink>
 
-                  {/* Popover Group 1: Operations */}
-                  <Popover
-                    active={activePopover === "operations"}
-                    activator={
-                      <button
-                        onClick={() => togglePopover("operations")}
-                        className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "6px 12px",
-                          borderRadius: "8px",
-                          fontSize: "13px",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          color: "inherit",
-                          whiteSpace: "nowrap",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
-                        <span>Operations</span>
-                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
-                      </button>
-                    }
-                    onClose={() => setActivePopover(null)}
+                  {/* Operations Category */}
+                  <span className="gg-mobile-category-title">Operations</span>
+                  <ReactRouterLink
+                    to={`/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
                   >
-                    <ActionList
-                      items={[
-                        {
-                          content: "COGS Catalog",
-                          url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: ProductIcon,
-                        },
-                        {
-                          content: "Ad Spend Sync (ROAS)",
-                          url: `/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: ChartLineIcon,
-                        },
-                        {
-                          content: "Profit Leaks",
-                          url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: SearchIcon,
-                        },
-                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
-                    />
-                  </Popover>
-
-                  {/* Popover Group 2: Analytics */}
-                  <Popover
-                    active={activePopover === "analytics"}
-                    activator={
-                      <button
-                        onClick={() => togglePopover("analytics")}
-                        className={`gg-nav-link ${isAnalyticsActive ? "active" : ""}`}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "6px 12px",
-                          borderRadius: "8px",
-                          fontSize: "13px",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          color: "inherit",
-                          whiteSpace: "nowrap",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        <Icon source={ChartVerticalIcon} tone={isAnalyticsActive ? "primary" : "subdued"} />
-                        <span>Analytics</span>
-                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
-                      </button>
-                    }
-                    onClose={() => setActivePopover(null)}
+                    <Icon source={ProductIcon} />
+                    <span>COGS Catalog</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
                   >
-                    <ActionList
-                      items={[
-                        {
-                          content: "COD Analytics",
-                          url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: ChartVerticalIcon,
-                        },
-                        {
-                          content: "RTO Analytics",
-                          url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: DeliveryIcon,
-                        },
-                        {
-                          content: "Pincode Heatmap",
-                          url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: LocationIcon,
-                        },
-                        {
-                          content: "Customer LTV",
-                          url: `/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: PersonIcon,
-                        },
-                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
-                    />
-                  </Popover>
-
-                  {/* Popover Group 3: Settings & System */}
-                  <Popover
-                    active={activePopover === "system"}
-                    activator={
-                      <button
-                        onClick={() => togglePopover("system")}
-                        className={`gg-nav-link ${isSystemActive ? "active" : ""}`}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          padding: "6px 12px",
-                          borderRadius: "8px",
-                          fontSize: "13px",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          color: "inherit",
-                          whiteSpace: "nowrap",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        <Icon source={SettingsIcon} tone={isSystemActive ? "primary" : "subdued"} />
-                        <span>System & Settings</span>
-                        <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
-                      </button>
-                    }
-                    onClose={() => setActivePopover(null)}
+                    <Icon source={ChartLineIcon} />
+                    <span>Ad Spend Sync (ROAS)</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
                   >
-                    <ActionList
-                      items={[
-                        {
-                          content: "General Settings",
-                          url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: SettingsIcon,
-                        },
-                        {
-                          content: "Plans & Billing",
-                          url: `/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: PaymentIcon,
-                        },
-                        {
-                          content: "Alerts Setup",
-                          url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: NotificationIcon,
-                        },
-                        {
-                          content: "Store Health",
-                          url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                          icon: HeartIcon,
-                        },
-                      ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
-                    />
-                  </Popover>
-                </nav>
+                    <Icon source={SearchIcon} />
+                    <span>Profit Leaks</span>
+                  </ReactRouterLink>
 
-              </InlineStack>
+                  {/* Analytics Category */}
+                  <span className="gg-mobile-category-title">Analytics</span>
+                  <ReactRouterLink
+                    to={`/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={ChartVerticalIcon} />
+                    <span>COD Analytics</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={DeliveryIcon} />
+                    <span>RTO Analytics</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={LocationIcon} />
+                    <span>Pincode Heatmap</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={PersonIcon} />
+                    <span>Customer LTV</span>
+                  </ReactRouterLink>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
+                  {/* System & Settings Category */}
+                  <span className="gg-mobile-category-title">System & Settings</span>
+                  <ReactRouterLink
+                    to={`/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={SettingsIcon} />
+                    <span>General Settings</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={PaymentIcon} />
+                    <span>Plans & Billing</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={NotificationIcon} />
+                    <span>Alerts Setup</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={HeartIcon} />
+                    <span>Store Health</span>
+                  </ReactRouterLink>
+                </BlockStack>
               </div>
-            </InlineStack>
+            </nav>
           </header>
 
           {/* Main Content Area */}

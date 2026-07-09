@@ -383,9 +383,11 @@ export default function SettingsRoute() {
               </Card>
 
               <InlineStack align="end">
-                <Button variant="primary" onClick={handleSave} loading={isSaving}>
-                  Save All Settings →
-                </Button>
+                <div className="gg-mobile-full-width-btn">
+                  <Button variant="primary" onClick={handleSave} loading={isSaving}>
+                    Save All Settings →
+                  </Button>
+                </div>
               </InlineStack>
             </BlockStack>
           </Layout.Section>
