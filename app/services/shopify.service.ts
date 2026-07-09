@@ -802,21 +802,56 @@ export class ShopifyService {
       channelType = "AI_CHAT";
       channelAttribution = "Copilot";
     } else {
-      const DEMO_CHANNELS = [
-        { channelType: "AI_CHAT", channelAttribution: "Gemini" },
-        { channelType: "AI_CHAT", channelAttribution: "ChatGPT" },
-        { channelType: "AI_CHAT", channelAttribution: "Copilot" },
-        { channelType: "WEBSITE", channelAttribution: "Website" },
-      ];
-      const charCodeSum = id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-      const ch = DEMO_CHANNELS[charCodeSum % DEMO_CHANNELS.length];
-      channelType = ch.channelType;
-      channelAttribution = ch.channelAttribution;
+      const isDev = process.env.NODE_ENV === "development";
+      if (isDev) {
+        const DEMO_CHANNELS = [
+          { channelType: "AI_CHAT", channelAttribution: "Gemini" },
+          { channelType: "AI_CHAT", channelAttribution: "ChatGPT" },
+          { channelType: "AI_CHAT", channelAttribution: "Copilot" },
+          { channelType: "WEBSITE", channelAttribution: "Website" },
+        ];
+        const charCodeSum = id.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+        const ch = DEMO_CHANNELS[charCodeSum % DEMO_CHANNELS.length];
+        channelType = ch.channelType;
+        channelAttribution = ch.channelAttribution;
+      } else {
+        channelType = "WEBSITE";
+        channelAttribution = "Website";
+      }
     }
+
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
+
+    const tagsList = payload.tags ? payload.tags.split(",").map((t: string) => t.trim()) : [];
+    const rtoTags = settings.rtoDetectionPattern.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+    const hasRtoTag = tagsList.some((tag: string) => 
+      rtoTags.some((term: string) => tag.toLowerCase().includes(term))
+    );
+
+    let hasRtoEvent = false;
+    const fulfillments = payload.fulfillments || [];
+    for (const f of fulfillments) {
+      const status = (f.status || "").toLowerCase();
+      const shipmentStatus = (f.shipment_status || "").toLowerCase();
+      const trackingCompany = (f.tracking_company || "").toLowerCase();
+      if (
+        status === "failure" || 
+        shipmentStatus === "rto" || 
+        shipmentStatus === "returned" ||
+        rtoTags.some((term: string) => shipmentStatus.includes(term) || trackingCompany.includes(term))
+      ) {
+        hasRtoEvent = true;
+        break;
+      }
+    }
+
+    const isRTO = hasRtoTag || hasRtoEvent;
+    const finalFulfillmentStatus = isRTO ? "RTO" : fulfillmentStatus;
 
     const cogsDict = await ProfitService.getCOGS(shop);
     const cleanProdId = productId ? (productId.split("/").pop() || "") : "";
-    const snapshotCogs = cogsDict[cleanProdId] ?? (totalPrice * 0.4);
+    const snapshotCogs = cogsDict[cleanProdId] ?? (totalPrice * settings.defaultCOGSPct / 100);
 
     await (prisma.order as any).upsert({
       where: { id },
@@ -828,7 +863,7 @@ export class ShopifyService {
         discountAmount,
         isCOD,
         financialStatus,
-        fulfillmentStatus,
+        fulfillmentStatus: finalFulfillmentStatus,
         productId,
         gateway,
         channelType,

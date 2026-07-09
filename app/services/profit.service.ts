@@ -99,13 +99,14 @@ export class ProfitService {
    * Gateway_Fee (COD) = 0. COD Handling Fee applied instead.
    */
   static calculateOrderProfit(
-    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number },
+    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number; fulfillmentStatus?: string },
     cogs: number,
-    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string }
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string }
   ): { profit: number; fees: number; margin: number } {
-    const totalPrice = Number(order.totalPrice) || 0;
-    const totalTax = Number(order.totalTax) || 0;
-    const effectiveCogs = (order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? Number(order.cogsAtTimeOfOrder) : (Number(cogs) || 0);
+    const isRto = order.fulfillmentStatus === "RTO";
+    const totalPrice = isRto ? 0 : (Number(order.totalPrice) || 0);
+    const totalTax = isRto ? 0 : (Number(order.totalTax) || 0);
+    const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? Number(order.cogsAtTimeOfOrder) : (Number(cogs) || 0));
     const gatewayFixed = Number(settings.gatewayFixedFee) || 0;
     const packaging = Number(settings.defaultPackaging) || 10;
     const forwardShipping = Number(settings.defaultForwardShipping) || 60;
@@ -116,17 +117,20 @@ export class ProfitService {
     let gatewayFee = 0;
     let codFee = 0;
 
-    if (isCod) {
-      gatewayFee = 0; // Strictly 0 gateway fee for COD orders
-      codFee = codHandling;
-    } else {
-      const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
-      const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
-      const rawGatewayFee = (totalPrice * razorpayRate) + (totalPrice * shopifySurchargeRate) + gatewayFixed;
-      gatewayFee = rawGatewayFee * 1.18; // Apply 18% GST to payment gateway fees
+    if (!isRto) {
+      if (isCod) {
+        gatewayFee = 0; // Strictly 0 gateway fee for COD orders
+        codFee = codHandling;
+      } else {
+        const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
+        const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
+        const rawGatewayFee = (totalPrice * razorpayRate) + (totalPrice * shopifySurchargeRate) + gatewayFixed;
+        gatewayFee = rawGatewayFee * 1.18; // Apply 18% GST to payment gateway fees
+      }
     }
 
-    const fees = totalTax + forwardShipping + gatewayFee + codFee + packaging;
+    const returnShipping = isRto ? (Number(settings.defaultReturnShipping) || 70) : 0;
+    const fees = totalTax + forwardShipping + returnShipping + gatewayFee + codFee + packaging;
     const profit = totalPrice - effectiveCogs - fees;
     const margin = totalPrice > 0 ? (profit / totalPrice) * 100 : 0;
 
@@ -321,24 +325,30 @@ export class ProfitService {
 
       for (const o of orders) {
         const totalPrice = Number(o.totalPrice) || 0;
-        const c = cogsDict[o.productId || ""] || 0;
-        const { profit, fees, margin } = this.calculateOrderProfit(o, c, settings);
+        const cleanId = o.productId || "";
+        const hasCogs = cogsDict[cleanId] !== undefined;
+        const c = hasCogs ? cogsDict[cleanId] : (totalPrice * settings.defaultCOGSPct / 100);
 
-        const effectiveCogs = (o as any).cogsAtTimeOfOrder ?? c;
+        const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+        const { profit, fees, margin } = this.calculateOrderProfit(o, effectiveCogs, settings);
+
+        const isRto = o.fulfillmentStatus === "RTO";
+        const finalRevenue = isRto ? 0 : totalPrice;
+        const finalCogs = isRto ? 0 : effectiveCogs;
 
         results.push({
           orderId: o.id,
           orderNumber: o.orderNumber || 0,
-          revenue: totalPrice,
-          cogs: Number(effectiveCogs) || 0,
+          revenue: finalRevenue,
+          cogs: Number(finalCogs) || 0,
           fees: Number(fees) || 0,
           profit: Number(profit) || 0,
           margin: Number(margin) || 0,
           createdAt: o.createdAt || new Date(),
         });
 
-        totalRevenue += totalPrice;
-        totalCOGS += Number(effectiveCogs) || 0;
+        totalRevenue += finalRevenue;
+        totalCOGS += Number(finalCogs) || 0;
         totalFees += Number(fees) || 0;
         totalProfit += Number(profit) || 0;
       }

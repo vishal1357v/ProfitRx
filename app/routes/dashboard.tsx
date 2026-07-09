@@ -110,7 +110,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
     const settings = ProfitService.getSettings(rawSettings);
 
-    const revenue = orders.reduce((sum: number, o: any) => sum + o.totalPrice, 0);
+    const revenue = orders.reduce((sum: number, o: any) => sum + (o.fulfillmentStatus === "RTO" ? 0 : o.totalPrice), 0);
     const orderCount = orders.length;
 
     let totalCOGS = 0;
@@ -122,20 +122,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const hasCogs = cogsMap[cleanId] !== undefined;
       if (!hasCogs) {
         excludedOrdersCount++;
-        continue;
       }
-      const cost = cogsMap[cleanId];
+      const cost = hasCogs ? cogsMap[cleanId] : (o.totalPrice * settings.defaultCOGSPct / 100);
       const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
-      profitRevenue += o.totalPrice;
-      totalCOGS += cost;
-      totalFees += fees;
+      
+      const isRto = o.fulfillmentStatus === "RTO";
+      if (!isRto) {
+        profitRevenue += o.totalPrice;
+        totalCOGS += cost;
+        totalFees += fees;
+      } else {
+        totalFees += fees;
+      }
     }
 
-    const profit = profitRevenue - totalCOGS - totalFees;
-    const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
-
-    const netProfit = profit - leaks.rtoLoss;
+    const netProfit = profitRevenue - totalCOGS - totalFees;
     const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
+
+    const profit = netProfit;
+    const margin = netMargin;
 
     const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
     const codCount = codOrders.length;
@@ -1252,7 +1257,7 @@ export default function DashboardRoute() {
             {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
             <Layout.Section>
               <CalloutCard
-                title="⚡ Proof of ROI: Greek God SaaS Pays for Itself"
+                title="⚡ Proof of ROI: ProfitRx Pays for Itself"
                 illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
                 primaryAction={{
                   content: "Manage COD Risk Shield Rules",
@@ -1261,7 +1266,7 @@ export default function DashboardRoute() {
               >
                 <BlockStack gap="200">
                   <Text variant="bodyMd" as="p" tone="success">
-                    Greek God SaaS saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
+                    ProfitRx saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
                     Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
@@ -1286,7 +1291,7 @@ export default function DashboardRoute() {
                       <Badge tone="success">Active Moat Engine</Badge>
                     </InlineStack>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Greek God combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
+                      ProfitRx combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
                     </Text>
                   </BlockStack>
                   <InlineStack gap="200">
@@ -2147,7 +2152,7 @@ export default function DashboardRoute() {
                                   </span>
                                 </InlineStack>
                                 <div style={{ height: 18, width: "100%", borderRadius: 6, display: "flex", overflow: "hidden", background: "rgba(255,255,255,0.05)" }}>
-                                  <div style={{ width: `${item.us}%`, height: "100%", background: "linear-gradient(90deg, #7c3aed, #2563eb)" }} title={`Greek God: ${item.us}%`} />
+                                  <div style={{ width: `${item.us}%`, height: "100%", background: "linear-gradient(90deg, #7c3aed, #2563eb)" }} title={`ProfitRx: ${item.us}%`} />
                                   <div style={{ width: `${item.comp1}%`, height: "100%", background: "rgba(148,163,184,0.25)" }} title={`Competitor 1: ${item.comp1}%`} />
                                   <div style={{ width: `${item.comp2}%`, height: "100%", background: "rgba(148,163,184,0.1)" }} title={`Competitor 2: ${item.comp2}%`} />
                                 </div>

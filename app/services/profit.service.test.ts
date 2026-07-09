@@ -106,4 +106,30 @@ describe("ProfitService — Trust the Math Suite", () => {
     const expectedFees = 360 + 60 + 50.74 + 10; // tax + shipping + gatewayWithGST + packaging = 480.74
     expect(result.fees).toBeCloseTo(expectedFees, 2);
   });
+
+  it("5) RTO Profit Calculation matches: Revenue = 0, COGS = 0, fees include returnShipping", () => {
+    const settings = {
+      ...defaultSettings,
+      defaultReturnShipping: 70,
+      defaultForwardShipping: 60,
+      defaultPackaging: 10,
+    };
+
+    const order = {
+      totalPrice: 1500,
+      isCOD: true,
+      gateway: "COD",
+      totalTax: 270,
+      fulfillmentStatus: "RTO",
+    };
+
+    // Since it's RTO:
+    // Revenue = 0
+    // COGS = 0
+    // Fees = totalTax(0) + forwardShipping(60) + returnShipping(70) + packaging(10) + gateway(0) + cod(0) = 140
+    // Expected profit = 0 - 0 - 140 = -140
+    const result = ProfitService.calculateOrderProfit(order, 600, settings);
+    expect(result.profit).toEqual(-140);
+    expect(result.fees).toEqual(140);
+  });
 });

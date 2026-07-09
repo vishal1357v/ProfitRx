@@ -169,20 +169,32 @@ export default function App() {
   const isDashboardActive = location.pathname === "/app/dashboard" || location.pathname === "/app" || location.pathname === "/app/";
   const isCodRulesActive = location.pathname === "/app/cod-rules";
 
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("profitrx-theme");
+      if (stored) return stored === "dark";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
+  });
+
+  const toggleTheme = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("profitrx-theme", newTheme ? "dark" : "light");
+    }
+  };
+
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const applyTheme = (isDark: boolean) => {
-      if (isDark) {
-        document.body.classList.add("dark-theme");
-      } else {
-        document.body.classList.remove("dark-theme");
-      }
-    };
-    applyTheme(mediaQuery.matches);
-    const listener = (e: MediaQueryListEvent) => applyTheme(e.matches);
-    mediaQuery.addEventListener("change", listener);
-    return () => mediaQuery.removeEventListener("change", listener);
-  }, []);
+    if (isDarkMode) {
+      document.body.classList.add("dark-theme");
+      document.documentElement.setAttribute("data-theme", "dark");
+    } else {
+      document.body.classList.remove("dark-theme");
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  }, [isDarkMode]);
 
   const isOperationsActive = ["/app/cogs", "/app/roas", "/app/profit-leaks"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
@@ -234,11 +246,12 @@ export default function App() {
             position: "sticky",
             top: 0,
             zIndex: 100,
-            backgroundColor: "rgba(13, 21, 38, 0.92)",
+            backgroundColor: "var(--gg-header-bg)",
             backdropFilter: "blur(16px)",
             WebkitBackdropFilter: "blur(16px)",
-            borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+            borderBottom: "1px solid var(--gg-header-border)",
             padding: "8px 20px",
+            transition: "background-color 0.4s ease, border-color 0.4s ease",
           }}>
             <InlineStack align="space-between" blockAlign="center">
               <InlineStack gap="300" blockAlign="center">
@@ -250,8 +263,26 @@ export default function App() {
                 </InlineStack>
               </InlineStack>
 
-              {/* Header Right Area: Hamburger on Mobile, Shop Badge on Desktop */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* Header Right Area: Theme Toggle, Shop Badge, and Mobile Menu Toggle */}
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <button
+                  onClick={toggleTheme}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "6px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "8px",
+                    color: "var(--gg-text-primary)",
+                    transition: "background-color 0.2s ease",
+                  }}
+                  title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                >
+                  <span style={{ fontSize: "18px" }}>{isDarkMode ? "☀️" : "🌙"}</span>
+                </button>
                 <div className="gg-desktop-only">
                   <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
                 </div>
@@ -641,7 +672,7 @@ export function ErrorBoundary() {
   const error = useRouteError();
   const location = useLocation();
 
-  console.error("[Greek God SaaS Error Diagnostic]:", error);
+  console.error("[ProfitRx Error Diagnostic]:", error);
 
   let errorTitle = "Runtime Exception";
   let errorKind = "Unknown";
@@ -693,13 +724,13 @@ export function ErrorBoundary() {
   return (
     <PolarisProvider i18n={enTranslations}>
       <div style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
-        <Page title="Greek God SaaS — Diagnostic & Recovery Portal">
+        <Page title="ProfitRx — Diagnostic & Recovery Portal">
           <Layout>
             <Layout.Section>
               <Banner tone="critical" title={`🚨 ${errorTitle}`}>
                 <BlockStack gap="400">
                   <Text variant="bodyMd" as="p">
-                    Greek God SaaS captured an exception while executing <code>{location.pathname}</code>:
+                    ProfitRx captured an exception while executing <code>{location.pathname}</code>:
                   </Text>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", background: "rgba(15, 23, 42, 0.7)", padding: "12px 16px", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.1)" }}>

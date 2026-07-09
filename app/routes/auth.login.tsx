@@ -43,7 +43,7 @@ export default function AuthLogin() {
         <Form method="post">
           <FormLayout>
             <Text variant="headingMd" as="h2">
-              Log in to Greek God
+              Log in to ProfitRx
             </Text>
             <Text as="p" tone="subdued">
               Enter your Shopify store domain to install or open the app.

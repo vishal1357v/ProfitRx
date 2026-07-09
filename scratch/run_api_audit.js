@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function runAudit() {
   console.log("================================================================================");
-  console.log("             GREEK GOD SAAS - API AUDIT & LOGIC TEST SUITE                      ");
+  console.log("               PROFITRX SAAS - API AUDIT & LOGIC TEST SUITE                     ");
   console.log("================================================================================");
 
   let allPassed = true;
@@ -209,7 +209,7 @@ async function runAudit() {
   console.log("\n================================================================================");
   if (allPassed) {
     console.log("   🎉 AUDIT COMPLETE: ALL LOGICAL TEST CASES PASSED SUCCESSFULLY!");
-    console.log("   Greek God API is production-ready.");
+    console.log("   ProfitRx API is production-ready.");
   } else {
     console.log("   🚨 AUDIT COMPLETE: SOME TEST CASES FAILED. PLEASE AUDIT COMPILATION.");
   }

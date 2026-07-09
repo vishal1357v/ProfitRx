@@ -65,7 +65,7 @@ export default function TestMerchantRoute() {
               <BlockStack gap="100">
                 <InlineStack gap="200" blockAlign="center">
                   <span style={{ fontSize: 24 }}>🇮🇳</span>
-                  <Text variant="headingLg" as="h1">Greek God / ProfitRx Pilot Merchant Program</Text>
+                  <Text variant="headingLg" as="h1">ProfitRx Pilot Merchant Program</Text>
                   <Badge tone="success">Active Testing</Badge>
                 </InlineStack>
                 <Text variant="bodyMd" as="p" tone="subdued">

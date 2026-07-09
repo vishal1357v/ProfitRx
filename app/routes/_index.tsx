@@ -81,7 +81,7 @@ export default function IndexRoute() {
                   <InlineStack gap="200" blockAlign="center">
                     <span style={{ fontSize: "24px" }}>⚡</span>
                     <Text variant="headingLg" as="h1">
-                      ProfitRx <span style={{ color: "#0284c7", fontStyle: "italic", fontSize: "14px" }}>by Greek God</span>
+                      ProfitRx
                     </Text>
                   </InlineStack>
                   <InlineStack gap="300" blockAlign="center">
@@ -248,7 +248,7 @@ export default function IndexRoute() {
             <Layout.Section>
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  © 2026 Greek God SaaS. Built with Polaris for ambitious Indian Shopify merchants.
+                  © 2026 ProfitRx. Built with Polaris for ambitious Indian Shopify merchants.
                 </Text>
               </div>
             </Layout.Section>

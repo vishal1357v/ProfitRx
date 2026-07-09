@@ -48,12 +48,14 @@ export class AdSpendService {
     accessToken,
     refreshToken,
     accountId,
+    tokenExpiresAt,
   }: {
     shop: string;
     platform: string;
     accessToken: string;
     refreshToken?: string | null;
     accountId?: string | null;
+    tokenExpiresAt?: Date | null;
   }) {
     const cleanPlatform = platform.toLowerCase();
 
@@ -64,6 +66,7 @@ export class AdSpendService {
         refreshToken: refreshToken || null,
         accountId: accountId || `acc_${cleanPlatform}_${Date.now().toString().substring(7)}`,
         isConnected: true,
+        tokenExpiresAt: tokenExpiresAt || null,
         lastSyncedAt: new Date(),
       },
       create: {
@@ -73,6 +76,7 @@ export class AdSpendService {
         refreshToken: refreshToken || null,
         accountId: accountId || `acc_${cleanPlatform}_${Date.now().toString().substring(7)}`,
         isConnected: true,
+        tokenExpiresAt: tokenExpiresAt || null,
         lastSyncedAt: new Date(),
       },
     });
@@ -114,11 +118,71 @@ export class AdSpendService {
       return { spend: 0, clicks: 0, impressions: 0 };
     }
 
+    // Check token expiration and refresh if necessary
+    let activeToken = conn.accessToken || "";
+    const now = new Date();
+    if (conn.refreshToken && conn.tokenExpiresAt && new Date(conn.tokenExpiresAt).getTime() <= now.getTime() + 60000) {
+      try {
+        console.log(`[AdSpendService] Refreshing access token for ${cleanPlatform} on store ${shop}`);
+        let newAccessToken = "";
+        let newExpiresAt: Date | null = null;
+        
+        if (cleanPlatform === "google") {
+          const response = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_id: process.env.GOOGLE_CLIENT_ID || "",
+              client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+              refresh_token: conn.refreshToken,
+              grant_type: "refresh_token",
+            }),
+          });
+          const data = await response.json();
+          if (data.access_token) {
+            newAccessToken = data.access_token;
+            if (data.expires_in) {
+              newExpiresAt = new Date(Date.now() + data.expires_in * 1000);
+            }
+          }
+        } else if (cleanPlatform === "tiktok") {
+          const response = await fetch("https://business-api.tiktok.com/open_api/v1.3/oauth2/refresh_token/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              app_id: process.env.TIKTOK_APP_ID || "",
+              secret: process.env.TIKTOK_APP_SECRET || "",
+              refresh_token: conn.refreshToken,
+            }),
+          });
+          const data = await response.json();
+          if (data.data?.access_token) {
+            newAccessToken = data.data.access_token;
+          }
+        }
+        
+        if (newAccessToken) {
+          activeToken = newAccessToken;
+          await (prisma as any).adSpend.update({
+            where: { shop_platform: { shop, platform: cleanPlatform } },
+            data: {
+              accessToken: newAccessToken,
+              tokenExpiresAt: newExpiresAt,
+              updatedAt: new Date(),
+            },
+          });
+          console.log(`[AdSpendService] Successfully refreshed access token for ${cleanPlatform}`);
+        }
+      } catch (err: any) {
+        console.error(`[AdSpendService Token Refresh Error]:`, err.message);
+      }
+    }
+
     // Live API integration calls with fallback mock spend if API tokens are dev/demo tokens
     try {
-      if (cleanPlatform === "meta" && conn.accessToken && !conn.accessToken.startsWith("demo_")) {
+      if (cleanPlatform === "meta" && activeToken && !activeToken.startsWith("demo_") && !activeToken.startsWith("token_")) {
         const response = await fetch(
-          `https://graph.facebook.com/v19.0/act_${conn.accountId || "me"}/insights?date_preset=today&fields=spend,clicks,impressions&access_token=${conn.accessToken}`
+          `https://graph.facebook.com/v19.0/act_${conn.accountId || "me"}/insights?date_preset=today&fields=spend,clicks,impressions&access_token=${activeToken}`
         );
         const data = await response.json();
         if (data.data?.[0]) {
@@ -130,11 +194,11 @@ export class AdSpendService {
         }
       }
 
-      if (cleanPlatform === "google" && conn.accessToken && !conn.accessToken.startsWith("demo_")) {
+      if (cleanPlatform === "google" && activeToken && !activeToken.startsWith("demo_") && !activeToken.startsWith("token_")) {
         const response = await fetch(`https://googleads.googleapis.com/v16/customers/${conn.accountId}/googleAds:search`, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${conn.accessToken}`,
+            Authorization: `Bearer ${activeToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
@@ -151,10 +215,10 @@ export class AdSpendService {
           };
         }
       }
-      if (cleanPlatform === "tiktok" && conn.accessToken && !conn.accessToken.startsWith("demo_")) {
+      if (cleanPlatform === "tiktok" && activeToken && !activeToken.startsWith("demo_") && !activeToken.startsWith("token_")) {
         const response = await fetch(`https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/?advertiser_id=${conn.accountId}&report_type=BASIC&data_level=AUCTION_ADVERTISER&dimensions=["stat_time_day"]&metrics=["stat_cost","clicks","impressions"]`, {
           headers: {
-            "Access-Token": conn.accessToken,
+            "Access-Token": activeToken,
           },
         });
         const data = await response.json();
