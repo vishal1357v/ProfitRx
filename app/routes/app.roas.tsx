@@ -241,9 +241,28 @@ export default function ROASRoute() {
     <Page title="Automated ROAS & True Customer Acquisition Cost">
       <Layout>
 
+        {/* Missing Ad Spend Warning Banner */}
+        {roas.totalAdSpend === 0 && (
+          <Layout.Section>
+            <Banner
+              tone="warning"
+              title="📢 No Ad Spend Data Synchronized"
+              action={{
+                content: "Connect Ad Accounts",
+                onAction: () => {
+                  document.getElementById("ad-accounts-section")?.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
+            >
+              <p>No ad spend data available. Connect your ad accounts to see ROAS.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {/* ── Connected Accounts Section (Automated Ad Spend) ── */}
         <Layout.Section>
-          <Card>
+          <div id="ad-accounts-section">
+            <Card>
             <BlockStack gap="400">
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="050">
@@ -298,6 +317,7 @@ export default function ROASRoute() {
               </Grid>
             </BlockStack>
           </Card>
+          </div>
         </Layout.Section>
 
         {/* ── Connect Account Modal ───────────────────────── */}
@@ -369,7 +389,7 @@ export default function ROASRoute() {
               { icon: "💹", label: "Total Revenue", value: `₹${(roas.totalRevenue / 1000).toFixed(1)}k`, color: "var(--gg-accent-blue)" },
               { icon: "💸", label: "Total Ad Spend", value: roas.totalAdSpend > 0 ? `₹${(roas.totalAdSpend / 1000).toFixed(1)}k` : "Not Set", color: "var(--gg-text-primary)" },
               { icon: "📊", label: "Blended ROAS", value: roas.totalAdSpend > 0 ? `${roas.blendedROAS}x` : "—", color: roasColor },
-              { icon: "🎯", label: "True CAC", value: roas.trueCACRaw > 0 ? `₹${roas.trueCACRaw.toLocaleString("en-IN")}` : "—", color: "var(--gg-accent-amber)" },
+              { icon: "🎯", label: "True CAC", value: (roas.trueCACRaw ?? 0) > 0 ? `₹${(roas.trueCACRaw ?? 0).toLocaleString("en-IN")}` : "—", color: "var(--gg-accent-amber)" },
               { icon: "💰", label: "Profit-Adj ROAS", value: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "—", color: roas.profitAdjustedROAS >= 1 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" },
             ].map((kpi) => (
               <Grid.Cell key={kpi.label}>
@@ -420,8 +440,8 @@ export default function ROASRoute() {
                             {roas.byChannel.map((ch) => (
                               <tr key={ch.channel}>
                                 <td style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{ch.channel}</td>
-                                <td>₹{ch.spend.toLocaleString("en-IN")}</td>
-                                <td>₹{ch.revenue.toLocaleString("en-IN")}</td>
+                                <td>₹{(ch.spend ?? 0).toLocaleString("en-IN")}</td>
+                                <td>₹{(ch.revenue ?? 0).toLocaleString("en-IN")}</td>
                                 <td>
                                   <Badge tone={ch.roas >= 3 ? "success" : ch.roas >= 1.5 ? "warning" : ch.roas > 0 ? "critical" : "info"}>
                                     {ch.roas > 0 ? `${ch.roas}x` : "No spend"}
@@ -504,7 +524,7 @@ export default function ROASRoute() {
                             {a.month} — {a.channel}
                           </span>
                           <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--gg-accent-amber)" }}>
-                            ₹{a.amount.toLocaleString("en-IN")}
+                            ₹{(a.amount ?? 0).toLocaleString("en-IN")}
                           </span>
                         </InlineStack>
                       ))
