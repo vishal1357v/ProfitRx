@@ -107,20 +107,20 @@ export default function BillingPage() {
       price: "$0/mo",
       color: "info",
       includes: ["Up to 50 orders/mo", "Real Profit Dashboard", "Store Health Score"],
-      lacks: ["Product Cost Tracking", "COD Risk Score", "RTO Pincode Heatmap", "AI Attribution", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
+      lacks: ["Product Cost Tracking", "COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
     },
     STARTER: {
       name: "Starter Plan",
       price: "$19/mo",
       color: "info",
       includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "Basic RTO & COD Insights", "Weekly WhatsApp Report"],
-      lacks: ["AI Search Attribution", "COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
+      lacks: ["COD Risk Score", "RTO Pincode Heatmap", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync"],
     },
     GROWTH: {
       name: "Growth Plan",
       price: "$39/mo",
       color: "attention",
-      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "AI Search & Order Attribution", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "AI Profit Leak Recommendations", "Advanced Email Alerts"],
+      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "Advanced Email Alerts"],
       lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support"],
     },
     PRO: {
