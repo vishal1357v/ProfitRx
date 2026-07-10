@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import { ProfitService } from "./profit.service";
 import { WhatsAppService } from "./whatsapp.service";
+import { ShopifyService } from "./shopify.service";
 
 export interface CODSettings {
   codBlockingEnabled: boolean;
@@ -169,6 +170,13 @@ export class CODManagementService {
           status: "VERIFIED",
         },
       });
+
+      try {
+        await ShopifyService.tagOrder(shop, orderId, "COD_Verified");
+      } catch (err) {
+        console.error(`[CODManagementService.verifyOTP] failed to tag order:`, err);
+      }
+
       return { success: true, message: "COD order verified successfully!", record: updated };
     }
 

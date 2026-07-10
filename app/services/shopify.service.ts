@@ -5,6 +5,7 @@ import { getSubscription } from "./feature-access.service";
 import { CustomerIntelligenceService } from "./customer-intelligence.service";
 import { AlertService } from "./alerts.service";
 import { ProfitService } from "./profit.service";
+import { CODManagementService } from "./cod-management.service";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -905,6 +906,18 @@ export class ShopifyService {
 
     await ShopifyService.updatePincodeStats(shop);
     await ShopifyService.syncCustomerProfiles(shop);
+
+    // Trigger WhatsApp COD OTP verification if enabled
+    if (isCOD && rawSettings?.otpVerificationEnabled) {
+      const phone = payload.phone || payload.customer?.phone || payload.shipping_address?.phone || payload.billing_address?.phone || null;
+      if (phone) {
+        try {
+          await CODManagementService.createCODOrderVerification(shop, id, phone);
+        } catch (err) {
+          console.error(`[shopify.service.ts] Failed to trigger COD OTP:`, err);
+        }
+      }
+    }
   }
 
   // ── Set Product COGS Metafield ───────────────────────────
@@ -963,5 +976,100 @@ export class ShopifyService {
       throw new Error(data.data.metafieldsSet.userErrors[0].message);
     }
     return data.data.metafieldsSet.metafields[0];
+  }
+
+  /**
+   * Cancel order on Shopify (triggered when COD OTP validation fails or times out)
+   */
+  static async cancelOrder(shop: string, orderId: string, reason: string = "customer") {
+    try {
+      const { admin } = await unauthenticated.admin(shop);
+      // Ensure the order ID is formatted as a global Shopify GID
+      const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+      
+      const response = await admin.graphql(`
+        mutation orderCancel($id: ID!, $reason: OrderCancelReason!) {
+          orderCancel(id: $id, reason: $reason) {
+            order {
+              id
+              cancelledAt
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        variables: {
+          id: gid,
+          reason: reason.toUpperCase() === "DECLINED" ? "DECLINED" : "CUSTOMER",
+        }
+      });
+      
+      const data = await response.json() as any;
+      const errors = data.data?.orderCancel?.userErrors || [];
+      if (errors.length > 0) {
+        console.error(`[ShopifyService.cancelOrder] errors:`, errors);
+        return { success: false, errors };
+      }
+      return { success: true, order: data.data?.orderCancel?.order };
+    } catch (err) {
+      console.error(`[ShopifyService.cancelOrder] exception:`, err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+
+  /**
+   * Add tag to a Shopify Order
+   */
+  static async tagOrder(shop: string, orderId: string, tag: string) {
+    try {
+      const { admin } = await unauthenticated.admin(shop);
+      const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+      
+      const infoResponse = await admin.graphql(`
+        query getOrderTags($id: ID!) {
+          order(id: $id) {
+            tags
+          }
+        }
+      `, {
+        variables: { id: gid }
+      });
+      const infoData = await infoResponse.json() as any;
+      const currentTags = infoData.data?.order?.tags || [];
+      if (!currentTags.includes(tag)) {
+        currentTags.push(tag);
+      }
+
+      const response = await admin.graphql(`
+        mutation orderUpdate($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order {
+              id
+              tags
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        variables: {
+          input: {
+            id: gid,
+            tags: currentTags,
+          }
+        }
+      });
+      const data = await response.json() as any;
+      return { success: !data.data?.orderUpdate?.userErrors?.length, data };
+    } catch (err) {
+      console.error("[ShopifyService.tagOrder] exception:", err);
+      return { success: false, error: err };
+    }
   }
 }

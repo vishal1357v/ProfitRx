@@ -1,5 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { CODManagementService } from "../services/cod-management.service";
+import { ShopifyService } from "../services/shopify.service";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -55,6 +57,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return Response.json({ error: "Missing orderId or otp" }, { status: 400 });
       }
       const res = await CODManagementService.verifyOTP(shop, orderId, otp);
+      return Response.json(res);
+    }
+
+    if (intent === "cancel_order") {
+      const { orderId } = payload;
+      if (!orderId) {
+        return Response.json({ error: "Missing orderId" }, { status: 400 });
+      }
+      const res = await ShopifyService.cancelOrder(shop, orderId);
+      if (res.success) {
+        await (prisma as any).cODOrder.update({
+          where: { orderId },
+          data: { status: "CANCELLED" },
+        });
+      }
       return Response.json(res);
     }
 

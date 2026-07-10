@@ -403,7 +403,13 @@ export class ProfitIntelligenceService {
       profitRevenue += o.totalPrice;
     }
 
-    const profit = profitRevenue - totalCogs - totalFees;
+    const adSpends = await (prisma as any).adSpend.findMany({ where: { shop } });
+    const dailySpends = await (prisma as any).adSpendDaily.findMany({ where: { shop } });
+    const manualSpendTotal = adSpends.reduce((s: number, a: any) => s + (a.amount || 0), 0);
+    const autoDailySpendTotal = dailySpends.reduce((s: number, d: any) => s + (d.spend || 0), 0);
+    const totalAdSpend = manualSpendTotal + autoDailySpendTotal;
+
+    const profit = profitRevenue - totalCogs - totalFees - totalAdSpend;
     const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
 
     const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));

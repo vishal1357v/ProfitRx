@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useLoaderData, useNavigation, useSubmit, useActionData } from "react-router";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -72,6 +73,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const gstin = formData.get("gstin") as string;
     const isGstRegistered = formData.get("isGstRegistered") === "true";
     const gstRate = parseFloat(formData.get("gstRate") as string) || 18;
+    
+    const whatsappPhone = formData.get("whatsappPhone") as string;
+    const whatsappEnabled = formData.get("whatsappEnabled") === "true";
+
+    if (whatsappEnabled && whatsappPhone) {
+      const phoneNumber = parsePhoneNumberFromString(whatsappPhone);
+      if (!phoneNumber || !phoneNumber.isValid()) {
+        return Response.json({ success: false, error: "Invalid WhatsApp phone number format. Please include country code (e.g. +919876543210)." }, { status: 400 });
+      }
+    }
 
     await prisma.storeSettings.upsert({
       where: { shop },
@@ -89,6 +100,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         gstin,
         isGstRegistered,
         gstRate,
+        whatsappPhone,
+        whatsappEnabled,
+        otpVerificationEnabled: whatsappEnabled,
       } as any,
       create: {
         shop,
@@ -106,6 +120,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         gstin,
         isGstRegistered,
         gstRate,
+        whatsappPhone,
+        whatsappEnabled,
+        otpVerificationEnabled: whatsappEnabled,
       } as any,
     });
 
@@ -135,7 +152,10 @@ export default function SettingsRoute() {
   const [gstin, setGstin] = useState(settings.gstin || "");
   const [isGstReg, setIsGstReg] = useState(settings.isGstRegistered);
   const [gstRate, setGstRate] = useState(settings.gstRate.toString());
+  const [waPhone, setWaPhone] = useState(settings.whatsappPhone || "");
+  const [waEnabled, setWaEnabled] = useState(settings.whatsappEnabled);
   const [saved, setSaved] = useState(false);
+  const actionData = useActionData<any>();
 
   const isSaving = navigation.state === "submitting" && navigation.formData?.get("intent") === "save_settings";
 
@@ -155,6 +175,8 @@ export default function SettingsRoute() {
     formData.append("gstin", gstin);
     formData.append("isGstRegistered", isGstReg.toString());
     formData.append("gstRate", gstRate);
+    formData.append("whatsappPhone", waPhone);
+    formData.append("whatsappEnabled", waEnabled.toString());
 
     submit(formData, { method: "post" });
     setSaved(true);
@@ -228,6 +250,54 @@ export default function SettingsRoute() {
                           onClick={() => setIsGstReg(!isGstReg)}
                         >
                           {isGstReg ? "Disable GST Tracking" : "Enable GST Registration"}
+                        </Button>
+                      </BlockStack>
+                    </Grid.Cell>
+                  </Grid>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
+
+          {/* ── WhatsApp Setup Card ─────────────────────────── */}
+          <Layout.Section>
+            <Card>
+              <Box padding="500">
+                <BlockStack gap="400">
+                  <InlineStack gap="150" blockAlign="center">
+                    <Icon source={NotificationIcon} />
+                    <Text variant="headingMd" as="h2">💬 WhatsApp Alert & OTP Setup</Text>
+                  </InlineStack>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Configure your business phone number to send order confirmation OTP codes via WhatsApp to customers and receive weekly digests.
+                  </Text>
+                  
+                  {actionData?.error && (
+                    <Banner tone="critical" title="Validation Error">
+                      <p>{actionData.error}</p>
+                    </Banner>
+                  )}
+
+                  <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
+                    <Grid.Cell>
+                      <TextField
+                        label="WhatsApp Phone Number"
+                        value={waPhone}
+                        onChange={setWaPhone}
+                        placeholder="e.g. +919876543210"
+                        helpText="Include country code (e.g. +91 for India)."
+                        autoComplete="off"
+                      />
+                    </Grid.Cell>
+                    <Grid.Cell>
+                      <BlockStack gap="200">
+                        <Text variant="bodySm" as="span" fontWeight="bold">WhatsApp OTP Status</Text>
+                        <Button
+                          variant={waEnabled ? "primary" : "secondary"}
+                          tone={waEnabled ? "success" : undefined}
+                          onClick={() => setWaEnabled(!waEnabled)}
+                        >
+                          {waEnabled ? "✓ WhatsApp OTP Enabled" : "Enable WhatsApp OTP"}
                         </Button>
                       </BlockStack>
                     </Grid.Cell>

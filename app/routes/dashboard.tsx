@@ -38,6 +38,7 @@ import {
   SearchIcon,
   ShieldCheckMarkIcon,
   DeliveryIcon,
+  PersonIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -98,6 +99,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const leaks = await ProfitIntelligenceService.getProfitLeaks(shop);
     const leakTrend = await ProfitIntelligenceService.getLeakTrend(shop);
+    const roasData = await ProfitIntelligenceService.getROAS(shop);
 
     let products: any[] = [];
     try {
@@ -136,7 +138,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    const netProfit = profitRevenue - totalCOGS - totalFees;
+    const totalAdSpend = roasData.totalAdSpend || 0;
+    const netProfit = profitRevenue - totalCOGS - totalFees - totalAdSpend;
     const netMargin = profitRevenue > 0 ? (netProfit / profitRevenue) * 100 : 0;
 
     const profit = netProfit;
@@ -393,6 +396,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ordersLimit,
       configuredCogsCount,
       connectedAdPlatforms,
+      roasData,
       hasConnectedAdAccount,
       nativeCogsCount,
       manualCogsCount,
@@ -416,6 +420,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
       gstSummary: { gstin: "", isGstRegistered: false, defaultGstRate: 18, totalTaxableSales: 0, totalGstCollected: 0, cgst: 0, sgst: 0, igst: 0, intraStateSales: 0, interStateSales: 0, hsnSummary: [] },
       totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
+      roasData: { totalRevenue: 0, totalAdSpend: 0, blendedROAS: 0, trueCACRaw: 0, profitAdjustedROAS: 0, cacPaybackOrders: 0, byChannel: [] },
     };
   }
 };
@@ -1042,7 +1047,7 @@ export default function DashboardRoute() {
 
 
         <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 5 }}>
+          <Grid columns={{ xs: 2, sm: 3, md: 4, lg: 4 }}>
             {/* Revenue */}
             <Grid.Cell>
               <Card>
@@ -1141,6 +1146,72 @@ export default function DashboardRoute() {
                     <Badge tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}>
                       {data.netMargin > 20 ? "Healthy" : "Low Margin"}
                     </Badge>
+                  </BlockStack>
+                </Box>
+              </Card>
+            </Grid.Cell>
+
+            {/* Blended ROAS */}
+            <Grid.Cell>
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="start">
+                      <div className="gg-stat-icon gg-stat-icon--blue">
+                        <Icon source={SearchIcon} />
+                      </div>
+                      <Tooltip content="Total Revenue divided by Blended Ad Spend across Meta, Google, and TikTok.">
+                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                      </Tooltip>
+                    </InlineStack>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" as="span" tone="subdued">Blended ROAS</Text>
+                      {syncing ? (
+                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                      ) : (
+                        <StatNumber
+                          value={data.roasData.blendedROAS}
+                          suffix="x"
+                          colorClass={data.roasData.blendedROAS >= 2.5 ? "gg-stat-value-green" : data.roasData.blendedROAS >= 1.5 ? "gg-stat-value" : "gg-stat-value-red"}
+                        />
+                      )}
+                    </BlockStack>
+                    <span style={{ fontSize: "11px", color: "var(--gg-text-secondary)" }}>
+                      Meta says ~4.0x. True Blended: <strong>{data.roasData.blendedROAS || 0}x</strong>
+                    </span>
+                  </BlockStack>
+                </Box>
+              </Card>
+            </Grid.Cell>
+
+            {/* True CAC */}
+            <Grid.Cell>
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="start">
+                      <div className="gg-stat-icon gg-stat-icon--amber">
+                        <Icon source={PersonIcon} />
+                      </div>
+                      <Tooltip content="Total Blended Ad Spend divided by total number of unique customers.">
+                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
+                      </Tooltip>
+                    </InlineStack>
+                    <BlockStack gap="050">
+                      <Text variant="bodySm" as="span" tone="subdued">True CAC</Text>
+                      {syncing ? (
+                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
+                      ) : (
+                        <StatNumber
+                          value={data.roasData.trueCACRaw}
+                          prefix="₹"
+                          colorClass="gg-stat-value-neutral"
+                        />
+                      )}
+                    </BlockStack>
+                    <span style={{ fontSize: "11px", color: "var(--gg-text-secondary)" }}>
+                      Blended customer acquisition cost
+                    </span>
                   </BlockStack>
                 </Box>
               </Card>

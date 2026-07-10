@@ -88,6 +88,8 @@ export class ProfitService {
       rtoThreshold: Number(settings?.rtoThreshold) || 30,
       marginThreshold: Number(settings?.marginThreshold) || 15,
       alertEmail: settings?.alertEmail || "",
+      whatsappPhone: settings?.whatsappPhone || "",
+      whatsappEnabled: Boolean(settings?.whatsappEnabled),
       syncCapped: Boolean(settings?.syncCapped),
     };
   }
