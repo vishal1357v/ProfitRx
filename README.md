@@ -1,4 +1,4 @@
-# ProfitRx — RTO & Profit Intelligence for Shopify
+# ProfitRx — RTO & Profit Intelligence
 
 ProfitRx is an **Actionable Profit & RTO Shield Platform** built for high-volume Shopify merchants. It auto-syncs with your Shopify store to reveal your **true profit**, track **pincode-level RTO risk**, and provide an **actionable to-do list** to stop profit leaks in 1 click.
 

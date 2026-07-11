@@ -1373,7 +1373,7 @@ export default function DashboardRoute() {
               <div style={{
                 padding: "25px",
                 borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba() 100%)",
+                background: "linear-gradient(135deg, rgba(56,189,248,0.1), rgba())",
                 border: "1px solid rgba(56,189,248,0.25)",
               }}>
                 <InlineStack align="space-between" blockAlign="center">
@@ -1981,7 +1981,7 @@ export default function DashboardRoute() {
                   <div style={{
                     padding: "20px 24px",
                     borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba() 100%)",
+                    background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba())",
                     border: "1px solid rgba(239,68,68,0.2)",
                   }}>
                     <InlineStack align="space-between" blockAlign="center">

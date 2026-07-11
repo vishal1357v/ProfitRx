@@ -205,7 +205,7 @@ export default function CustomersRoute() {
             <div style={{
               padding: "16px 20px",
               borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.08) 100%)",
+              background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08))",
               border: "1px solid rgba(124,58,237,0.2)",
             }}>
               <InlineStack gap="200" blockAlign="center">

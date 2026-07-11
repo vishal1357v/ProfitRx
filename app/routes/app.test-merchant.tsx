@@ -58,7 +58,7 @@ export default function TestMerchantRoute() {
           <div style={{
             padding: "24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(2,132,199,0.1) 0%, rgba() 100%)",
+            background: "linear-gradient(135deg, rgba(2,132,199,0.1), rgba())",
             border: "1px solid rgba(2,132,199,0.25)",
           }}>
             <InlineStack align="space-between" blockAlign="center">
