@@ -11,7 +11,7 @@ export default function PrivacyRoute() {
       <h2>Data We Collect</h2>
       <p>Store orders, line item COGS, shipping zip codes for RTO detection, and account owner emails.</p>
       <h2>Data Protection</h2>
-      <p>All data is stored in encrypted PostgreSQL database clusters. For requests or data deletion, contact support@profitrx.app.</p>
+      <p>All data is stored in encrypted PostgreSQL database clusters. For requests or data deletion, contact xlr8.jpeg@gmail.com.</p>
     </div>
   );
 }
