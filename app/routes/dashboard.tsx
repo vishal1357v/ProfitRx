@@ -406,6 +406,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       monthlySubscriptionCost,
       netRoiSavings,
       blockedCodCount,
+      settings,
     };
   } catch (err: any) {
     console.error("[Dashboard Loader Critical Error Caught]:", err);
@@ -421,6 +422,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       gstSummary: { gstin: "", isGstRegistered: false, defaultGstRate: 18, totalTaxableSales: 0, totalGstCollected: 0, cgst: 0, sgst: 0, igst: 0, intraStateSales: 0, interStateSales: 0, hsnSummary: [] },
       totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
       roasData: { totalRevenue: 0, totalAdSpend: 0, blendedROAS: 0, trueCACRaw: 0, profitAdjustedROAS: 0, cacPaybackOrders: 0, byChannel: [] },
+      settings: {
+        whatsappEnabled: false,
+        whatsappPhone: "",
+        syncCapped: false,
+        defaultCOGSPct: 40,
+        defaultForwardShipping: 60,
+        defaultReturnShipping: 70,
+        defaultCODHandling: 40,
+        defaultPackaging: 10,
+        defaultGatewayFeePct: 2,
+        rtoDetectionPattern: "rto",
+        alertEmail: "",
+        rtoThreshold: 30,
+        marginThreshold: 15,
+        gstin: "",
+        isGstRegistered: false,
+        gstRate: 18,
+      },
     };
   }
 };
@@ -851,6 +870,7 @@ const CHANNEL_META: Record<string, { icon: string; color: string }> = {
 // ─────────────────────────────────────────────────────────
 export default function DashboardRoute() {
   const data = useLoaderData<typeof loader>();
+  const gridCols = data.hasConnectedAdAccount ? { xs: 2, sm: 3, md: 4, lg: 4 } : { xs: 1, sm: 2, md: 3, lg: 5 };
   const revalidator = useRevalidator();
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -1047,7 +1067,7 @@ export default function DashboardRoute() {
 
 
         <Layout.Section>
-          <Grid columns={{ xs: 2, sm: 3, md: 4, lg: 4 }}>
+          <Grid columns={gridCols}>
             {/* Revenue */}
             <Grid.Cell>
               <Card>
@@ -1151,7 +1171,9 @@ export default function DashboardRoute() {
               </Card>
             </Grid.Cell>
 
-            {/* Blended ROAS */}
+            {data.hasConnectedAdAccount && (
+              <>
+    {/* Blended ROAS */}
             <Grid.Cell>
               <Card>
                 <Box padding="400">
@@ -1216,6 +1238,8 @@ export default function DashboardRoute() {
                 </Box>
               </Card>
             </Grid.Cell>
+              </>
+            )}
 
             {/* Orders */}
             <Grid.Cell>
@@ -2068,71 +2092,72 @@ export default function DashboardRoute() {
           </Tabs>
         </Layout.Section>
       
-        {/* Weekly WhatsApp Profit Digest at bottom of dashboard */}
-        <Layout.Section>
-          <Card>
-                          <BlockStack gap="300">
-                            <InlineStack align="space-between" blockAlign="center">
-                              <BlockStack gap="100">
-                                <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
-                                <Text variant="bodySm" as="p" tone="subdued">
-                                  Get weekly summaries and actionable optimizations delivered to your WhatsApp.
-                                </Text>
-                              </BlockStack>
-                              <Button
-                                variant={whatsappSubscribed ? "secondary" : "primary"}
-                                onClick={() => {
-                                  setWhatsappSubscribed(!whatsappSubscribed);
-                                  setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
-                                  setSyncSuccess(true);
-                                }}
-                              >
-                                {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
-                              </Button>
-                            </InlineStack>
+        {data.settings.whatsappEnabled && data.settings.whatsappPhone && (
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Get weekly summaries and actionable optimizations delivered to your WhatsApp.
+                    </Text>
+                  </BlockStack>
+                  <Button
+                    variant={whatsappSubscribed ? "secondary" : "primary"}
+                    onClick={() => {
+                      setWhatsappSubscribed(!whatsappSubscribed);
+                      setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
+                      setSyncSuccess(true);
+                    }}
+                  >
+                    {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
+                  </Button>
+                </InlineStack>
 
-                            {/* WhatsApp Chat Preview Bubble */}
-                            <div style={{
-                              background: "#e5ddd5",
-                              borderRadius: "8px",
-                              padding: "16px",
-                              fontFamily: "sans-serif",
-                              position: "relative",
-                              border: "1px solid rgba(0,0,0,0.1)"
-                            }}>
-                              <div style={{
-                                background: "#fff",
-                                borderRadius: "7px",
-                                padding: "10px 14px",
-                                maxWidth: "85%",
-                                boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
-                                fontSize: "13px",
-                                lineHeight: "1.4",
-                                position: "relative",
-                                color: "#303030"
-                              }}>
-                                <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
-                                <div>📅 <strong>Monday Morning Summary:</strong></div>
-                                <div style={{ marginBlock: "6px" }}>
-                                  • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
-                                  • <strong>Net Margin:</strong> {data.netMargin}% <br />
-                                  • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
-                                </div>
-                                <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
-                                  🎯 <strong>Your 3 Actions This Week:</strong>
-                                </div>
-                                <div style={{ marginTop: "4px" }}>
-                                  1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
-                                  2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
-                                  3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
-                                </div>
-                                <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
-                                <div style={{ clear: "both" }} />
-                              </div>
-                            </div>
-                          </BlockStack>
-                        </Card>
-        </Layout.Section>
+                {/* WhatsApp Chat Preview Bubble */}
+                <div style={{
+                  background: "#e5ddd5",
+                  borderRadius: "8px",
+                  padding: "16px",
+                  fontFamily: "sans-serif",
+                  position: "relative",
+                  border: "1px solid rgba(0,0,0,0.1)"
+                }}>
+                  <div style={{
+                    background: "#fff",
+                    borderRadius: "7px",
+                    padding: "10px 14px",
+                    maxWidth: "85%",
+                    boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
+                    fontSize: "13px",
+                    lineHeight: "1.4",
+                    position: "relative",
+                    color: "#303030"
+                  }}>
+                    <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
+                    <div>📅 <strong>Monday Morning Summary:</strong></div>
+                    <div style={{ marginBlock: "6px" }}>
+                      • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
+                      • <strong>Net Margin:</strong> {data.netMargin}% <br />
+                      • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
+                    </div>
+                    <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
+                      🎯 <strong>Your 3 Actions This Week:</strong>
+                    </div>
+                    <div style={{ marginTop: "4px" }}>
+                      1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
+                      2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
+                      3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
+                    </div>
+                    <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
+                    <div style={{ clear: "both" }} />
+                  </div>
+                </div>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        )}
         </Layout>
     </Page>
   );
