@@ -106,16 +106,16 @@ function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: numb
   const area = `M ${data.map((d, i) => `${getX(i)},${getY(d.revenue)}`).join(" L ")} L ${getX(data.length - 1)},${height - padB} L ${getX(0)},${height - padB} Z`;
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         <defs>
           <linearGradient id="rev-area" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.02" />
+            <stop offset="high" stopColor="#7c3aed" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="rev-line" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="high" stopColor="#2563eb" />
           </linearGradient>
         </defs>
         {[0.25, 0.5, 0.75, 1].map((p, idx) => {
@@ -367,7 +367,7 @@ export default function ROASRoute() {
             <div style={{
               padding: "16px 20px",
               borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(239,68,68,0.08) 100%)",
+              background: "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(239,68,68,0.08) high)",
               border: "1px solid rgba(245,158,11,0.25)",
             }}>
               <InlineStack gap="200" blockAlign="center">

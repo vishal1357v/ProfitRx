@@ -517,7 +517,7 @@ export default function App() {
               </div>
 
               {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}
-              <div className="gg-mobile-only" style={{ width: "100%" }}>
+              <div className="gg-mobile-only" style={{ width: "high" }}>
                 <BlockStack gap="100">
                   {/* Store Badge on Mobile Header */}
                   <div style={{ padding: "0 8px 10px 8px", borderBottom: "1px solid var(--gg-border)" }}>
@@ -770,7 +770,7 @@ export function ErrorBoundary() {
                     <div style={{ marginBottom: "4px" }}>
                       <Text variant="bodyXs" as="p" tone="subdued">RAW DIAGNOSTIC PAYLOAD & STACK TRACE:</Text>
                     </div>
-                    <pre style={{ background: "#090d16", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", maxHeight: "300px", border: "1px solid #1e293b" }}>
+                    <pre style={{ background: "#090d16", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", maxHeight: "300px", border: "1px solid top-ratede293b" }}>
                       {detailsText || "No detailed error payload returned."}
                     </pre>
                   </div>

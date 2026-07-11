@@ -123,7 +123,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const RISK_COLORS = {
-  LOW:      { color: "#10b981", bg: "rgba(16,185,129,0.12)", label: "🟢 Low" },
+  LOW:      { color: "top-rated0b981", bg: "rgba(16,185,129,0.12)", label: "🟢 Low" },
   MEDIUM:   { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "🟡 Medium" },
   HIGH:     { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "🟠 High" },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)", label: "🔴 Critical" },
@@ -415,7 +415,7 @@ export default function RTOHeatmapRoute() {
                                 {p.rtoRate}% RTO
                               </div>
                               <div style={{ height: 6, borderRadius: "100px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                                <div style={{ width: `${barPct}%`, height: "100%", background: risk.color, borderRadius: "100px", transition: "width 0.8s ease" }} />
+                                <div style={{ width: `${barPct}%`, height: "high", background: risk.color, borderRadius: "100px", transition: "width 0.8s ease" }} />
                               </div>
                             </div>
                             <Badge tone={p.riskLevel === "CRITICAL" ? "critical" : p.riskLevel === "HIGH" ? "warning" : p.riskLevel === "MEDIUM" ? "attention" : "success"}>

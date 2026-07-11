@@ -1,17 +1,9 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import fs from "fs";
-import path from "path";
 
 function logGdprAudit(shop: string, action: string, details: string) {
-  try {
-    const logPath = path.join(process.cwd(), "gdpr-audit.log");
-    const logMessage = `[${new Date().toISOString()}] SHOP: ${shop} | ACTION: ${action} | DETAILS: ${details}\n`;
-    fs.appendFileSync(logPath, logMessage);
-  } catch (err: any) {
-    console.error("GDPR audit logging failed:", err.message);
-  }
+  console.log(`[GDPR-AUDIT] ${new Date().toISOString()} SHOP: ${shop} | ${action} | ${details}`);
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {

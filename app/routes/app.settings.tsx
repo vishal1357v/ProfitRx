@@ -317,7 +317,7 @@ export default function SettingsRoute() {
                     <Text variant="headingMd" as="h2">💰 Payment Gateway & Logistics Cost Rules</Text>
                   </InlineStack>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure 100% true net profit tracking.
+                    Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure high true net profit tracking.
                   </Text>
                   <Divider />
                   <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 3 }}>

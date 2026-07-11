@@ -204,8 +204,8 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
   const points = data.map((d, i) => `${getX(i)},${getY(d.loss)}`).join(" ");
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((p, idx) => {
           const val = p * maxLoss;

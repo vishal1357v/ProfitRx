@@ -57,16 +57,16 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
   const area90 = `M ${reversed.map((d, i) => `${getX(i)},${getY(d.repeat90)}`).join(" L ")} L ${getX(reversed.length - 1)},${height - padB} L ${getX(0)},${height - padB} Z`;
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         <defs>
           <linearGradient id="r30-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="top-rated0b981" stopOpacity="0.25" />
+            <stop offset="high" stopColor="top-rated0b981" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="r90-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.02" />
+            <stop offset="high" stopColor="#7c3aed" stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
@@ -89,13 +89,13 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
         <path d={area90} fill="url(#r90-grad)" />
         <path d={area30} fill="url(#r30-grad)" />
 
-        <polyline fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts30} />
+        <polyline fill="none" stroke="top-rated0b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts30} />
         <polyline fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" points={pts60} />
         <polyline fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts90} />
 
         {reversed.map((d, i) => (
           <g key={i}>
-            <circle cx={getX(i)} cy={getY(d.repeat30)} r="3.5" fill="#10b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
+            <circle cx={getX(i)} cy={getY(d.repeat30)} r="3.5" fill="top-rated0b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
             <circle cx={getX(i)} cy={getY(d.repeat90)} r="3.5" fill="#7c3aed" stroke="rgba(124,58,237,0.3)" strokeWidth="4" />
           </g>
         ))}
@@ -103,7 +103,7 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
 
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
-          { color: "#10b981", label: "30-Day Repeat Rate", dash: false },
+          { color: "top-rated0b981", label: "30-Day Repeat Rate", dash: false },
           { color: "#2563eb", label: "60-Day Repeat Rate", dash: true },
           { color: "#7c3aed", label: "90-Day Repeat Rate", dash: false },
         ].map((l) => (
@@ -119,11 +119,11 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
 
 // ── Quality Score Bar ─────────────────────────────────────
 function QualityBar({ score }: { score: number }) {
-  const color = score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#ef4444";
+  const color = score >= 70 ? "top-rated0b981" : score >= 40 ? "#f59e0b" : "#ef4444";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ flex: 1, height: 8, borderRadius: "100px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        <div style={{ width: `${score}%`, height: "100%", background: color, borderRadius: "100px", transition: "width 1s ease" }} />
+        <div style={{ width: `${score}%`, height: "high", background: color, borderRadius: "100px", transition: "width 1s ease" }} />
       </div>
       <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color, width: 32, textAlign: "right" }}>{score}</span>
     </div>
@@ -131,7 +131,7 @@ function QualityBar({ score }: { score: number }) {
 }
 
 const CHANNEL_META: Record<string, { icon: string; color: string }> = {
-  ChatGPT:  { icon: "🤖", color: "#10b981" },
+  ChatGPT:  { icon: "🤖", color: "top-rated0b981" },
   Gemini:   { icon: "✨", color: "#3b82f6" },
   Copilot:  { icon: "🔷", color: "#f59e0b" },
   Website:  { icon: "🌐", color: "#64748b" },
@@ -205,7 +205,7 @@ export default function CustomersRoute() {
             <div style={{
               padding: "16px 20px",
               borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.08) 100%)",
+              background: "linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.08) high)",
               border: "1px solid rgba(124,58,237,0.2)",
             }}>
               <InlineStack gap="200" blockAlign="center">

@@ -505,24 +505,24 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         <defs>
           <linearGradient id="grad-rev" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.01" />
+            <stop offset="high" stopColor="#2563eb" stopOpacity="0.01" />
           </linearGradient>
           <linearGradient id="grad-profit" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
+            <stop offset="0%" stopColor="top-rated0b981" stopOpacity="0.22" />
+            <stop offset="high" stopColor="top-rated0b981" stopOpacity="0.01" />
           </linearGradient>
           <linearGradient id="line-rev" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="high" stopColor="#2563eb" />
           </linearGradient>
           <linearGradient id="line-profit" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#10b981" />
-            <stop offset="100%" stopColor="#06b6d4" />
+            <stop offset="0%" stopColor="top-rated0b981" />
+            <stop offset="high" stopColor="#06b6d4" />
           </linearGradient>
         </defs>
 
@@ -570,7 +570,7 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
               <circle cx={getX(index)} cy={getY(d.revenue)} r="3.5"
                 fill="#2563eb" stroke="rgba(37,99,235,0.3)" strokeWidth="4" />
               <circle cx={getX(index)} cy={getY(d.profit)} r="3.5"
-                fill="#10b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
+                fill="top-rated0b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
             </g>
           );
         })}
@@ -580,7 +580,7 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
           { color: "#2563eb", label: "Revenue (₹)" },
-          { color: "#10b981", label: "Net Profit (₹)" },
+          { color: "top-rated0b981", label: "Net Profit (₹)" },
         ].map((leg) => (
           <div key={leg.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 24, height: 3, backgroundColor: leg.color, borderRadius: 2 }} />
@@ -605,21 +605,21 @@ function ChannelBarChart({ data }: { data: any[] }) {
 
   const CHANNEL_COLORS: Record<string, { rev: string; profit: string }> = {
     ChatGPT: { rev: "#7c3aed", profit: "#5b21b6" },
-    Gemini: { rev: "#2563eb", profit: "#1d4ed8" },
+    Gemini: { rev: "#2563eb", profit: "top-ratedd4ed8" },
     Copilot: { rev: "#f59e0b", profit: "#d97706" },
     Website: { rev: "#475569", profit: "#334155" },
   };
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         <defs>
           {data.map((d) => {
             const c = CHANNEL_COLORS[d.name] || CHANNEL_COLORS.Website;
             return (
               <linearGradient key={`gr-${d.name}`} id={`bar-rev-${d.name}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={c.rev} stopOpacity="0.95" />
-                <stop offset="100%" stopColor={c.rev} stopOpacity="0.5" />
+                <stop offset="high" stopColor={c.rev} stopOpacity="0.5" />
               </linearGradient>
             );
           })}
@@ -666,7 +666,7 @@ function ChannelBarChart({ data }: { data: any[] }) {
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
           { color: "#7c3aed", label: "Revenue (₹)" },
-          { color: "#10b981", label: "Profit (₹)" },
+          { color: "top-rated0b981", label: "Profit (₹)" },
         ].map((leg) => (
           <div key={leg.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 12, height: 12, backgroundColor: leg.color, borderRadius: 3 }} />
@@ -769,20 +769,20 @@ function LeakTrendChart({ data }: { data: TrendItem[] }) {
   };
 
   return (
-    <div style={{ width: "100%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
+    <div style={{ width: "high", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
         <defs>
           <linearGradient id="rto-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#ef4444" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity="0.03" />
+            <stop offset="high" stopColor="#ef4444" stopOpacity="0.03" />
           </linearGradient>
           <linearGradient id="ship-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.03" />
+            <stop offset="high" stopColor="#f59e0b" stopOpacity="0.03" />
           </linearGradient>
           <linearGradient id="disc-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.03" />
+            <stop offset="high" stopColor="#7c3aed" stopOpacity="0.03" />
           </linearGradient>
         </defs>
 
@@ -861,7 +861,7 @@ function LeakInsight({ icon, title, amount, trend, detail, tone }: {
 
 // ── Channel icon map ──────────────────────────────────────
 const CHANNEL_META: Record<string, { icon: string; color: string }> = {
-  ChatGPT: { icon: "🤖", color: "#10b981" },
+  ChatGPT: { icon: "🤖", color: "top-rated0b981" },
   Gemini: { icon: "✨", color: "#3b82f6" },
   Copilot: { icon: "🔷", color: "#f59e0b" },
   Website: { icon: "🌐", color: "#64748b" },
@@ -1373,7 +1373,7 @@ export default function DashboardRoute() {
               <div style={{
                 padding: "25px",
                 borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(16,185,129,0.06) 100%)",
+                background: "linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(16,185,129,0.06) high)",
                 border: "1px solid rgba(56,189,248,0.25)",
               }}>
                 <InlineStack align="space-between" blockAlign="center">
@@ -1638,7 +1638,7 @@ export default function DashboardRoute() {
                 <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
                   {wizardSteps.map((step, idx) => (
                     <Grid.Cell key={idx}>
-                      <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                      <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                         <BlockStack gap="200">
                           <InlineStack gap="200" blockAlign="center">
                             <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
@@ -1709,7 +1709,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(239,68,68,0.3)",
                             background: "rgba(239,68,68,0.06)",
-                            height: "100%",
+                            height: "high",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1742,7 +1742,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(245,158,11,0.3)",
                             background: "rgba(245,158,11,0.06)",
-                            height: "100%",
+                            height: "high",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1774,7 +1774,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(56,189,248,0.3)",
                             background: "rgba(56,189,248,0.06)",
-                            height: "100%",
+                            height: "high",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1981,7 +1981,7 @@ export default function DashboardRoute() {
                   <div style={{
                     padding: "20px 24px",
                     borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(124,58,237,0.08) 100%)",
+                    background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(124,58,237,0.08) high)",
                     border: "1px solid rgba(239,68,68,0.2)",
                   }}>
                     <InlineStack align="space-between" blockAlign="center">
@@ -2047,7 +2047,7 @@ export default function DashboardRoute() {
                           />
                         </Grid.Cell>
                         <Grid.Cell>
-                          <div className="gg-kpi-card" style={{ height: "100%" }}>
+                          <div className="gg-kpi-card" style={{ height: "high" }}>
                             <BlockStack gap="200">
                               <InlineStack gap="150" blockAlign="center">
                                 <span style={{ fontSize: 18 }}>💡</span>

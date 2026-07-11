@@ -150,7 +150,7 @@ function LeakInsight({ icon, title, amount, trend, detail, tone, actionUrl, acti
   const toneColors = { critical: "var(--gg-accent-red)", warning: "var(--gg-accent-amber)", info: "var(--gg-accent-blue)" };
   const color = toneColors[tone];
   return (
-    <div className={`gg-rec-card gg-rec-card--${tone === "info" ? "success" : tone}`} style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" }}>
+    <div className={`gg-rec-card gg-rec-card--${tone === "info" ? "success" : tone}`} style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "high" }}>
       <BlockStack gap="200">
         <InlineStack align="space-between" blockAlign="start">
           <InlineStack gap="150" blockAlign="center">
@@ -206,7 +206,7 @@ export default function ProfitLeaksRoute() {
           <div style={{
             padding: "20px 24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(124,58,237,0.08) 100%)",
+            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(124,58,237,0.08) high)",
             border: "1px solid rgba(239,68,68,0.2)",
           }}>
             <InlineStack align="space-between" blockAlign="center">
@@ -277,7 +277,7 @@ export default function ProfitLeaksRoute() {
                   />
                 </Grid.Cell>
                 <Grid.Cell>
-                  <div className="gg-kpi-card" style={{ height: "100%" }}>
+                  <div className="gg-kpi-card" style={{ height: "high" }}>
                     <BlockStack gap="200">
                       <InlineStack gap="150" blockAlign="center">
                         <span style={{ fontSize: 18 }}>💡</span>

@@ -157,7 +157,7 @@ export default function BillingPage() {
           <div style={{
             padding: "20px 24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(56,189,248,0.08) 100%)",
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(56,189,248,0.08) high)",
             border: "1px solid rgba(16,185,129,0.3)",
             marginBottom: "20px"
           }}>
@@ -230,7 +230,7 @@ export default function BillingPage() {
             <Grid.Cell>
               <Card>
                 <Box padding="400">
-                  <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <BlockStack gap="300">
                       <Text variant="headingMd" as="h2">Manage Plan</Text>
                       <Text variant="bodySm" as="p" tone="subdued">

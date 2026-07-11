@@ -113,7 +113,7 @@ export default function IndexRoute() {
                   </div>
 
                   {/* Connect Form */}
-                  <div style={{ width: "100%", maxWidth: "540px", margin: "0 auto" }}>
+                  <div style={{ width: "high", maxWidth: "540px", margin: "0 auto" }}>
                     <Card>
                       <form onSubmit={handleConnectShop}>
                         <BlockStack gap="300">

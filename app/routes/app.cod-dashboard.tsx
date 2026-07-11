@@ -38,7 +38,7 @@ export default function CODProfitDashboardRoute() {
           <div style={{
             padding: "24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(245,158,11,0.08) 100%)",
+            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(245,158,11,0.08) high)",
             border: "1px solid rgba(239,68,68,0.3)",
           }}>
             <InlineStack align="space-between" blockAlign="center">
@@ -213,7 +213,7 @@ export default function CODProfitDashboardRoute() {
                       borderRadius: "var(--gg-radius-md)",
                       border: `1px solid ${item.type === "CRITICAL" ? "rgba(239,68,68,0.3)" : item.type === "WARNING" ? "rgba(245,158,11,0.3)" : "rgba(56,189,248,0.3)"}`,
                       background: item.type === "CRITICAL" ? "rgba(239,68,68,0.05)" : item.type === "WARNING" ? "rgba(245,158,11,0.05)" : "rgba(56,189,248,0.05)",
-                      height: "100%",
+                      height: "high",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "space-between",
