@@ -157,7 +157,7 @@ export default function BillingPage() {
           <div style={{
             padding: "20px 24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(56,189,248,0.08) high)",
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba() 100%)",
             border: "1px solid rgba(16,185,129,0.3)",
             marginBottom: "20px"
           }}>

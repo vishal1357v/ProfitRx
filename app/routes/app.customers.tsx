@@ -167,7 +167,7 @@ export default function CustomersRoute() {
     c.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Find best channel for the insight callout
+  // Find top channel for the insight callout
   const bestChannel = channelQuality[0];
   const websiteChannel = channelQuality.find(c => c.channel === "Website");
   const qualityMultiplier = bestChannel && websiteChannel && websiteChannel.ltv > 0 && bestChannel.channel !== "Website"
@@ -205,7 +205,7 @@ export default function CustomersRoute() {
             <div style={{
               padding: "16px 20px",
               borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.08) high)",
+              background: "linear-gradient(135deg, rgba(124,58,237,0.12) 0%, rgba(37,99,235,0.08) 100%)",
               border: "1px solid rgba(124,58,237,0.2)",
             }}>
               <InlineStack gap="200" blockAlign="center">
@@ -252,7 +252,7 @@ export default function CustomersRoute() {
                             borderRadius: "0 0 8px 8px",
                             padding: "2px 8px",
                             fontSize: 10, fontWeight: 700, color: "white", fontFamily: "'Inter', sans-serif",
-                          }}>BEST</div>
+                          }}>TOP</div>
                         )}
                         <BlockStack gap="200">
                           <InlineStack gap="150" blockAlign="center">

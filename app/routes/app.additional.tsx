@@ -34,7 +34,7 @@ export default function AdditionalPage() {
               href="https://shopify.dev/docs/apps/design-guidelines/navigation#app-nav"
               target="_blank"
             >
-              App nav best practices
+              App nav guidelines
             </s-link>
           </s-list-item>
         </s-unordered-list>

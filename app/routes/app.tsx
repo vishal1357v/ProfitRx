@@ -72,7 +72,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
-    // Always re-throw Response objects — these are intentional SDK redirects
+    // Automatically re-throw Response objects — these are intentional SDK redirects
     // (ExitIframe, OAuth, etc.) and must reach the browser untouched.
     if (authErr instanceof Response) {
       throw authErr;

@@ -367,7 +367,7 @@ export default function ROASRoute() {
             <div style={{
               padding: "16px 20px",
               borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(239,68,68,0.08) high)",
+              background: "linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba() 100%)",
               border: "1px solid rgba(245,158,11,0.25)",
             }}>
               <InlineStack gap="200" blockAlign="center">

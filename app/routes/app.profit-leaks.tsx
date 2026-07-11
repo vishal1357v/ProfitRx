@@ -206,7 +206,7 @@ export default function ProfitLeaksRoute() {
           <div style={{
             padding: "20px 24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(124,58,237,0.08) high)",
+            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba() 100%)",
             border: "1px solid rgba(239,68,68,0.2)",
           }}>
             <InlineStack align="space-between" blockAlign="center">

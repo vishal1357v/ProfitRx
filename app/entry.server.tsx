@@ -15,6 +15,16 @@ export default async function handleRequest(
   reactRouterContext: EntryContext
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
+
+  // Shopify requires CSP frame-ancestors on every embedded route.
+  // The SDK sets this dynamically from the session shop domain;
+  // we also set a static fallback so scanners detect it.
+  if (!responseHeaders.has("Content-Security-Policy")) {
+    responseHeaders.set(
+      "Content-Security-Policy",
+      "frame-ancestors https://*.myshopify.com https://admin.shopify.com;"
+    );
+  }
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? '')
     ? "onAllReady"

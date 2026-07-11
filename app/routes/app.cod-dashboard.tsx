@@ -38,7 +38,7 @@ export default function CODProfitDashboardRoute() {
           <div style={{
             padding: "24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba(245,158,11,0.08) high)",
+            background: "linear-gradient(135deg, rgba(239,68,68,0.12) 0%, rgba() 100%)",
             border: "1px solid rgba(239,68,68,0.3)",
           }}>
             <InlineStack align="space-between" blockAlign="center">

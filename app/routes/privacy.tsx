@@ -1,3 +1,7 @@
+export const headers = () => ({
+  "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+});
+
 export default function PrivacyRoute() {
   return (
     <div style={{ maxWidth: 800, margin: "40px auto", padding: 24, fontFamily: "sans-serif", background: "#fff", borderRadius: 16 }}>
