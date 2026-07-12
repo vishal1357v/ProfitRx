@@ -1,5 +1,5 @@
 {
-  "name": "profit-rx",
+  "name": "ProfitRx RTO & Profit",
   "private": true,
   "scripts": {
     "build": "prisma generate && react-router build",

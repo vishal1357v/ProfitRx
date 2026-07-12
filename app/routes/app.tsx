@@ -99,17 +99,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  // ── Step 2: Sync billing ────────────────────────────────────────────────────
+  // ── Step 2 + 4: Sync billing and load features in parallel ─────────────────
+  const isBypass = process.env.BYPASS_BILLING === "true";
+
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
+  let features: string[] = [];
+
   try {
-    localSub = await syncSubscriptionWithShopify(session.shop, billing);
-  } catch (syncErr: any) {
-    console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
-    // Default to FREE so the app can still render
+    [localSub, features] = await Promise.all([
+      syncSubscriptionWithShopify(session.shop, billing).catch((syncErr: any) => {
+        console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
+        return { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
+      }),
+      getFeatureList(session.shop).catch((featErr: any) => {
+        console.error("[app.tsx getFeatureList FAILED]:", featErr);
+        return [] as string[];
+      }),
+    ]);
+  } catch (err: any) {
+    console.error("[app.tsx parallel load failed]:", err);
     localSub = { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
+    features = [];
   }
 
-  const isBypass = process.env.BYPASS_BILLING === "true";
   const isFreePlan = localSub.plan === "FREE" || isBypass;
 
   // ── Step 3: Require billing for paid plans ─────────────────────────────────
@@ -128,14 +140,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       console.error("[app.tsx billing.require Error]:", err);
     }
-  }
-
-  // ── Step 4: Load features ─────────────────────────────────────────────────
-  let features: string[] = [];
-  try {
-    features = await getFeatureList(session.shop);
-  } catch (featErr: any) {
-    console.error("[app.tsx getFeatureList FAILED]:", featErr);
   }
 
   const billingStatus = localSub.status || "ACTIVE";
