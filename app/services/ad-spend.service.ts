@@ -235,18 +235,11 @@ export class AdSpendService {
       console.warn(`[AdSpendService] Live API call failed for ${cleanPlatform}, falling back to daily estimate:`, err);
     }
 
-    // Fallback deterministic spend calculation for connected platforms
-    const seedStr = `${shop}_${cleanPlatform}_${dateStr}`;
-    let hash = 0;
-    for (let i = 0; i < seedStr.length; i++) hash = (hash << 5) - hash + seedStr.charCodeAt(i);
-    const positiveHash = Math.abs(hash);
-
-    const baseSpend = cleanPlatform === "meta" ? 1200 : cleanPlatform === "google" ? 800 : 500;
-    const spend = Math.round(baseSpend + (positiveHash % 600));
-    const clicks = Math.round(spend / 12);
-    const impressions = clicks * 15;
-
-    return { spend, clicks, impressions };
+    // Platform is connected but API call failed or token is a mock —
+    // return zeros so the dashboard shows an honest "no real data" state
+    // rather than fake deterministic numbers.
+    console.warn(`[AdSpendService] No live spend data available for ${cleanPlatform} (token may be a mock). Returning 0.`);
+    return { spend: 0, clicks: 0, impressions: 0 };
   }
 
   /**

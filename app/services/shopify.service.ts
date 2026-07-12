@@ -479,8 +479,19 @@ export class ShopifyService {
       }
 
       const lineProdId = order.lineItems?.[0]?.productId || null;
-      const cleanProdId = lineProdId ? (lineProdId.split("/").pop() || "") : "";
-      const snapshotCogs = cogsDict[cleanProdId] ?? (order.totalPrice * 0.4);
+      let snapshotCogs = 0;
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          const cleanId = item.productId || "";
+          if (cogsDict[cleanId] !== undefined) {
+            snapshotCogs += (cogsDict[cleanId] * item.quantity);
+          } else {
+            snapshotCogs += (item.price * 0.4);
+          }
+        }
+      } else {
+        snapshotCogs = order.totalPrice * 0.4;
+      }
 
       await (prisma.order as any).upsert({
         where: { id: order.id },
@@ -565,8 +576,19 @@ export class ShopifyService {
     let count = 0;
     for (const order of orders) {
       const lineProdId = order.lineItems?.[0]?.productId || null;
-      const cleanProdId = lineProdId ? (lineProdId.split("/").pop() || "") : "";
-      const snapshotCogs = cogsDict[cleanProdId] ?? (order.totalPrice * 0.4);
+      let snapshotCogs = 0;
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          const cleanId = item.productId || "";
+          if (cogsDict[cleanId] !== undefined) {
+            snapshotCogs += (cogsDict[cleanId] * item.quantity);
+          } else {
+            snapshotCogs += (item.price * 0.4);
+          }
+        }
+      } else {
+        snapshotCogs = order.totalPrice * 0.4;
+      }
 
       await (prisma.order as any).upsert({
         where: { id: order.id },

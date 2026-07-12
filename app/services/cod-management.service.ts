@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { unauthenticated } from "../shopify.server";
 import { ProfitService } from "./profit.service";
 import { WhatsAppService } from "./whatsapp.service";
 import { ShopifyService } from "./shopify.service";
@@ -52,7 +53,7 @@ export class CODManagementService {
    * Update COD management settings
    */
   static async updateCODSettings(shop: string, updateData: Partial<CODSettings>) {
-    return await prisma.storeSettings.upsert({
+    const settings = await prisma.storeSettings.upsert({
       where: { shop },
       update: {
         ...(updateData.codBlockingEnabled !== undefined && { codBlockingEnabled: updateData.codBlockingEnabled }),
@@ -76,6 +77,14 @@ export class CODManagementService {
         codFeeType: updateData.codFeeType ?? "fixed",
       } as any,
     });
+
+    try {
+      await this.syncCODRulesToShopify(shop);
+    } catch (err) {
+      console.error(`[CODManagementService] Failed to sync COD rules to Shopify for ${shop}:`, err);
+    }
+
+    return settings;
   }
 
   /**
@@ -313,5 +322,150 @@ export class CODManagementService {
       insights,
       codSettings,
     };
+  }
+
+  /**
+   * Sync COD rules to Shopify Payment Customization metafield
+   */
+  static async syncCODRulesToShopify(shop: string) {
+    let admin: any;
+    try {
+      const auth = await unauthenticated.admin(shop);
+      admin = auth.admin;
+    } catch (err) {
+      console.warn(`[CODManagementService] Store is offline, skipping checkout sync for ${shop}`);
+      return;
+    }
+
+    const settings = await prisma.storeSettings.findUnique({ where: { shop } });
+    if (!settings) return;
+
+    const blockedPincodes = (settings as any).codBlockedPincodes || [];
+    const isBlockingEnabled = (settings as any).codBlockingEnabled ?? false;
+
+    // 1. Fetch functionId
+    const getFunctionsQuery = `
+      query GetFunctions {
+        shopifyFunctions(first: 50) {
+          edges {
+            node {
+              id
+              title
+              apiType
+            }
+          }
+        }
+      }
+    `;
+
+    const functionsRes = await admin.graphql(getFunctionsQuery);
+    const functionsData = await functionsRes.json();
+    const edges = functionsData?.data?.shopifyFunctions?.edges || [];
+    const functionNode = edges.find((e: any) => e.node.title.toLowerCase().includes("cod-blocker") || e.node.apiType === "cart_payment_methods_transform");
+    
+    if (!functionNode) {
+      console.warn("[CODManagementService] COD Blocker Shopify Function was not found. Please deploy extensions first.");
+      return;
+    }
+
+    const functionId = functionNode.node.id;
+
+    // 2. Fetch existing Payment Customizations
+    const getCustomizationsQuery = `
+      query GetCustomizations {
+        paymentCustomizations(first: 50) {
+          edges {
+            node {
+              id
+              title
+              enabled
+              functionId
+            }
+          }
+        }
+      }
+    `;
+
+    const custRes = await admin.graphql(getCustomizationsQuery);
+    const custData = await custRes.json();
+    const custEdges = custData?.data?.paymentCustomizations?.edges || [];
+    const existingCustomization = custEdges.find((e: any) => e.node.functionId === functionId);
+
+    const configJson = JSON.stringify({
+      blockedPincodes: isBlockingEnabled ? blockedPincodes : [],
+    });
+
+    if (existingCustomization) {
+      const customizationId = existingCustomization.node.id;
+      
+      // Update customization
+      const updateMutation = `
+        mutation paymentCustomizationUpdate($id: ID!, $paymentCustomization: PaymentCustomizationInput!) {
+          paymentCustomizationUpdate(id: $id, paymentCustomization: $paymentCustomization) {
+            paymentCustomization {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      await admin.graphql(updateMutation, {
+        variables: {
+          id: customizationId,
+          paymentCustomization: {
+            title: "ProfitRx COD Pincode Blocker",
+            enabled: isBlockingEnabled,
+            metafields: [
+              {
+                namespace: "$app:cod-blocker",
+                key: "function-configuration",
+                type: "json",
+                value: configJson,
+              }
+            ]
+          }
+        }
+      });
+      console.log(`[CODManagementService] Updated payment customization ${customizationId} with configuration:`, configJson);
+    } else if (isBlockingEnabled) {
+      // Create new customization
+      const createMutation = `
+        mutation paymentCustomizationCreate($paymentCustomization: PaymentCustomizationInput!) {
+          paymentCustomizationCreate(paymentCustomization: $paymentCustomization) {
+            paymentCustomization {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const createRes = await admin.graphql(createMutation, {
+        variables: {
+          paymentCustomization: {
+            title: "ProfitRx COD Pincode Blocker",
+            enabled: true,
+            functionId: functionId,
+            metafields: [
+              {
+                namespace: "$app:cod-blocker",
+                key: "function-configuration",
+                type: "json",
+                value: configJson,
+              }
+            ]
+          }
+        }
+      });
+      const createData = await createRes.json();
+      console.log(`[CODManagementService] Created new payment customization for function ${functionId}:`, JSON.stringify(createData));
+    }
   }
 }

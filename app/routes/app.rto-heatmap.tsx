@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import { useLoaderData, useSubmit, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
@@ -151,9 +151,28 @@ function StatCard({ icon, label, value, sub, color }: {
   );
 }
 
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "bulk_block_high_risk") {
+    const pincodes = JSON.parse(formData.get("pincodes") as string) as string[];
+    const { CODManagementService } = await import("../services/cod-management.service");
+    const updated = await CODManagementService.bulkUpdateBlockedPincodes(shop, pincodes);
+    return Response.json({ success: true, count: updated.length });
+  }
+
+  return Response.json({ error: "Invalid intent" }, { status: 400 });
+};
+
 export default function RTOHeatmapRoute() {
   const { hasAccess, shop, host, pincodeStats = [], codStats, prepaidStats, pendingCODWithRisk = [], totalOrders = 0 } = useLoaderData<typeof loader>();
   const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
+  const submit = useSubmit();
+  const navigation = useNavigation();
+  const isBlocking = navigation.state === "submitting";
 
   if (!hasAccess) {
     return (
@@ -175,8 +194,20 @@ export default function RTOHeatmapRoute() {
   }
 
   const handleBlockHighRiskPincodes = () => {
-    const highRiskCount = pincodeStats.filter((p: any) => p.riskLevel === "CRITICAL" || p.riskLevel === "HIGH").length || 3;
-    setBlockedNotice(`✅ Success: Restricted COD checkout for ${highRiskCount} high-risk pincodes (RTO > 35%). Estimated savings: ~$420/mo.`);
+    const highRiskPincodes = pincodeStats
+      .filter((p: any) => p.riskLevel === "CRITICAL" || p.riskLevel === "HIGH")
+      .map((p: any) => p.pincode);
+
+    if (highRiskPincodes.length === 0) {
+      setBlockedNotice("No HIGH or CRITICAL risk pincodes found to block.");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("intent", "bulk_block_high_risk");
+    fd.append("pincodes", JSON.stringify(highRiskPincodes));
+    submit(fd, { method: "POST" });
+    setBlockedNotice(`✅ Blocking COD for ${highRiskPincodes.length} high-risk pincodes: ${highRiskPincodes.slice(0, 5).join(", ")}${highRiskPincodes.length > 5 ? ` +${highRiskPincodes.length - 5} more` : ""}. Rules saved & synced to checkout.`);
   };
 
   const maxRto = Math.max(...pincodeStats.map((p: any) => p.rtoRate), 1);
@@ -343,6 +374,7 @@ export default function RTOHeatmapRoute() {
                       tone="critical" 
                       size="slim" 
                       onClick={handleBlockHighRiskPincodes}
+                      loading={isBlocking}
                     >
                       🚫 Block High-Risk Pincodes (One-Click)
                     </Button>

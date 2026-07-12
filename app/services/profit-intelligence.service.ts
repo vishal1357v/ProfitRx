@@ -264,46 +264,81 @@ export class ProfitIntelligenceService {
 
   // ── LTV Cohort Analysis ───────────────────────────────────
   static async getLTVCohorts(shop: string): Promise<LTVCohort[]> {
-    const profiles = await (prisma as any).customerProfile.findMany({ where: { shop } });
+    const orders = await prisma.order.findMany({ 
+      where: { shop },
+      orderBy: { createdAt: 'asc' }
+    });
 
-    const cohortMap: Record<string, {
-      customers: string[];
+    const customerMap: Record<string, {
+      firstOrderDate: Date;
+      orders: Date[];
       revenue: number;
-      purchasers2: number; // 2 or more orders (30-day repeat proxy)
-      purchasers3: number; // 3 or more orders (60-day repeat proxy)
-      purchasers4: number; // 4 or more orders (90-day repeat proxy)
     }> = {};
 
-    for (const p of profiles) {
-      const cohort = p.cohortMonth || "Unknown";
-      if (!cohortMap[cohort]) {
-        cohortMap[cohort] = { customers: [], revenue: 0, purchasers2: 0, purchasers3: 0, purchasers4: 0 };
+    // Group orders by customer
+    for (const o of orders as any[]) {
+      // Use customerId, or email as fallback. If neither, treat as unique guest
+      const cid = o.customerId || o.customerEmail || o.id; 
+      if (!customerMap[cid]) {
+        customerMap[cid] = { firstOrderDate: o.createdAt, orders: [], revenue: 0 };
       }
-      cohortMap[cohort].customers.push(p.customerId);
-      cohortMap[cohort].revenue += p.totalRevenue;
-      if (p.orderCount >= 2) cohortMap[cohort].purchasers2++;
-      if (p.orderCount >= 3) cohortMap[cohort].purchasers3++;
-      if (p.orderCount >= 4) cohortMap[cohort].purchasers4++;
+      customerMap[cid].orders.push(o.createdAt);
+      customerMap[cid].revenue += (o.totalPrice || 0);
+    }
+
+    const cohortMap: Record<string, {
+      customers: number;
+      revenue: number;
+      repeat30: number;
+      repeat60: number;
+      repeat90: number;
+    }> = {};
+
+    for (const cid in customerMap) {
+      const data = customerMap[cid];
+      const cohortMonth = data.firstOrderDate.toISOString().substring(0, 7); // YYYY-MM
+      
+      if (!cohortMap[cohortMonth]) {
+        cohortMap[cohortMonth] = { customers: 0, revenue: 0, repeat30: 0, repeat60: 0, repeat90: 0 };
+      }
+      
+      cohortMap[cohortMonth].customers++;
+      cohortMap[cohortMonth].revenue += data.revenue;
+      
+      const firstTs = data.firstOrderDate.getTime();
+      let has30 = false;
+      let has60 = false;
+      let has90 = false;
+      
+      for (const orderDate of data.orders) {
+        const diffDays = (orderDate.getTime() - firstTs) / (1000 * 3600 * 24);
+        if (diffDays > 0 && diffDays <= 30) has30 = true;
+        if (diffDays > 0 && diffDays <= 60) has60 = true;
+        if (diffDays > 0 && diffDays <= 90) has90 = true;
+      }
+      
+      if (has30) cohortMap[cohortMonth].repeat30++;
+      if (has60) cohortMap[cohortMonth].repeat60++;
+      if (has90) cohortMap[cohortMonth].repeat90++;
     }
 
     return Object.entries(cohortMap)
       .map(([cohortMonth, data]) => {
-        const customers = data.customers.length;
+        const customers = data.customers;
         return {
           cohortMonth,
           customers,
           revenue: Math.round(data.revenue),
           avgRevenue: customers > 0 ? Math.round(data.revenue / customers) : 0,
-          repeat30: customers > 0 ? Math.round((data.purchasers2 / customers) * 100) : 0,
-          repeat60: customers > 0 ? Math.round((data.purchasers3 / customers) * 100) : 0,
-          repeat90: customers > 0 ? Math.round((data.purchasers4 / customers) * 100) : 0,
+          repeat30: customers > 0 ? Math.round((data.repeat30 / customers) * 100) : 0,
+          repeat60: customers > 0 ? Math.round((data.repeat60 / customers) * 100) : 0,
+          repeat90: customers > 0 ? Math.round((data.repeat90 / customers) * 100) : 0,
         };
       })
       .sort((a, b) => b.cohortMonth.localeCompare(a.cohortMonth))
       .slice(0, 12);
   }
 
-  // ── Blended ROAS ──────────────────────────────────────────
   // ── Blended ROAS ──────────────────────────────────────────
   static async getROAS(shop: string): Promise<ROASData> {
     const orders = await prisma.order.findMany({ where: { shop } });
@@ -331,8 +366,7 @@ export class ProfitIntelligenceService {
     let totalProfit = 0;
     let profitOrdersCount = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""];
-      if (c === undefined) continue;
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
       const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
       totalProfit += profit;
       profitOrdersCount++;
@@ -395,8 +429,7 @@ export class ProfitIntelligenceService {
     let totalFees = 0;
     let profitRevenue = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""];
-      if (c === undefined) continue;
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       totalCogs += c;
       totalFees += fees;
@@ -425,8 +458,7 @@ export class ProfitIntelligenceService {
     let recentRevenue = 0;
     let recentCogs = 0, recentFees = 0;
     for (const o of recentOrders) {
-      const c = cogsDict[o.productId || ""];
-      if (c === undefined) continue;
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       recentCogs += c;
       recentFees += fees;
@@ -438,8 +470,7 @@ export class ProfitIntelligenceService {
     let prevRevenue = 0;
     let prevCogs = 0, prevFees = 0;
     for (const o of prevOrders) {
-      const c = cogsDict[o.productId || ""];
-      if (c === undefined) continue;
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
       const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
       prevCogs += c;
       prevFees += fees;

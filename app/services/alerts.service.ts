@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import { ProfitService } from "./profit.service";
 import { ProfitIntelligenceService } from "./profit-intelligence.service";
+import { Resend } from "resend";
 
 export class AlertService {
   /**
@@ -74,6 +75,7 @@ export class AlertService {
           },
         });
         createdAlerts.push(type);
+        await AlertService.sendEmailNotification(shop, type, severity, message);
       }
     };
 
@@ -149,5 +151,65 @@ export class AlertService {
       where: { id: alertId, shop },
       data: { isRead: true, readAt: new Date() },
     });
+  }
+
+  /**
+   * Dispatch an email notification for a triggered alert via Resend
+   */
+  static async sendEmailNotification(
+    shop: string,
+    type: string,
+    severity: "CRITICAL" | "WARNING" | "INFO",
+    message: string
+  ) {
+    const settings = await prisma.storeSettings.findUnique({
+      where: { shop },
+    });
+
+    if (!settings?.alertEmail) {
+      console.log(`[AlertService] No alert email configured for shop: ${shop}. Skipping email dispatch.`);
+      return;
+    }
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      console.warn(`[AlertService] RESEND_API_KEY is not configured in environment. Skipping email dispatch.`);
+      return;
+    }
+
+    try {
+      const resend = new Resend(resendApiKey);
+      await resend.emails.send({
+        from: "ProfitRx <alerts@profitrx.app>",
+        to: settings.alertEmail,
+        subject: `[${severity}] ProfitRx Alert: ${message.slice(0, 50)}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eaeaea; border-radius: 5px; max-width: 600px;">
+            <h2 style="color: #d9534f;">ProfitRx Alert</h2>
+            <p>We detected a metrics issue on your shop: <strong>${shop}</strong></p>
+            <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+            <table style="width: 100%;">
+              <tr>
+                <td style="padding: 5px 0; font-weight: bold; width: 120px;">Alert Type:</td>
+                <td style="padding: 5px 0;">${type}</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; font-weight: bold;">Severity:</td>
+                <td style="padding: 5px 0;"><span style="background-color: ${severity === "CRITICAL" ? "#d9534f" : "#f0ad4e"}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${severity}</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; font-weight: bold; vertical-align: top;">Message:</td>
+                <td style="padding: 5px 0;">${message}</td>
+              </tr>
+            </table>
+            <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #777;">Please log in to your Shopify store admin and open ProfitRx to review your dashboard metrics.</p>
+          </div>
+        `,
+      });
+      console.log(`[AlertService] Alert email dispatched successfully to ${settings.alertEmail}`);
+    } catch (err) {
+      console.error(`[AlertService] Failed to send email alert via Resend:`, err);
+    }
   }
 }

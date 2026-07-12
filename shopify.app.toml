@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "08f8a7442c2182a3a390f753591c06f3"
-name = "ProfitRx — RTO & Profit Intelligence"
+name = "ProfitRx RTO & Profit"
 application_url = "https://greek-god-saas.vercel.app"
 embedded = true
 
@@ -42,7 +42,7 @@ uri = "/webhooks/orders/updated"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,read_orders,write_orders,read_customers,read_fulfillments,write_metafields,read_metafields"
+scopes = "read_products,read_orders,write_orders,read_customers,read_fulfillments,write_metafields,read_metafields,write_payment_customizations"
 
 [auth]
 redirect_urls = [

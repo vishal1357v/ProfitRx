@@ -123,15 +123,13 @@ export class WhatsAppService {
 
     for (const o of targetOrders) {
       totalRevenue += o.totalPrice;
-      const c = cogsDict[o.productId || ""];
-      if (c !== undefined) {
-        const { fees } = ProfitService.calculateOrderProfit(o, c, evalSettings);
-        totalCogs += c;
-        totalFees += fees;
-        if (o.fulfillmentStatus === "RTO") {
-          const retShip = settings?.defaultReturnShipping ?? 70;
-          rtoLoss += retShip + c;
-        }
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * 0.4);
+      const { fees } = ProfitService.calculateOrderProfit(o, c, evalSettings);
+      totalCogs += c;
+      totalFees += fees;
+      if (o.fulfillmentStatus === "RTO") {
+        const retShip = settings?.defaultReturnShipping ?? 70;
+        rtoLoss += retShip + c;
       }
     }
 
