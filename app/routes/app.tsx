@@ -190,6 +190,9 @@ export default function App() {
     }
   };
 
+  // Detect if running inside Shopify Admin iframe — suppress mobile nav when true
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
   useEffect(() => {
     if (isDarkMode) {
       document.body.classList.add("dark-theme");
@@ -197,6 +200,12 @@ export default function App() {
     } else {
       document.body.classList.remove("dark-theme");
       document.documentElement.setAttribute("data-theme", "light");
+    }
+    // Detect iframe (Shopify Admin embedded context)
+    try {
+      setIsEmbedded(window.self !== window.top);
+    } catch {
+      setIsEmbedded(true); // cross-origin iframe access blocked = definitely embedded
     }
   }, [isDarkMode]);
 
@@ -245,9 +254,8 @@ export default function App() {
         )}
 
         <div style={{ minHeight: "100vh", backgroundColor: "var(--gg-bg-base)" }}>
-          {/* Top Polaris Navigation Bar — hidden in embedded context; Shopify Admin sidebar (NavMenu) handles navigation */}
+          {/* Top Navigation Bar */}
           <header style={{
-            display: "none",
             position: "sticky",
             top: 0,
             zIndex: 100,
@@ -295,14 +303,15 @@ export default function App() {
                   className="gg-mobile-menu-toggle"
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                   aria-label="Toggle Menu"
+                  style={{ display: isEmbedded ? "none" : undefined }}
                 >
                   <span style={{ fontSize: "20px" }}>{mobileMenuOpen ? "✕" : "☰"}</span>
                 </button>
               </div>
             </InlineStack>
 
-            {/* Main Navigation Component (Wraps both Desktop and Mobile views via CSS) */}
-            <nav className={`gg-main-nav ${mobileMenuOpen ? "open" : ""}`}>
+            {/* Main Navigation Component */}
+            <nav className={`gg-main-nav ${!isEmbedded && mobileMenuOpen ? "open" : ""}`}>
               {/* DESKTOP-ONLY NAVIGATION (POPOVERS) */}
               <div className="gg-desktop-only" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                 {/* Direct Link 1: Dashboard */}
