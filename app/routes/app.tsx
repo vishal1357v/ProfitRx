@@ -531,7 +531,7 @@ export default function App() {
               </div>
 
               {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}
-              <div className="gg-mobile-only" style={{ width: "high" }}>
+              <div className="gg-mobile-only" style={{ display: "none", width: "high" }}>
                 <BlockStack gap="100">
                   {/* Store Badge on Mobile Header */}
                   <div style={{ padding: "0 8px 10px 8px", borderBottom: "1px solid var(--gg-border)" }}>
