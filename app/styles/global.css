@@ -1010,6 +1010,16 @@ body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; 
 /* ============================================================
    22. MOBILE RESPONSIVENESS OVERRIDES
    ============================================================ */
+
+/* Hide NavMenu <a> children before App Bridge picks them up.
+   App Bridge moves them into the Shopify Admin sidebar — any
+   that remain in the DOM are invisible placeholders. */
+[data-shopify-nav-menu] > a,
+.Polaris-Navigation__Item,
+nav[aria-label="App navigation"] > a {
+  display: none !important;
+}
+
 .gg-mobile-only {
   display: none !important;
 }
@@ -1022,6 +1032,7 @@ body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; 
   display: flex !important;
   gap: 8px;
   align-items: center;
+  overflow: hidden; /* prevent mobile panel from bleeding outside header */
 }
 
 .gg-mobile-menu-toggle {
@@ -1060,16 +1071,19 @@ body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; 
 }
 
 @media (max-width: 768px) {
+  /* Mobile panel — only shown when nav has .open class */
   .gg-mobile-only {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column;
   }
   
   .gg-desktop-only {
     display: none !important;
   }
 
+  /* Hidden by default; revealed only when .open is toggled */
   .gg-main-nav {
-    display: none !important;
+    display: none;
     position: fixed;
     top: 56px;
     left: 0;
