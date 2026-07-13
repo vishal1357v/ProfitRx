@@ -245,8 +245,9 @@ export default function App() {
         )}
 
         <div style={{ minHeight: "100vh", backgroundColor: "var(--gg-bg-base)" }}>
-          {/* Top Polaris Navigation Bar */}
+          {/* Top Polaris Navigation Bar — hidden in embedded context; Shopify Admin sidebar (NavMenu) handles navigation */}
           <header style={{
+            display: "none",
             position: "sticky",
             top: 0,
             zIndex: 100,
