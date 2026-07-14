@@ -107,36 +107,6 @@ const shopify = shopifyApp({
         },
       ],
     },
-    "Starter": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 1500.0,
-          currencyCode: "INR",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-    "Growth": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 3000.0,
-          currencyCode: "INR",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-    "Pro": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 6000.0,
-          currencyCode: "INR",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
   },
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }

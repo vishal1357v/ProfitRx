@@ -55,9 +55,22 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
     return sub;
   }
 
+  // ⚡ TTFB Cache Check: Query our database first to see if subscription status was checked recently (within 1 hour)
+  try {
+    const existing = await prisma.subscription.findUnique({ where: { shop } });
+    if (existing) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      if (existing.updatedAt > oneHourAgo) {
+        return existing;
+      }
+    }
+  } catch (dbErr) {
+    console.error(`[SubscriptionSync] Error checking local cache for ${shop}:`, dbErr);
+  }
+
   try {
     const checkResult = await billing.check({
-      plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"],
+      plans: ["STARTER", "GROWTH", "PRO"],
       isTest: true,
     });
 

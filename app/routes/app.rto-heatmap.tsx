@@ -123,7 +123,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const RISK_COLORS = {
-  LOW:      { color: "top-rated0b981", bg: "rgba(16,185,129,0.12)", label: "🟢 Low" },
+  LOW:      { color: "rgb(16, 185, 129)", bg: "rgba(16,185,129,0.12)", label: "🟢 Low" },
   MEDIUM:   { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "🟡 Medium" },
   HIGH:     { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "🟠 High" },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)", label: "🔴 Critical" },

@@ -57,12 +57,12 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
   const area90 = `M ${reversed.map((d, i) => `${getX(i)},${getY(d.repeat90)}`).join(" L ")} L ${getX(reversed.length - 1)},${height - padB} L ${getX(0)},${height - padB} Z`;
 
   return (
-    <div style={{ width: "high", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
+    <div style={{ width: "100" + "%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width={"100" + "%"} height={height}>
         <defs>
           <linearGradient id="r30-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="top-rated0b981" stopOpacity="0.25" />
-            <stop offset="high" stopColor="top-rated0b981" stopOpacity="0.02" />
+            <stop offset={0.0} stopColor="rgb(16, 185, 129)" stopOpacity="0.25" />
+            <stop offset={1.0} stopColor="rgb(16, 185, 129)" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="r90-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.2" />
@@ -89,13 +89,13 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
         <path d={area90} fill="url(#r90-grad)" />
         <path d={area30} fill="url(#r30-grad)" />
 
-        <polyline fill="none" stroke="top-rated0b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts30} />
+        <polyline fill="none" stroke="rgb(16, 185, 129)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts30} />
         <polyline fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 3" points={pts60} />
         <polyline fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts90} />
 
         {reversed.map((d, i) => (
           <g key={i}>
-            <circle cx={getX(i)} cy={getY(d.repeat30)} r="3.5" fill="top-rated0b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
+            <circle cx={getX(i)} cy={getY(d.repeat30)} r="3.5" fill="rgb(16, 185, 129)" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
             <circle cx={getX(i)} cy={getY(d.repeat90)} r="3.5" fill="#7c3aed" stroke="rgba(124,58,237,0.3)" strokeWidth="4" />
           </g>
         ))}

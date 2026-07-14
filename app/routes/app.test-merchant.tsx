@@ -13,6 +13,10 @@ import {
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  // 🔒 Production guard — this route is for internal dev/pilot testing only
+  if (process.env.NODE_ENV === "production") {
+    throw new Response("Not Found", { status: 404 });
+  }
   const { session } = await authenticate.admin(request);
   return { shop: session.shop };
 };
