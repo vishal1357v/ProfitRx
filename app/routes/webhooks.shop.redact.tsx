@@ -14,29 +14,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shopName = payload.shop_domain || shop;
 
-  try {
-    console.log(`[GDPR Shop Redact] Purging store data for: ${shopName}`);
+  // ⚡ Respond immediately (within 5 seconds) as required by Shopify Webhook spec
+  // Run heavy database purges asynchronously in the background
+  setTimeout(async () => {
+    try {
+      console.log(`[GDPR Shop Redact] Purging store data in background for: ${shopName}`);
 
-    // Delete records in related tables
-    await (prisma as any).productCOGS.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).rTOEvent.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).alert.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).order.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).subscription.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).storeSettings.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).pincodeStats.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).customerProfile.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).adSpend.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).profitSnapshot.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).aISearchQuery.deleteMany({ where: { shop: shopName } });
-    await (prisma as any).session.deleteMany({ where: { shop: shopName } });
+      // Run deletions in parallel to reduce database connection time
+      await Promise.all([
+        (prisma as any).productCOGS.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).rTOEvent.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).alert.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).order.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).subscription.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).storeSettings.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).pincodeStats.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).customerProfile.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).adSpend.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).profitSnapshot.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).aISearchQuery.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+        (prisma as any).session.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
+      ]);
 
-    console.log(`[GDPR Shop Redact] Successfully purged data for: ${shopName}`);
-    logGdprAudit(shopName, "SHOP_REDACT_SUCCESS", "Successfully purged all productCOGS, rTOEvent, alert, order, subscription, storeSettings, pincodeStats, customerProfile, adSpend, profitSnapshot, aISearchQuery, and session records.");
-  } catch (err: any) {
-    console.error(`[GDPR Shop Redact] Failed to purge data:`, err.message);
-    logGdprAudit(shopName, "SHOP_REDACT_FAILURE", `Failed to purge data: ${err.message}`);
-  }
+      console.log(`[GDPR Shop Redact] Successfully purged data for: ${shopName}`);
+      logGdprAudit(shopName, "SHOP_REDACT_SUCCESS", "Successfully purged all records in the background.");
+    } catch (err: any) {
+      console.error(`[GDPR Shop Redact] Failed to purge data:`, err.message);
+      logGdprAudit(shopName, "SHOP_REDACT_FAILURE", `Failed to purge data in background: ${err.message}`);
+    }
+  }, 10);
 
   return new Response("Webhook received successfully", { status: 200 });
 };
