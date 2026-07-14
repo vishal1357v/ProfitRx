@@ -1,9 +1,9 @@
-import { Links, Meta, Outlet, Scripts } from "react-router";
-import type { HeadersFunction } from "react-router";
+import { Links, Meta, Outlet, Scripts, useLoaderData } from "react-router";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { AppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import translations from "@shopify/polaris/locales/en.json";
-import globalStyles from "./styles/global.css?raw";
+import { getGlobalStyles } from "./styles.server";
 
 export const links = () => [
   { rel: "preconnect", href: "https://cdn.shopify.com/" },
@@ -15,7 +15,13 @@ export const headers: HeadersFunction = () => ({
   "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
 });
 
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  return { globalStyles: getGlobalStyles() };
+};
+
 export default function App() {
+  const { globalStyles } = useLoaderData<typeof loader>() || { globalStyles: "" };
+
   return (
     <html lang="en">
       <head>
