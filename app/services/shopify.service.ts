@@ -82,6 +82,8 @@ function detectChannel(node: any): { channelType: string; channelAttribution: st
 }
 
 export class ShopifyService {
+  private static productsCache = new Map<string, { data: any[]; timestamp: number }>();
+
   // ── Orders ───────────────────────────────────────────────
   static async getOrders(requestOrAdmin: Request | any, limit: number = 250, shopName: string = "") {
     let admin: any;
@@ -219,11 +221,23 @@ export class ShopifyService {
   // ── Products ─────────────────────────────────────────────
   static async getProducts(requestOrAdmin: Request | any) {
     let admin: any;
+    let shop = "";
     if (requestOrAdmin instanceof Request) {
       const auth = await authenticate.admin(requestOrAdmin);
       admin = auth.admin;
+      shop = auth.session.shop;
     } else {
       admin = requestOrAdmin;
+      shop = admin?.rest?.session?.shop || admin?.session?.shop || "default_shop";
+    }
+
+    // ⚡ Cache hit check (TTL of 15 minutes = 15 * 60 * 1000 ms)
+    if (shop) {
+      const cached = ShopifyService.productsCache.get(shop);
+      if (cached && Date.now() - cached.timestamp < 15 * 60 * 1000) {
+        console.log(`[ShopifyService] Returning cached products for ${shop}`);
+        return cached.data;
+      }
     }
 
     const response = await admin.graphql(`
@@ -262,7 +276,7 @@ export class ShopifyService {
 
     if (data.errors?.length) throw new Error(data.errors[0].message);
 
-    return data.data.products.edges.map((edge) => {
+    const result = data.data.products.edges.map((edge) => {
       const firstVariant = edge.node.variants?.edges?.[0]?.node;
       const unitCost = firstVariant?.inventoryItem?.unitCost?.amount ? parseFloat(firstVariant.inventoryItem.unitCost.amount) : null;
       return {
@@ -274,6 +288,15 @@ export class ShopifyService {
         cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
       };
     });
+
+    if (shop) {
+      ShopifyService.productsCache.set(shop, {
+        data: result,
+        timestamp: Date.now(),
+      });
+    }
+
+    return result;
   }
 
   // ── Sync Native Shopify COGS ─────────────────────────────────

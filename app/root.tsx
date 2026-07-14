@@ -1,13 +1,13 @@
-import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import { Links, Meta, Outlet, Scripts } from "react-router";
 import type { HeadersFunction } from "react-router";
 import { AppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import translations from "@shopify/polaris/locales/en.json";
+import globalStyles from "./styles/global.css?raw";
 
 export const links = () => [
   { rel: "preconnect", href: "https://cdn.shopify.com/" },
   { rel: "stylesheet", href: polarisStyles },
-  { rel: "stylesheet", href: "/styles/global.css" },
 ];
 
 // Allow the shell to be cached by Shopify's edge CDN for 60s, reducing TTFB
@@ -23,12 +23,12 @@ export default function App() {
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <Meta />
         <Links />
+        <style dangerouslySetInnerHTML={{ __html: globalStyles }} />
       </head>
       <body>
         <AppProvider i18n={translations}>
           <Outlet />
         </AppProvider>
-        <ScrollRestoration />
         <Scripts />
       </body>
     </html>
