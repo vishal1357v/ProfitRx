@@ -24,6 +24,10 @@ export default function App() {
         <link
           rel="stylesheet"
           href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css"
+          media="print"
+          onLoad={(e) => {
+            e.currentTarget.media = "all";
+          }}
         />
         <Meta />
         <Links />
