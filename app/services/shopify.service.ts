@@ -200,6 +200,16 @@ export class ShopifyService {
       endCursor = pageInfo.endCursor || null;
       pageCount++;
 
+      // ⚡ GraphQL Leaky Bucket Rate Limiting backoff logic
+      const cost = data.extensions?.cost;
+      if (cost) {
+        const currentlyAvailable = Number(cost.throttleStatus?.currentlyAvailable) || 2000;
+        if (currentlyAvailable < 1000) {
+          console.log(`[ShopifyService] Rate limit points low (${currentlyAvailable}/1000). Backing off for 2000ms.`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
       if (edges.length === 0) break;
     }
 
@@ -680,49 +690,108 @@ export class ShopifyService {
 
   // ── Update Pincode Stats ──────────────────────────────────
   static async updatePincodeStats(shop: string): Promise<void> {
-    const orders = await prisma.order.findMany({ where: { shop } });
+    // 1. Group and count orders by pincode directly in database
+    const groupedOrders = await prisma.order.groupBy({
+      by: ["pincode", "city", "province"],
+      where: { shop },
+      _count: {
+        id: true,
+      },
+    });
 
-    // Group by pincode
+    const codOrdersGrouped = await prisma.order.groupBy({
+      by: ["pincode"],
+      where: { shop, isCOD: true },
+      _count: {
+        id: true,
+      },
+    });
+
+    const rtoOrdersGrouped = await prisma.order.groupBy({
+      by: ["pincode"],
+      where: {
+        shop,
+        OR: [
+          { fulfillmentStatus: { contains: "returned", mode: "insensitive" } },
+          { fulfillmentStatus: { contains: "failed", mode: "insensitive" } },
+          { fulfillmentStatus: { equals: "RTO", mode: "insensitive" } },
+        ],
+      },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        totalPrice: true,
+      },
+    });
+
+    // 2. Fetch manual RTO events and map to order pincodes
+    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+    const linkedOrderIds = rtoEvents.map(e => e.orderId).filter(Boolean);
+    const linkedOrders = await prisma.order.findMany({
+      where: { shop, id: { in: linkedOrderIds } },
+      select: { id: true, pincode: true }
+    });
+    const orderIdToPincode = new Map(linkedOrders.map(o => [o.id, o.pincode]));
+
     const pincodeMap: Record<string, {
       city?: string; province?: string;
       totalOrders: number; codOrders: number; rtoCount: number; totalLoss: number;
     }> = {};
 
-    for (const o of orders) {
-      const pin = o.pincode || "UNKNOWN";
+    for (const g of groupedOrders) {
+      const pin = g.pincode || "UNKNOWN";
       if (!pincodeMap[pin]) {
-        pincodeMap[pin] = { city: o.city || undefined, province: o.province || undefined, totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+        pincodeMap[pin] = { city: g.city || undefined, province: g.province || undefined, totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
       }
-      pincodeMap[pin].totalOrders++;
-      if ((o as any).isCOD) pincodeMap[pin].codOrders++;
-      if (o.fulfillmentStatus?.toLowerCase().includes("returned") || o.fulfillmentStatus?.toLowerCase().includes("failed")) {
-        pincodeMap[pin].rtoCount++;
-        pincodeMap[pin].totalLoss += o.totalPrice;
-      }
+      pincodeMap[pin].totalOrders += g._count.id;
     }
 
-    // Also count manual RTO events
-    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+    for (const g of codOrdersGrouped) {
+      const pin = g.pincode || "UNKNOWN";
+      if (!pincodeMap[pin]) {
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+      }
+      pincodeMap[pin].codOrders += g._count.id;
+    }
+
+    for (const g of rtoOrdersGrouped) {
+      const pin = g.pincode || "UNKNOWN";
+      if (!pincodeMap[pin]) {
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+      }
+      pincodeMap[pin].rtoCount += g._count.id;
+      pincodeMap[pin].totalLoss += g._sum.totalPrice || 0;
+    }
+
     for (const event of rtoEvents) {
-      const linkedOrder = orders.find((o: any) => o.id === event.orderId);
-      if (!linkedOrder) continue;
-      const pin = linkedOrder.pincode || "UNKNOWN";
+      const pin = orderIdToPincode.get(event.orderId) || "UNKNOWN";
       if (pincodeMap[pin]) {
         pincodeMap[pin].rtoCount++;
         pincodeMap[pin].totalLoss += event.amount;
       }
     }
 
+    const upsertPromises: any[] = [];
     for (const [pincode, stats] of Object.entries(pincodeMap)) {
       if (pincode === "UNKNOWN" && stats.totalOrders < 3) continue;
       const rtoRate = stats.codOrders > 0 ? (stats.rtoCount / stats.codOrders) * 100 : 0;
       const riskLevel = rtoRate >= 30 ? "CRITICAL" : rtoRate >= 20 ? "HIGH" : rtoRate >= 10 ? "MEDIUM" : "LOW";
 
-      await (prisma as any).pincodeStats.upsert({
-        where: { shop_pincode: { shop, pincode } },
-        update: { city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
-        create: { shop, pincode, city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
-      });
+      upsertPromises.push(
+        (prisma as any).pincodeStats.upsert({
+          where: { shop_pincode: { shop, pincode } },
+          update: { city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
+          create: { shop, pincode, city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
+        })
+      );
+    }
+
+    // Execute pincode upserts in chunks of 100
+    const batchSize = 100;
+    for (let i = 0; i < upsertPromises.length; i += batchSize) {
+      const batch = upsertPromises.slice(i, i + batchSize);
+      await prisma.$transaction(batch);
     }
   }
 
@@ -896,8 +965,23 @@ export class ShopifyService {
     const finalFulfillmentStatus = isRTO ? "RTO" : fulfillmentStatus;
 
     const cogsDict = await ProfitService.getCOGS(shop);
-    const cleanProdId = productId ? (productId.split("/").pop() || "") : "";
-    const snapshotCogs = cogsDict[cleanProdId] ?? (totalPrice * settings.defaultCOGSPct / 100);
+    let snapshotCogs = 0;
+    const lineItems = payload.line_items || [];
+    if (lineItems.length > 0) {
+      for (const item of lineItems) {
+        const fullProdId = item.product_id ? String(item.product_id) : "";
+        const cleanId = fullProdId.split("/").pop() || "";
+        const price = parseFloat(item.price || "0");
+        const quantity = parseInt(item.quantity) || 1;
+        if (cogsDict[cleanId] !== undefined) {
+          snapshotCogs += (cogsDict[cleanId] * quantity);
+        } else {
+          snapshotCogs += (price * quantity * settings.defaultCOGSPct / 100);
+        }
+      }
+    } else {
+      snapshotCogs = totalPrice * settings.defaultCOGSPct / 100;
+    }
 
     await (prisma.order as any).upsert({
       where: { id },

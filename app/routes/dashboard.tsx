@@ -89,13 +89,56 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const features = await getFeatureList(shop);
 
-    const orders = await prisma.order.findMany({
+    let orders = await prisma.order.findMany({
       where: { shop },
       orderBy: { createdAt: "desc" },
     });
 
+    const isDemoData = orders.length === 0;
+    if (isDemoData) {
+      // Seed mockup memory orders for new user preview
+      const today = new Date();
+      orders = Array.from({ length: 15 }).map((_, index) => {
+        const date = new Date();
+        date.setDate(today.getDate() - index);
+        const isCOD = index % 2 === 0;
+        const total = isCOD ? 1500 + (index * 150) : 1200 + (index * 100);
+        return {
+          id: `demo_${index}`,
+          shop,
+          orderNumber: 1000 + index,
+          totalPrice: total,
+          subtotalPrice: total * 0.85,
+          totalTax: total * 0.18,
+          shippingPrice: 100,
+          discountAmount: index * 50,
+          isCOD,
+          createdAt: date,
+          processedAt: date,
+          financialStatus: isCOD ? "pending" : "paid",
+          fulfillmentStatus: index === 3 || index === 7 ? "RTO" : "fulfilled",
+          productId: "demo_prod",
+          gateway: isCOD ? "cash_on_delivery" : "razorpay",
+          channelType: index % 3 === 0 ? "AI_CHAT" : "WEBSITE",
+          channelAttribution: index % 3 === 0 ? "ChatGPT" : "Website",
+          customerId: `demo_cust_${index % 5}`,
+          customerName: `Demo Customer ${index}`,
+          customerEmail: `demo_${index}@example.com`,
+          pincode: index === 3 ? "400001" : index === 7 ? "110001" : "560001",
+          city: index === 3 ? "Mumbai" : index === 7 ? "Delhi" : "Bengaluru",
+          province: index === 3 ? "Maharashtra" : index === 7 ? "Delhi" : "Karnataka",
+          cogsAtTimeOfOrder: total * 0.4,
+        } as any;
+      });
+    }
+
     const cogsMap = await ProfitService.getCOGS(shop);
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+
+    const adSpendConnections = await prisma.adSpend.findMany({
+      where: { shop },
+    });
+    const adSpendDisconnected = adSpendConnections.some((c: any) => !c.isConnected && c.accessToken != null);
 
     const leaks = await ProfitIntelligenceService.getProfitLeaks(shop);
     const leakTrend = await ProfitIntelligenceService.getLeakTrend(shop);
@@ -125,13 +168,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (!hasCogs) {
         excludedOrdersCount++;
       }
-      const cost = hasCogs ? cogsMap[cleanId] : (o.totalPrice * settings.defaultCOGSPct / 100);
-      const { fees } = ProfitService.calculateOrderProfit(o, cost, settings);
+      const fallbackCost = hasCogs ? cogsMap[cleanId] : (o.totalPrice * settings.defaultCOGSPct / 100);
+      const orderCogs = (o.cogsAtTimeOfOrder !== null && o.cogsAtTimeOfOrder !== undefined && !isNaN(o.cogsAtTimeOfOrder))
+        ? o.cogsAtTimeOfOrder
+        : fallbackCost;
+
+      const { fees } = ProfitService.calculateOrderProfit(o, orderCogs, settings);
       
       const isRto = o.fulfillmentStatus === "RTO";
       if (!isRto) {
         profitRevenue += o.totalPrice;
-        totalCOGS += cost;
+        totalCOGS += orderCogs;
         totalFees += fees;
       } else {
         totalFees += fees;
@@ -407,6 +454,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       netRoiSavings,
       blockedCodCount,
       settings,
+      isDemoData,
+      adSpendDisconnected,
     };
   } catch (err: any) {
     console.error("[Dashboard Loader Critical Error Caught]:", err);
@@ -440,6 +489,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         isGstRegistered: false,
         gstRate: 18,
       },
+      isDemoData: false,
+      adSpendDisconnected: false,
     };
   }
 };
@@ -1029,6 +1080,36 @@ export default function DashboardRoute() {
         )}
 
 
+
+        {data.isDemoData && (
+          <Layout.Section>
+            <Banner
+              tone="warning"
+              title="Viewing Demo Data Mode"
+              action={{
+                content: "Sync Your Store Orders",
+                onAction: handleSyncOrders,
+              }}
+            >
+              <p>We did not find any orders in your store database. The metrics and charts below are populated with sample/demo data to show the dashboard capabilities. Run a manual sync to pull your actual store data.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {data.adSpendDisconnected && (
+          <Layout.Section>
+            <Banner
+              tone="critical"
+              title="Ad Account Credentials Expired"
+              action={{
+                content: "Reconnect Ad Channels",
+                url: `/app/roas?shop=${data.shop}&host=${data.host}`,
+              }}
+            >
+              <p>Meta, Google, or TikTok Ad spend OAuth integration tokens have expired or been revoked. Ad spend and blended ROAS/CAC tracking are disabled. Reconnect your credentials in settings to restore metrics sync.</p>
+            </Banner>
+          </Layout.Section>
+        )}
 
         {/* Warning & Plan Banners */}
         {data.isBasicTier && (

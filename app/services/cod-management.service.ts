@@ -131,6 +131,57 @@ export class CODManagementService {
    * Generate 6-digit OTP for COD Order verification
    */
   static async createCODOrderVerification(shop: string, orderId: string, phone: string) {
+    let pincode: string | null = null;
+    let riskLevel = "LOW";
+
+    // 1. Resolve order shipping pincode from local order database
+    const localOrder = await prisma.order.findFirst({
+      where: { shop, OR: [{ id: orderId }, { id: `gid://shopify/Order/${orderId}` }] },
+      select: { pincode: true }
+    });
+
+    if (localOrder?.pincode) {
+      pincode = localOrder.pincode;
+    }
+
+    // 2. Fetch risk level if pincode is resolved
+    if (pincode) {
+      const stats = await (prisma as any).pincodeStats.findUnique({
+        where: { shop_pincode: { shop, pincode } }
+      });
+      if (stats) {
+        riskLevel = stats.riskLevel || "LOW";
+      }
+    }
+
+    // 3. Conditional gate: if risk level is LOW, bypass OTP challenge entirely
+    if (riskLevel === "LOW") {
+      console.log(`[CODManagementService] Pincode "${pincode || "unknown"}" is LOW risk. Bypassing OTP verification challenge for order ${orderId}`);
+      const record = await (prisma as any).cODOrder.upsert({
+        where: { orderId },
+        update: {
+          shop,
+          phone,
+          otp: null,
+          otpVerified: true,
+          otpSentAt: null,
+          otpVerifiedAt: new Date(),
+          status: "VERIFIED",
+        },
+        create: {
+          orderId,
+          shop,
+          phone,
+          otp: null,
+          otpVerified: true,
+          otpSentAt: null,
+          otpVerifiedAt: new Date(),
+          status: "VERIFIED",
+        },
+      });
+      return { success: true, record, otpSent: false, bypassed: true, provider: "bypass" };
+    }
+
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const record = await (prisma as any).cODOrder.upsert({
@@ -154,10 +205,10 @@ export class CODManagementService {
       },
     });
 
-    // Dispatch live SMS/WhatsApp message
+    // Dispatch live SMS/WhatsApp message for Medium/High/Critical risk
     const dispatchRes = await WhatsAppService.sendOTP(phone, otp);
 
-    console.log(`[CODManagementService] Generated and dispatched OTP ${otp} to ${phone} via ${dispatchRes.provider}`);
+    console.log(`[CODManagementService] Generated and dispatched OTP ${otp} to ${phone} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
     return { success: true, record, otpSent: true, provider: dispatchRes.provider };
   }
 

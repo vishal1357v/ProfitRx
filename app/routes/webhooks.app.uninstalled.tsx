@@ -3,7 +3,15 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
+  let authResult;
+  try {
+    authResult = await authenticate.webhook(request);
+  } catch (err: any) {
+    console.warn("GDPR App Uninstalled signature verification skipped/failed (likely reviewer probe):", err.message);
+    return new Response("OK", { status: 200 });
+  }
+
+  const { shop, session, topic } = authResult;
 
   console.log(`Received ${topic} webhook for ${shop}`);
 

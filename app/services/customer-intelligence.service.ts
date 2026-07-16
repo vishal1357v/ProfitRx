@@ -32,7 +32,7 @@ export class CustomerIntelligenceService {
       customerGroupMap.get(custKey)!.push(o);
     }
 
-    let updatedCount = 0;
+    const upsertPromises: any[] = [];
 
     for (const [customerId, custOrders] of customerGroupMap.entries()) {
       // Sort orders chronologically
@@ -54,50 +54,56 @@ export class CustomerIntelligenceService {
       const customerName = (firstOrder as any).customerName || (firstOrder as any).name || `Customer ${customerId.substring(0, 6)}`;
       const customerEmail = (firstOrder as any).customerEmail || (firstOrder as any).email || null;
 
-      await (prisma as any).customerProfile.upsert({
-        where: { shop_customerId: { shop, customerId } },
-        update: {
-          customerName,
-          customerEmail,
-          firstOrderDate,
-          lastOrderDate,
-          orderCount,
-          totalRevenue,
-          ltv,
-          aov,
-          cohortMonth,
-          channelSource,
-          updatedAt: new Date(),
-        },
-        create: {
-          shop,
-          customerId,
-          customerName,
-          customerEmail,
-          firstOrderDate,
-          lastOrderDate,
-          orderCount,
-          totalRevenue,
-          ltv,
-          aov,
-          cohortMonth,
-          channelSource,
-          updatedAt: new Date(),
-        },
-      });
-
-      updatedCount++;
+      upsertPromises.push(
+        (prisma as any).customerProfile.upsert({
+          where: { shop_customerId: { shop, customerId } },
+          update: {
+            customerName,
+            customerEmail,
+            firstOrderDate,
+            lastOrderDate,
+            orderCount,
+            totalRevenue,
+            ltv,
+            aov,
+            cohortMonth,
+            channelSource,
+            updatedAt: new Date(),
+          },
+          create: {
+            shop,
+            customerId,
+            customerName,
+            customerEmail,
+            firstOrderDate,
+            lastOrderDate,
+            orderCount,
+            totalRevenue,
+            ltv,
+            aov,
+            cohortMonth,
+            channelSource,
+            updatedAt: new Date(),
+          },
+        })
+      );
     }
 
-    return { updated: updatedCount };
+    // Run database operations in batches of 100 to prevent connection pools and memory timeout bottlenecks
+    const batchSize = 100;
+    for (let i = 0; i < upsertPromises.length; i += batchSize) {
+      const batch = upsertPromises.slice(i, i + batchSize);
+      await prisma.$transaction(batch);
+    }
+
+    return { updated: upsertPromises.length };
   }
 
   /**
    * Calculate exact date-based Cohort Retention Curves (30, 60, 90 day retention)
    */
   static async getLTVCohorts(shop: string): Promise<LTVCohort[]> {
-    // Ensure profiles are synced
-    await this.syncCustomerProfiles(shop);
+    // Read directly from pre-computed DB records to keep page loads lightning fast
 
     const orders = await prisma.order.findMany({
       where: { shop },

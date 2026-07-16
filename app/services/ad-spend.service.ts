@@ -184,7 +184,19 @@ export class AdSpendService {
         const response = await fetch(
           `https://graph.facebook.com/v19.0/act_${conn.accountId || "me"}/insights?date_preset=today&fields=spend,clicks,impressions&access_token=${activeToken}`
         );
+
+        if (response.status === 401) {
+          console.warn(`[AdSpendService] Meta credentials expired. Disconnecting platform for ${shop}`);
+          await this.disconnectAdPlatform(shop, "meta");
+          return { spend: 0, clicks: 0, impressions: 0 };
+        }
+
         const data = await response.json();
+        if (data.error && (data.error.code === 190 || data.error.error_subcode === 467)) {
+          console.warn(`[AdSpendService] Meta OAuth token invalid. Disconnecting.`);
+          await this.disconnectAdPlatform(shop, "meta");
+        }
+
         if (data.data?.[0]) {
           return {
             spend: parseFloat(data.data[0].spend || "0"),
@@ -205,9 +217,16 @@ export class AdSpendService {
             query: "SELECT metrics.cost_micros, metrics.clicks, metrics.impressions FROM customer WHERE segments.date = DURING TODAY",
           }),
         });
+
+        if (response.status === 401) {
+          console.warn(`[AdSpendService] Google credentials expired. Disconnecting platform for ${shop}`);
+          await this.disconnectAdPlatform(shop, "google");
+          return { spend: 0, clicks: 0, impressions: 0 };
+        }
+
         const data = await response.json();
-        const row = data.results?.[0]?.metrics;
-        if (row) {
+        if (data.results?.[0]?.metrics) {
+          const row = data.results[0].metrics;
           return {
             spend: (parseFloat(row.costMicros || "0") / 1000000) * 83, // INR equivalent
             clicks: parseInt(row.clicks || "0", 10),
@@ -221,7 +240,19 @@ export class AdSpendService {
             "Access-Token": activeToken,
           },
         });
+
+        if (response.status === 401) {
+          console.warn(`[AdSpendService] TikTok credentials expired. Disconnecting platform for ${shop}`);
+          await this.disconnectAdPlatform(shop, "tiktok");
+          return { spend: 0, clicks: 0, impressions: 0 };
+        }
+
         const data = await response.json();
+        if (data.code === 40100 || data.code === 40105) {
+          console.warn(`[AdSpendService] TikTok token invalid. Disconnecting.`);
+          await this.disconnectAdPlatform(shop, "tiktok");
+        }
+
         const row = data.data?.list?.[0]?.metrics;
         if (row) {
           return {
