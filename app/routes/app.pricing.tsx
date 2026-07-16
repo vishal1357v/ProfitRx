@@ -29,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { currentPlan, shop: session.shop };
 };
 
-type BillingPlan = "Starter" | "Growth" | "Pro";
+type BillingPlan = "STARTER" | "GROWTH" | "PRO";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -39,17 +39,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const rawPlan = (formData.get("plan") as string) || "";
   const upperPlan = rawPlan.toUpperCase();
 
-  let plan: BillingPlan = "Starter";
-  if (upperPlan === "PRO") plan = "Pro";
-  else if (upperPlan === "GROWTH") plan = "Growth";
-  else if (upperPlan === "STARTER" || upperPlan === "BASIC") plan = "Starter";
+  let plan: BillingPlan = "STARTER";
+  if (upperPlan === "PRO") plan = "PRO";
+  else if (upperPlan === "GROWTH") plan = "GROWTH";
+  else if (upperPlan === "STARTER" || upperPlan === "BASIC") plan = "STARTER";
   else {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
   const isBypass = process.env.BYPASS_BILLING === "true";
-  const orderLimit = plan === "Pro" ? null : plan === "Growth" ? 2000 : 500;
-  const dbPlan = plan.toUpperCase();
+  const orderLimit = plan === "PRO" ? null : plan === "GROWTH" ? 2000 : 500;
+  const dbPlan = plan;
 
   if (isBypass) {
     await prisma.subscription.upsert({
