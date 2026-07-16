@@ -69,7 +69,7 @@ model Order {
   pincode           String?
   city              String?
   province          String?
-  // Snapshot COGS at time of order creation (prevents historical data distortion)
+  totalWeight       Float?   // Total weight in grams/kg
   cogsAtTimeOfOrder Float?
 
   @@index([shop, createdAt])
@@ -340,6 +340,7 @@ model StoreSettings {
   hsnCodes               Json?
   gatewayFixedFee        Float    @default(0)
   shopifyPlanName        String?  // e.g. "Basic", "Shopify", "Advanced", "Plus"
+  shippingSlabs          Json?    // Array of weight slabs: { maxWeightGrams: number, forwardCost: number, returnCost: number }
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

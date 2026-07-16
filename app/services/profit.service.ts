@@ -91,6 +91,7 @@ export class ProfitService {
       whatsappPhone: settings?.whatsappPhone || "",
       whatsappEnabled: Boolean(settings?.whatsappEnabled),
       syncCapped: Boolean(settings?.syncCapped),
+      shippingSlabs: settings?.shippingSlabs || null,
     };
   }
 
@@ -100,10 +101,36 @@ export class ProfitService {
    * Gateway_Fee (Prepaid) = ((Order_Total * Razorpay_Rate) + (Order_Total * Shopify_Surcharge_Rate) + Fixed_Fee) * 1.18 (18% GST)
    * Gateway_Fee (COD) = 0. COD Handling Fee applied instead.
    */
+  static getSlabShippingCosts(
+    weightGrams: number | null | undefined,
+    slabs: any[] | null | undefined,
+    defaultForward: number,
+    defaultReturn: number
+  ): { forward: number; returnShip: number } {
+    if (!weightGrams || weightGrams <= 0 || !slabs || !Array.isArray(slabs) || slabs.length === 0) {
+      return { forward: defaultForward, returnShip: defaultReturn };
+    }
+    const sorted = [...slabs].sort((a, b) => (Number(a.maxWeightGrams) || 0) - (Number(b.maxWeightGrams) || 0));
+    for (const slab of sorted) {
+      const maxWeight = Number(slab.maxWeightGrams) || 0;
+      if (weightGrams <= maxWeight) {
+        return {
+          forward: Number(slab.forwardCost) ?? defaultForward,
+          returnShip: Number(slab.returnCost) ?? defaultReturn
+        };
+      }
+    }
+    const heaviest = sorted[sorted.length - 1];
+    return {
+      forward: Number(heaviest.forwardCost) ?? defaultForward,
+      returnShip: Number(heaviest.returnCost) ?? defaultReturn
+    };
+  }
+
   static calculateOrderProfit(
-    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number; fulfillmentStatus?: string },
+    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number; fulfillmentStatus?: string; totalWeight?: number | null },
     cogs: number,
-    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string }
+    settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string; shippingSlabs?: any[] | null }
   ): { profit: number; fees: number; margin: number } {
     const isRto = order.fulfillmentStatus === "RTO";
     const totalPrice = isRto ? 0 : (Number(order.totalPrice) || 0);
@@ -111,9 +138,17 @@ export class ProfitService {
     const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? Number(order.cogsAtTimeOfOrder) : (Number(cogs) || 0));
     const gatewayFixed = Number(settings.gatewayFixedFee) || 0;
     const packaging = Number(settings.defaultPackaging) || 10;
-    const forwardShipping = Number(settings.defaultForwardShipping) || 60;
-    const codHandling = Number(settings.defaultCODHandling) || 50;
+    
+    const defaultForward = Number(settings.defaultForwardShipping) || 60;
+    const defaultReturn = Number(settings.defaultReturnShipping) || 70;
+    const { forward: forwardShipping, returnShip } = this.getSlabShippingCosts(
+      order.totalWeight,
+      settings.shippingSlabs,
+      defaultForward,
+      defaultReturn
+    );
 
+    const codHandling = Number(settings.defaultCODHandling) || 50;
     const isCod = isCodOrder(order);
 
     let gatewayFee = 0;
@@ -131,7 +166,7 @@ export class ProfitService {
       }
     }
 
-    const returnShipping = isRto ? (Number(settings.defaultReturnShipping) || 70) : 0;
+    const returnShipping = isRto ? returnShip : 0;
     const fees = totalTax + forwardShipping + returnShipping + gatewayFee + codFee + packaging;
     const profit = totalPrice - effectiveCogs - fees;
     const margin = totalPrice > 0 ? (profit / totalPrice) * 100 : 0;

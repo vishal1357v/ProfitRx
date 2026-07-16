@@ -25,18 +25,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
 
-  const [codSettings, pincodeStats] = await Promise.all([
+  const [codSettings, pincodeStats, storeSettings] = await Promise.all([
     CODManagementService.getCODSettings(shop),
     prisma.pincodeStats.findMany({
       where: { shop },
       orderBy: { rtoRate: "desc" },
       take: 50,
     }),
+    prisma.storeSettings.findUnique({
+      where: { shop },
+      select: { shopifyPlanName: true },
+    }),
   ]);
+
+  const isShopifyPlus = storeSettings?.shopifyPlanName?.toLowerCase().includes("plus") || false;
 
   return {
     shop,
     codSettings,
+    isShopifyPlus,
     pincodeStats: pincodeStats.map((p) => ({
       ...p,
       rtoRate: Math.round(p.rtoRate),
@@ -90,7 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CODRulesRoute() {
-  const { codSettings, pincodeStats } = useLoaderData<typeof loader>();
+  const { codSettings, pincodeStats, isShopifyPlus } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
@@ -178,6 +185,11 @@ export default function CODRulesRoute() {
           <Card>
             <Box padding="500">
               <BlockStack gap="400">
+                {!isShopifyPlus && blockingEnabled && (
+                  <Banner tone="warning" title="Shopify Plus Plan Required for Hard-Blocking Payment Gateways">
+                    <p>Automatic payment method hiding at checkout (like hiding COD payment options) requires a <strong>Shopify Plus</strong> plan using custom Shopify Functions. Since your store is on a standard Shopify plan, ProfitRx will secure your checkouts using the <strong>Verification Gate (WhatsApp OTP)</strong> instead.</p>
+                  </Banner>
+                )}
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="100">
                     <InlineStack gap="200" blockAlign="center">

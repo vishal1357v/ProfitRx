@@ -76,6 +76,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     
     const whatsappPhone = formData.get("whatsappPhone") as string;
     const whatsappEnabled = formData.get("whatsappEnabled") === "true";
+    
+    const rawSlabs = formData.get("shippingSlabs") as string;
+    let shippingSlabs: any = null;
+    if (rawSlabs) {
+      try {
+        shippingSlabs = JSON.parse(rawSlabs);
+      } catch (e) {
+        console.error("Failed to parse shippingSlabs JSON:", e);
+      }
+    }
 
     if (whatsappEnabled && whatsappPhone) {
       const phoneNumber = parsePhoneNumberFromString(whatsappPhone);
@@ -103,6 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         whatsappPhone,
         whatsappEnabled,
         otpVerificationEnabled: whatsappEnabled,
+        shippingSlabs,
       } as any,
       create: {
         shop,
@@ -123,6 +134,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         whatsappPhone,
         whatsappEnabled,
         otpVerificationEnabled: whatsappEnabled,
+        shippingSlabs,
       } as any,
     });
 
@@ -147,6 +159,18 @@ export default function SettingsRoute() {
   const [email, setEmail] = useState(settings.alertEmail || "");
   const [rtoLimit, setRtoLimit] = useState(settings.rtoThreshold.toString());
   const [marginLimit, setMarginLimit] = useState(settings.marginThreshold.toString());
+
+  // Slabs State
+  const [slabs, setSlabs] = useState<Array<{ maxWeightGrams: number; forwardCost: number; returnCost: number }>>(() => {
+    try {
+      if (settings.shippingSlabs) {
+        return typeof settings.shippingSlabs === "string" ? JSON.parse(settings.shippingSlabs) : settings.shippingSlabs;
+      }
+    } catch (e) {
+      console.error("Failed to initialize shippingSlabs state:", e);
+    }
+    return [];
+  });
 
   // GST State
   const [gstin, setGstin] = useState(settings.gstin || "");
@@ -177,6 +201,7 @@ export default function SettingsRoute() {
     formData.append("gstRate", gstRate);
     formData.append("whatsappPhone", waPhone);
     formData.append("whatsappEnabled", waEnabled.toString());
+    formData.append("shippingSlabs", JSON.stringify(slabs));
 
     submit(formData, { method: "post" });
     setSaved(true);
@@ -271,6 +296,10 @@ export default function SettingsRoute() {
                   <Text variant="bodySm" as="p" tone="subdued">
                     Configure your business phone number to send order confirmation OTP codes via WhatsApp to customers and receive weekly digests.
                   </Text>
+
+                  <Banner tone="warning" title="Messaging Provider Pricing Disclaimer">
+                    <p>Note: ProfitRx integrates with your own Meta Cloud API or Twilio WhatsApp account. You will be billed directly and separately by your messaging provider for SMS/WhatsApp API transmission fees.</p>
+                  </Banner>
                   
                   {actionData?.error && (
                     <Banner tone="critical" title="Validation Error">
@@ -320,6 +349,87 @@ export default function SettingsRoute() {
                     Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure high true net profit tracking.
                   </Text>
                   <Divider />
+
+                  {/* Weight Slabs Editor */}
+                  <BlockStack gap="200">
+                    <Text variant="headingSm" as="h3">⚖️ Weight-Based Logistics Slabs (Optional)</Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Define shipping costs based on total order weight. Slabs are matched in ascending order (e.g. 500g, 1000g). If matched, they override the flat forward & return shipping averages below.
+                    </Text>
+                    {slabs.map((slab, index) => (
+                      <InlineStack gap="200" key={index} blockAlign="center">
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Max Weight (Grams)"
+                            type="number"
+                            value={slab.maxWeightGrams.toString()}
+                            onChange={(val) => {
+                              const newSlabs = [...slabs];
+                              newSlabs[index].maxWeightGrams = Number(val) || 0;
+                              setSlabs(newSlabs);
+                            }}
+                            suffix="g"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Forward Cost"
+                            type="number"
+                            value={slab.forwardCost.toString()}
+                            onChange={(val) => {
+                              const newSlabs = [...slabs];
+                              newSlabs[index].forwardCost = Number(val) || 0;
+                              setSlabs(newSlabs);
+                            }}
+                            prefix="₹"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Return Cost (RTO)"
+                            type="number"
+                            value={slab.returnCost.toString()}
+                            onChange={(val) => {
+                              const newSlabs = [...slabs];
+                              newSlabs[index].returnCost = Number(val) || 0;
+                              setSlabs(newSlabs);
+                            }}
+                            prefix="₹"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div style={{ marginTop: "24px" }}>
+                          <Button
+                            tone="critical"
+                            variant="secondary"
+                            onClick={() => {
+                              setSlabs(slabs.filter((_, i) => i !== index));
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </InlineStack>
+                    ))}
+                    <InlineStack>
+                      <Button
+                        onClick={() => {
+                          setSlabs([...slabs, { maxWeightGrams: 500, forwardCost: 50, returnCost: 70 }]);
+                        }}
+                      >
+                        + Add Weight Slab
+                      </Button>
+                    </InlineStack>
+                  </BlockStack>
+
+                  <Divider />
+                  
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Set flat average logistics defaults below for orders that do not map to any weight slabs:
+                  </Text>
+
                   <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 3 }}>
                     <Grid.Cell>
                       <TextField

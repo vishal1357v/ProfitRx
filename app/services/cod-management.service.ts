@@ -134,10 +134,10 @@ export class CODManagementService {
     let pincode: string | null = null;
     let riskLevel = "LOW";
 
-    // 1. Resolve order shipping pincode from local order database
+    // 1. Resolve order shipping pincode and customer ID from local order database
     const localOrder = await prisma.order.findFirst({
       where: { shop, OR: [{ id: orderId }, { id: `gid://shopify/Order/${orderId}` }] },
-      select: { pincode: true }
+      select: { pincode: true, customerId: true }
     });
 
     if (localOrder?.pincode) {
@@ -154,7 +154,28 @@ export class CODManagementService {
       }
     }
 
-    // 3. Conditional gate: if risk level is LOW, bypass OTP challenge entirely
+    // 3. Evaluate customer-level personal RTO history (Risk Shield logic blindspot override)
+    if (localOrder?.customerId) {
+      const customerOrders = await prisma.order.findMany({
+        where: { shop, customerId: localOrder.customerId },
+        select: { fulfillmentStatus: true }
+      });
+      const totalCustOrders = customerOrders.length;
+      const rtoCustOrders = customerOrders.filter(o => 
+        o.fulfillmentStatus === "RTO" || 
+        (o.fulfillmentStatus || "").toLowerCase().includes("returned") || 
+        (o.fulfillmentStatus || "").toLowerCase().includes("failed")
+      ).length;
+      const customerRtoRate = totalCustOrders > 0 ? (rtoCustOrders / totalCustOrders) * 100 : 0;
+
+      // OVERRIDE: If the customer has > 20% RTO rate personally (min 2 orders), mark as CRITICAL
+      if (totalCustOrders >= 2 && customerRtoRate > 20) {
+        console.log(`[CODManagementService] Customer ${localOrder.customerId} has a personal RTO rate of ${customerRtoRate.toFixed(1)}% (${rtoCustOrders}/${totalCustOrders}). Upgrading riskLevel to CRITICAL.`);
+        riskLevel = "CRITICAL";
+      }
+    }
+
+    // 4. Conditional gate: if risk level is LOW, bypass OTP challenge entirely
     if (riskLevel === "LOW") {
       console.log(`[CODManagementService] Pincode "${pincode || "unknown"}" is LOW risk. Bypassing OTP verification challenge for order ${orderId}`);
       const record = await (prisma as any).cODOrder.upsert({

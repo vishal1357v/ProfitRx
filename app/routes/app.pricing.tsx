@@ -97,7 +97,7 @@ export default function Pricing() {
         "Store Health Score",
         "Product cost tracking (COGS)",
         "Basic RTO & COD insights",
-        "Weekly WhatsApp report digest",
+        "Weekly WhatsApp report digest (BYO API Key)",
       ],
     },
     {
@@ -145,7 +145,10 @@ export default function Pricing() {
 
         <Layout.Section>
           <Banner tone="info">
-            Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.
+            <BlockStack gap="100">
+              <Text as="p">Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.</Text>
+              <Text as="p"><strong>WhatsApp / SMS Notice:</strong> Interactive OTP verification and digests leverage your own Meta Cloud API or Twilio account. You will be billed directly by the provider for any message transmission costs.</Text>
+            </BlockStack>
           </Banner>
         </Layout.Section>
 

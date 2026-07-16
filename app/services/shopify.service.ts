@@ -966,6 +966,7 @@ export class ShopifyService {
 
     const cogsDict = await ProfitService.getCOGS(shop);
     let snapshotCogs = 0;
+    let totalWeight = 0;
     const lineItems = payload.line_items || [];
     if (lineItems.length > 0) {
       for (const item of lineItems) {
@@ -978,6 +979,7 @@ export class ShopifyService {
         } else {
           snapshotCogs += (price * quantity * settings.defaultCOGSPct / 100);
         }
+        totalWeight += (Number(item.grams) || 0) * quantity;
       }
     } else {
       snapshotCogs = totalPrice * settings.defaultCOGSPct / 100;
@@ -1004,6 +1006,8 @@ export class ShopifyService {
         pincode,
         city,
         province,
+        totalWeight,
+        cogsAtTimeOfOrder: snapshotCogs,
       },
       create: {
         id,
@@ -1029,6 +1033,7 @@ export class ShopifyService {
         pincode,
         city,
         province,
+        totalWeight,
         cogsAtTimeOfOrder: snapshotCogs,
       },
     });
