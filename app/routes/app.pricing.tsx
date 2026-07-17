@@ -47,23 +47,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
-  const isBypass = process.env.BYPASS_BILLING === "true";
   const orderLimit = plan === "PRO" ? null : plan === "GROWTH" ? 2000 : 500;
   const dbPlan = plan;
-
-  if (isBypass) {
-    await prisma.subscription.upsert({
-      where: { shop: session.shop },
-      update: { plan: dbPlan, status: "ACTIVE", orderLimit },
-      create: { shop: session.shop, plan: dbPlan, status: "ACTIVE", orderLimit, ordersUsed: 0 },
-    });
-    return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
-  }
 
   try {
     return await (billing.request as any)({
       plan: plan,
       isTest: true,
+      trialDays: 14,
     });
   } catch (error: any) {
     console.error("[Pricing Action Error]:", error);
@@ -71,11 +62,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw error;
     }
     
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
     // Fallback to local DB update for dev mode / non-public distribution apps
     await prisma.subscription.upsert({
       where: { shop: session.shop },
-      update: { plan: dbPlan, status: "ACTIVE", orderLimit },
-      create: { shop: session.shop, plan: dbPlan, status: "ACTIVE", orderLimit, ordersUsed: 0 },
+      update: { plan: dbPlan, status: "TRIALING", orderLimit, trialEndsAt },
+      create: { shop: session.shop, plan: dbPlan, status: "TRIALING", orderLimit, ordersUsed: 0, trialEndsAt },
     });
     return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
@@ -180,9 +174,14 @@ export default function Pricing() {
                           {plan.description}
                         </Text>
                       </BlockStack>
-                      {plan.popular && (
-                        <Badge tone="success">Popular</Badge>
-                      )}
+                      <InlineStack gap="100">
+                        {plan.popular && (
+                          <Badge tone="success">Popular</Badge>
+                        )}
+                        {plan.name !== "Free" && (
+                          <Badge tone="attention">14-Day Free Trial</Badge>
+                        )}
+                      </InlineStack>
                     </InlineStack>
 
                     <InlineStack gap="100" blockAlign="baseline">
@@ -208,7 +207,7 @@ export default function Pricing() {
                         fullWidth
                         disabled={currentPlan === plan.name}
                       >
-                        {currentPlan === plan.name ? "Current Plan" : "Choose " + plan.name + " Plan"}
+                        {currentPlan === plan.name ? "Current Plan" : plan.name === "Free" ? "Choose Free Plan" : "Start 14-Day Free Trial"}
                       </Button>
                     </Form>
 

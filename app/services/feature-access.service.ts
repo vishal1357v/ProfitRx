@@ -121,7 +121,7 @@ export async function getSubscription(shop: string) {
 
 export async function canAccessFeature(shop: string, feature: string): Promise<boolean> {
   const sub = await getSubscription(shop);
-  if (!sub || sub.status !== "ACTIVE") {
+  if (!sub || (sub.status !== "ACTIVE" && sub.status !== "TRIALING")) {
     return false;
   }
   return hasFeature(sub.plan, feature);
@@ -129,7 +129,7 @@ export async function canAccessFeature(shop: string, feature: string): Promise<b
 
 export async function getFeatureList(shop: string): Promise<string[]> {
   const sub = await getSubscription(shop);
-  if (!sub || sub.status !== "ACTIVE") {
+  if (!sub || (sub.status !== "ACTIVE" && sub.status !== "TRIALING")) {
     return [];
   }
   const normalizedPlan = normalizePlanName(sub.plan);

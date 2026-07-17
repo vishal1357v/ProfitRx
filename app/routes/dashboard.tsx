@@ -86,6 +86,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
     const ordersUsed = subscription?.ordersUsed || 0;
     const ordersLimit = subscription?.orderLimit ?? (subscription?.plan === "PRO" ? null : 50);
+    const subStatus = subscription?.status || "ACTIVE";
+    const trialEndsAt = subscription?.trialEndsAt ? subscription.trialEndsAt.toISOString() : null;
 
     const features = await getFeatureList(shop);
 
@@ -456,6 +458,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       settings,
       isDemoData,
       adSpendDisconnected,
+      subStatus,
+      trialEndsAt,
     };
   } catch (err: any) {
     console.error("[Dashboard Loader Critical Error Caught]:", err);
@@ -921,6 +925,17 @@ const CHANNEL_META: Record<string, { icon: string; color: string }> = {
 // ─────────────────────────────────────────────────────────
 export default function DashboardRoute() {
   const data = useLoaderData<typeof loader>();
+
+  let trialDaysRemaining = 0;
+  let isTrialActive = false;
+  if (data.subStatus === "TRIALING" && data.trialEndsAt) {
+    const end = new Date(data.trialEndsAt);
+    const now = new Date();
+    const diffTime = end.getTime() - now.getTime();
+    trialDaysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    isTrialActive = true;
+  }
+
   const gridCols = data.hasConnectedAdAccount ? { xs: 2, sm: 3, md: 4, lg: 4 } : { xs: 1, sm: 2, md: 3, lg: 5 };
   const revalidator = useRevalidator();
   const [syncing, setSyncing] = useState(false);
@@ -1075,6 +1090,14 @@ export default function DashboardRoute() {
           <Layout.Section>
             <Banner tone="info" title="Initial Data Sync in Progress">
               <p>Syncing your last 30 days of data... Please wait a moment while your orders and COGS catalog update automatically.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {isTrialActive && (
+          <Layout.Section>
+            <Banner tone="info" title="🎉 Your 14-Day Free Trial is Active!">
+              <p>Maximize your profits! Your free trial ends in <strong>{trialDaysRemaining} days</strong> ({data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleDateString() : ""}). Check your <a href={`/app/billing?shop=${data.shop}&host=${data.host}`}>Billing Page</a> to view plan usage limits.</p>
             </Banner>
           </Layout.Section>
         )}

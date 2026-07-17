@@ -19,11 +19,13 @@ export async function upsertSubscriptionRecord({
   plan,
   status = "ACTIVE",
   shopifyChargeId,
+  trialEndsAt,
 }: {
   shop: string;
   plan: string;
   status?: string;
   shopifyChargeId?: string | null;
+  trialEndsAt?: Date | null;
 }) {
   const details = mapPlanDetails(plan);
 
@@ -33,6 +35,7 @@ export async function upsertSubscriptionRecord({
       plan: details.plan,
       status,
       ...(shopifyChargeId !== undefined ? { shopifyChargeId } : {}),
+      ...(trialEndsAt !== undefined ? { trialEndsAt } : {}),
       orderLimit: details.orderLimit,
     },
     create: {
@@ -40,6 +43,7 @@ export async function upsertSubscriptionRecord({
       plan: details.plan,
       status,
       shopifyChargeId: shopifyChargeId || null,
+      trialEndsAt: trialEndsAt || null,
       orderLimit: details.orderLimit,
       ordersUsed: 0,
     },
@@ -47,14 +51,6 @@ export async function upsertSubscriptionRecord({
 }
 
 export async function syncSubscriptionWithShopify(shop: string, billing: any) {
-  if (process.env.BYPASS_BILLING === "true") {
-    let sub = await prisma.subscription.findUnique({ where: { shop } });
-    if (!sub) {
-      sub = await upsertSubscriptionRecord({ shop, plan: "GROWTH", status: "ACTIVE" });
-    }
-    return sub;
-  }
-
   // ⚡ TTFB Cache Check: Query our database first to see if subscription status was checked recently (within 1 hour)
   try {
     const existing = await prisma.subscription.findUnique({ where: { shop } });
@@ -74,16 +70,19 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
       isTest: true,
     });
 
-    const activeSub = checkResult.appSubscriptions?.find(
-      (sub: any) => sub.status === "ACTIVE" || sub.status === "active"
-    );
+    const activeSub = checkResult.appSubscriptions?.find((sub: any) => {
+      const s = (sub.status || "").toUpperCase();
+      return s === "ACTIVE" || s === "TRIALING";
+    });
 
     if (activeSub) {
+      const trialEndsAt = activeSub.trialEndsAt ? new Date(activeSub.trialEndsAt) : null;
       return await upsertSubscriptionRecord({
         shop,
         plan: activeSub.name,
-        status: "ACTIVE",
+        status: activeSub.status.toUpperCase(),
         shopifyChargeId: activeSub.id,
+        trialEndsAt,
       });
     }
 
@@ -93,7 +92,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 
-    if (existing.plan !== "FREE" && existing.status === "ACTIVE") {
+    if (existing.plan !== "FREE" && (existing.status === "ACTIVE" || existing.status === "TRIALING")) {
       // Downgrade or expire if Shopify says inactive
       return await prisma.subscription.update({
         where: { shop },
@@ -101,6 +100,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
           plan: "FREE",
           status: "EXPIRED",
           orderLimit: 50,
+          trialEndsAt: null,
         },
       });
     }

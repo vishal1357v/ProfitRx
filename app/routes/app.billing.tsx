@@ -44,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: subscription.status,
     orderLimit: subscription.orderLimit,
     ordersUsed: subscription.ordersUsed,
+    trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
   };
 };
 
@@ -80,6 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         status: "CANCELED",
         orderLimit: 50,
         shopifyChargeId: null,
+        trialEndsAt: null,
       },
     });
     return { success: true, message: "Subscription cancelled successfully." };
@@ -89,7 +91,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { shop, host, plan, status, orderLimit, ordersUsed } = useLoaderData<typeof loader>();
+  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -149,9 +151,27 @@ export default function BillingPage() {
 
   const planInfo = planInfoMap[normalizedPlan] || planInfoMap.FREE;
 
+  let trialDaysRemaining = 0;
+  let isTrialActive = false;
+  if (status === "TRIALING" && trialEndsAt) {
+    const end = new Date(trialEndsAt);
+    const now = new Date();
+    const diffTime = end.getTime() - now.getTime();
+    trialDaysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    isTrialActive = true;
+  }
+
   return (
     <Page title="Store Billing & Plan Usage">
       <Layout>
+        {isTrialActive && (
+          <Layout.Section>
+            <Banner tone="info" title="🎉 Active 14-Day Free Trial Mode">
+              <p>You are currently on a 14-day free trial. Your trial ends in <strong>{trialDaysRemaining} days</strong> ({trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : ""}). You can explore all capabilities, configure weights shipping rules, and reduce RTO risk risk-free.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         <Layout.Section>
           {/* Value Delivered ROI Card */}
           <div style={{

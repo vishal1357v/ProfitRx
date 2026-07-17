@@ -11,12 +11,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const planName = subData?.name || "FREE";
   const status = (subData?.status || "ACTIVE").toUpperCase();
   const chargeId = subData?.admin_graphql_api_id || subData?.id || null;
+  const rawTrialEndsAt = subData?.trial_ends_at || null;
+  const trialEndsAt = rawTrialEndsAt ? new Date(rawTrialEndsAt) : null;
 
   await upsertSubscriptionRecord({
     shop,
     plan: planName,
     status,
     shopifyChargeId: chargeId,
+    trialEndsAt,
   });
 
   return new Response("OK", { status: 200 });

@@ -100,8 +100,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // ── Step 2 + 4: Sync billing and load features in parallel ─────────────────
-  const isBypass = process.env.BYPASS_BILLING === "true";
-
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
   let features: string[] = [];
 
@@ -122,7 +120,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     features = [];
   }
 
-  const isFreePlan = localSub.plan === "FREE" || isBypass;
+  const isFreePlan = localSub.plan === "FREE";
 
   // ── Step 3: Require billing for paid plans ─────────────────────────────────
   if (!isFreePlan && !url.pathname.includes("/app/pricing") && !url.pathname.includes("/app/billing")) {
