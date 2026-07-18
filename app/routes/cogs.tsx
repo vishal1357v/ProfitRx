@@ -34,6 +34,7 @@ import {
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ShopifyService } from "../services/shopify.service";
+import { resolveEffectiveCOGS } from "../utils/cogs";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -87,14 +88,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     products,
-    cogsRecords: cogsRecords.map((r: any) => ({
-      productId: r.productId,
-      cost: r.cost ?? r.cogs,
-      shopifyNative: r.shopifyNative,
-      manualOverride: r.manualOverride,
-      source: r.source || (r.manualOverride ? "manual_override" : "shopify_native"),
-      lastSyncedAt: r.lastSyncedAt ? new Date(r.lastSyncedAt).toLocaleString() : null,
-    })),
+    cogsRecords: cogsRecords.map((r: any) => {
+      const cost = resolveEffectiveCOGS(r, r.shopifyNative);
+      return {
+        productId: r.productId,
+        cost,
+        shopifyNative: r.shopifyNative,
+        manualOverride: r.manualOverride,
+        source: r.source || (r.manualOverride ? "manual_override" : "shopify_native"),
+        lastSyncedAt: r.lastSyncedAt ? new Date(r.lastSyncedAt).toLocaleString() : null,
+      };
+    }),
     defaultCOGSPct: settings.defaultCOGSPct,
     lastUpdated,
   };
@@ -108,6 +112,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync_native_cogs") {
     const result = await ShopifyService.syncNativeCOGS(request);
+    return Response.json({ success: true, ...result });
+  }
+
+  if (intent === "refresh_historical_cogs") {
+    const result = await ShopifyService.refreshHistoricalCOGS(shop);
     return Response.json({ success: true, ...result });
   }
 
@@ -242,6 +251,15 @@ export default function COGSPage() {
     setError(null);
     const fd = new FormData();
     fd.append("intent", "sync_native_cogs");
+    submit(fd, { method: "POST" });
+  };
+
+  const handleRecalculateHistorical = () => {
+    setError(null);
+    setCsvMessage(null);
+    if (!confirm("Are you sure you want to recalculate historical order COGS? This will overwrite the frozen costs on all past orders with your current product cost settings. This cannot be undone.")) return;
+    const fd = new FormData();
+    fd.append("intent", "refresh_historical_cogs");
     submit(fd, { method: "POST" });
   };
 
@@ -436,6 +454,10 @@ export default function COGSPage() {
                   <InlineStack gap="200" blockAlign="center">
                     <Button variant="secondary" onClick={handleSyncNativeCosts} loading={isSubmitting} icon={RefreshIcon}>
                       Sync Costs Now
+                    </Button>
+
+                    <Button variant="secondary" onClick={handleRecalculateHistorical} loading={isSubmitting} icon={RefreshIcon}>
+                      Recalculate Historical Profits
                     </Button>
 
                     <div style={{ display: "inline-block" }}>

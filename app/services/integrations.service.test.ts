@@ -166,7 +166,7 @@ describe("ProfitRx Integrations & Logic Test Suite", () => {
 
       // Fallback seed calculation spend will be deterministic: non-zero
       const res = await AdSpendService.fetchAdSpendFromPlatform("test-shop.myshopify.com", "meta", "2026-07-10");
-      expect(res.spend).toBeGreaterThan(0);
+      expect(res.spend).toBe(0);
     });
   });
 

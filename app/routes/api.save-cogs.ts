@@ -73,11 +73,18 @@ export async function action({ request }: { request: Request }) {
             shop_productId: { shop: session.shop, productId },
           },
           update: {
+            cost: cogs,
+            manualOverride: cogs,
+            source: "manual_override",
             cogs: cogs,
+            updatedAt: new Date(),
           },
           create: {
             shop: session.shop,
             productId: productId,
+            cost: cogs,
+            manualOverride: cogs,
+            source: "manual_override",
             cogs: cogs,
           },
         });

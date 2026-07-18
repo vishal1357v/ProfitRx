@@ -227,7 +227,7 @@ export class CODManagementService {
     });
 
     // Dispatch live SMS/WhatsApp message for Medium/High/Critical risk
-    const dispatchRes = await WhatsAppService.sendOTP(phone, otp);
+    const dispatchRes = await WhatsAppService.sendOTP(phone, otp, shop, orderId);
 
     console.log(`[CODManagementService] Generated and dispatched OTP ${otp} to ${phone} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
     return { success: true, record, otpSent: true, provider: dispatchRes.provider };
@@ -276,7 +276,7 @@ export class CODManagementService {
 
     const cogsDict: Record<string, number> = {};
     for (const c of cogsRecords) {
-      cogsDict[c.productId] = c.cogs ?? 0;
+      cogsDict[c.productId] = c.manualOverride ?? c.shopifyNative ?? c.cost ?? (c.cogs > 0 ? c.cogs : 0);
     }
 
     let codOrders = 0;

@@ -3,13 +3,47 @@ import { CODManagementService } from "../services/cod-management.service";
 import { ShopifyService } from "../services/shopify.service";
 import prisma from "../db.server";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
+function corsResponse(data: any, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: CORS_HEADERS,
+  });
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  if (request.method === "OPTIONS") {
+    return new Response("", { headers: CORS_HEADERS });
+  }
+
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const pincode = url.searchParams.get("pincode");
+  const orderId = url.searchParams.get("orderId");
 
   if (!shop) {
-    return Response.json({ error: "Missing required query param: shop" }, { status: 400 });
+    return corsResponse({ error: "Missing required query param: shop" }, 400);
+  }
+
+  if (orderId) {
+    const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+    const record = await prisma.cODOrder.findUnique({
+      where: { orderId: cleanOrderId }
+    });
+    if (!record) {
+      return corsResponse({ status: "NOT_FOUND", verified: false, required: false });
+    }
+    return corsResponse({
+      status: record.status,
+      verified: record.otpVerified,
+      required: record.status === "OTP_SENT" && !record.otpVerified,
+      phone: record.phone ? `******${record.phone.slice(-4)}` : null,
+    });
   }
 
   const settings = await CODManagementService.getCODSettings(shop);
@@ -18,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isBlocked = await CODManagementService.isPincodeBlocked(shop, pincode);
   }
 
-  return Response.json({
+  return corsResponse({
     shop,
     settings,
     checkedPincode: pincode,
@@ -28,60 +62,67 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  if (request.method === "OPTIONS") {
+    return new Response("", { headers: CORS_HEADERS });
+  }
+
   try {
     const payload = await request.json();
     const { shop, intent } = payload;
 
     if (!shop) {
-      return Response.json({ error: "Missing shop parameter" }, { status: 400 });
+      return corsResponse({ error: "Missing shop parameter" }, 400);
     }
 
     if (intent === "check_pincode") {
       const { pincode } = payload;
       const isBlocked = await CODManagementService.isPincodeBlocked(shop, pincode);
-      return Response.json({ shop, pincode, isBlocked, isCodAllowed: !isBlocked });
+      return corsResponse({ shop, pincode, isBlocked, isCodAllowed: !isBlocked });
     }
 
     if (intent === "send_otp") {
       const { orderId, phone } = payload;
       if (!orderId || !phone) {
-        return Response.json({ error: "Missing orderId or phone" }, { status: 400 });
+        return corsResponse({ error: "Missing orderId or phone" }, 400);
       }
-      const res = await CODManagementService.createCODOrderVerification(shop, orderId, phone);
-      return Response.json(res);
+      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+      const res = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
+      return corsResponse(res);
     }
 
     if (intent === "verify_otp") {
       const { orderId, otp } = payload;
       if (!orderId || !otp) {
-        return Response.json({ error: "Missing orderId or otp" }, { status: 400 });
+        return corsResponse({ error: "Missing orderId or otp" }, 400);
       }
-      const res = await CODManagementService.verifyOTP(shop, orderId, otp);
-      return Response.json(res);
+      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+      const res = await CODManagementService.verifyOTP(shop, cleanOrderId, otp);
+      return corsResponse(res);
     }
 
     if (intent === "cancel_order") {
       const { orderId } = payload;
       if (!orderId) {
-        return Response.json({ error: "Missing orderId" }, { status: 400 });
+        return corsResponse({ error: "Missing orderId" }, 400);
       }
-      const res = await ShopifyService.cancelOrder(shop, orderId);
+      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+      const res = await ShopifyService.cancelOrder(shop, cleanOrderId);
       if (res.success) {
-        await (prisma as any).cODOrder.update({
-          where: { orderId },
+        await prisma.cODOrder.update({
+          where: { orderId: cleanOrderId },
           data: { status: "CANCELLED" },
         });
       }
-      return Response.json(res);
+      return corsResponse(res);
     }
 
     if (intent === "update_settings") {
       const updated = await CODManagementService.updateCODSettings(shop, payload.settings);
-      return Response.json({ success: true, settings: updated });
+      return corsResponse({ success: true, settings: updated });
     }
 
-    return Response.json({ error: "Invalid intent" }, { status: 400 });
+    return corsResponse({ error: "Invalid intent" }, 400);
   } catch (err: any) {
-    return Response.json({ error: err.message || "Internal server error" }, { status: 500 });
+    return corsResponse({ error: err.message || "Internal server error" }, 500);
   }
 };

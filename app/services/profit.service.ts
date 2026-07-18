@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
+import { resolveEffectiveCOGS } from "../utils/cogs";
 
 export interface ProfitOrder {
   orderId: string;
@@ -327,9 +328,9 @@ export class ProfitService {
       const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
       const cogsDict: Record<string, number> = {};
       cogsRecords.forEach((r: any) => {
-        const eff = r.manualOverride ?? r.shopifyNative ?? r.cost ?? (r.cogs > 0 ? r.cogs : undefined);
-        if (eff !== undefined && eff !== null && !isNaN(eff)) {
-          cogsDict[r.productId] = Number(eff);
+        const eff = resolveEffectiveCOGS(r, r.shopifyNative);
+        if (eff !== null) {
+          cogsDict[r.productId] = eff;
         }
       });
       return cogsDict;

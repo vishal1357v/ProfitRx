@@ -54,7 +54,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
   // ⚡ TTFB Cache Check: Query our database first to see if subscription status was checked recently (within 1 hour)
   try {
     const existing = await prisma.subscription.findUnique({ where: { shop } });
-    if (existing) {
+    if (existing && existing.status !== "CANCELED") {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       if (existing.updatedAt > oneHourAgo) {
         return existing;
@@ -88,7 +88,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
 
     // No active payment found on Shopify
     const existing = await prisma.subscription.findUnique({ where: { shop } });
-    if (!existing) {
+    if (!existing || existing.status === "CANCELED") {
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 

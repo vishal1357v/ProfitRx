@@ -423,7 +423,10 @@ export class ProfitIntelligenceService {
 
     const cogsMap = await prisma.productCOGS.findMany({ where: { shop } });
     const cogsDict: Record<string, number> = {};
-    cogsMap.forEach((c: any) => { cogsDict[c.productId] = c.cogs; });
+    cogsMap.forEach((c: any) => {
+      const eff = c.manualOverride ?? c.shopifyNative ?? c.cost ?? (c.cogs > 0 ? c.cogs : 0);
+      cogsDict[c.productId] = eff;
+    });
 
     let totalCogs = 0;
     let totalFees = 0;

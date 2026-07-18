@@ -89,8 +89,14 @@ export class WhatsAppService {
   /**
    * Send Customer COD OTP Verification Message
    */
-  static async sendOTP(phone: string, otp: string) {
-    const msg = `*ProfitRx COD Order Verification* 🛡️\n\nYour OTP confirmation code is: *${otp}*\n\nPlease enter this code at checkout to confirm your COD order. Valid for 10 minutes.`;
+  static async sendOTP(phone: string, otp: string, shop: string = "", orderId: string = "") {
+    let msg = `*ProfitRx COD Order Verification* 🛡️\n\nYour OTP confirmation code is: *${otp}*\n\nValid for 10 minutes.`;
+    if (shop && orderId) {
+      const appUrl = process.env.SHOPIFY_APP_URL || "https://greek-god-saas.vercel.app";
+      msg += `\n\nPlease confirm your order here: ${appUrl}/verify-cod?shop=${shop}&orderId=${orderId}`;
+    } else {
+      msg += `\n\nPlease enter this code to confirm your COD order.`;
+    }
     return await this.sendSMSOrWhatsApp(phone, msg);
   }
 

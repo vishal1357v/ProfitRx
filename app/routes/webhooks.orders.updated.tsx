@@ -16,24 +16,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // 1. Sync the updated order into our DB
     await ShopifyService.syncOrderPayload(shop, payload);
 
-    // 2. Real-time RTO detection: check if this order update is an RTO event
     const order = payload as any;
     const orderId = (order.id || "").toString();
     const orderNumber = order.order_number || 0;
-    const totalPrice = parseFloat(order.total_price || "0");
-    const fulfillmentStatus = (order.fulfillment_status || "").toLowerCase();
-    const tags: string[] = (order.tags || "").split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
 
-    // Fetch store RTO detection pattern
-    const storeSettings = await prisma.storeSettings.findUnique({ where: { shop } });
-    const rtoPattern = storeSettings?.rtoDetectionPattern ||
-      "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender";
-    const rtoKeywords = rtoPattern.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
+    // Fetch store RTO detection pattern and check DB for synced order
+    const [storeSettings, syncedOrder] = await Promise.all([
+      prisma.storeSettings.findUnique({ where: { shop } }),
+      prisma.order.findUnique({ where: { id: orderId } })
+    ]);
 
-    // Check fulfillment status and tags against RTO keywords
-    const statusIsRTO = rtoKeywords.some((kw) => fulfillmentStatus.includes(kw));
-    const tagIsRTO = tags.some((tag) => rtoKeywords.some((kw) => tag.includes(kw)));
-    const isRTOEvent = statusIsRTO || tagIsRTO;
+    const isRTOEvent = syncedOrder?.fulfillmentStatus === "RTO";
 
     if (isRTOEvent && orderId) {
       // Check if RTOEvent already exists for this order to avoid duplicates
@@ -55,9 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderId,
             orderNumber,
             eventType: "RTO",
-            reason: statusIsRTO
-              ? `Fulfillment status: ${fulfillmentStatus}`
-              : `RTO tag detected: ${tags.find((t) => rtoKeywords.some((kw) => t.includes(kw)))}`,
+            reason: "Fulfillment shipment status or order tags matched RTO keyword pattern",
             amount: rtoLossEstimate,
             status: "CONFIRMED",
           },

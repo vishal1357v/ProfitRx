@@ -1,13 +1,19 @@
 import type { LoaderFunctionArgs } from "react-router";
+import { authenticate } from "../shopify.server";
 import { ProfitService } from "../services/profit.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const format = url.searchParams.get("format") || "json";
 
   if (!shop) {
     return Response.json({ error: "Missing required query param: shop" }, { status: 400 });
+  }
+
+  if (session.shop !== shop) {
+    return Response.json({ error: "Unauthorized cross-shop access" }, { status: 403 });
   }
 
   const gstData = await ProfitService.getGSTSummary(shop);

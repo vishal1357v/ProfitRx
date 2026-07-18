@@ -270,13 +270,20 @@ export default function CODRulesRoute() {
                       Send a 6-digit WhatsApp/SMS OTP when a COD order is placed. Order is confirmed only after OTP verification.
                     </Text>
                     {otpEnabled && (
-                      <TextField
-                        label="WhatsApp Notification Template"
-                        value="Hello {{customer_name}}, please verify your order for {{store_name}} with OTP: {{otp_code}}."
-                        disabled
-                        autoComplete="off"
-                        helpText="Customize message via premium add-on integration."
-                      />
+                      <BlockStack gap="200">
+                        <TextField
+                          label="WhatsApp Notification Template"
+                          value="Hello {{customer_name}}, please verify your order for {{store_name}} with OTP: {{otp_code}}."
+                          disabled
+                          autoComplete="off"
+                          helpText="Customize message via premium add-on integration."
+                        />
+                        <Banner tone="info">
+                          <p>
+                            We will automatically append a secure order confirmation link to the WhatsApp OTP message sent to customers. No theme changes or script setup are required.
+                          </p>
+                        </Banner>
+                      </BlockStack>
                     )}
                     <div className="gg-mobile-full-width-btn">
                       <Button

@@ -6,6 +6,8 @@ import { CustomerIntelligenceService } from "./customer-intelligence.service";
 import { AlertService } from "./alerts.service";
 import { ProfitService } from "./profit.service";
 import { CODManagementService } from "./cod-management.service";
+import { resolveEffectiveCOGS } from "../utils/cogs";
+import { determineFulfillmentStatus } from "../utils/fulfillment";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -236,6 +238,10 @@ export class ShopifyService {
       const auth = await authenticate.admin(requestOrAdmin);
       admin = auth.admin;
       shop = auth.session.shop;
+    } else if (typeof requestOrAdmin === "string") {
+      shop = requestOrAdmin;
+      const auth = await unauthenticated.admin(shop);
+      admin = auth.admin;
     } else {
       admin = requestOrAdmin;
       shop = admin?.rest?.session?.shop || admin?.session?.shop || "default_shop";
@@ -310,18 +316,29 @@ export class ShopifyService {
   }
 
   // ── Sync Native Shopify COGS ─────────────────────────────────
-  static async syncNativeCOGS(requestOrAdmin: Request | any, shopName: string = ""): Promise<{ synced: number; skipped: number; message: string }> {
+  static async syncNativeCOGS(requestOrAdminOrShop: Request | any, shopName: string = ""): Promise<{ synced: number; skipped: number; message: string }> {
     let shop = shopName;
-    if (requestOrAdmin instanceof Request) {
-      const auth = await authenticate.admin(requestOrAdmin);
+    let admin: any;
+
+    if (requestOrAdminOrShop instanceof Request) {
+      const auth = await authenticate.admin(requestOrAdminOrShop);
+      admin = auth.admin;
       if (!shop) shop = auth.session.shop;
-    } else if (typeof requestOrAdmin === "string" && !shop) {
-      shop = requestOrAdmin;
+    } else if (typeof requestOrAdminOrShop === "string") {
+      if (!shop) shop = requestOrAdminOrShop;
+      const auth = await unauthenticated.admin(shop);
+      admin = auth.admin;
+    } else {
+      admin = requestOrAdminOrShop;
+      if (!shop) {
+        shop = admin?.rest?.session?.shop || admin?.session?.shop || "";
+      }
     }
 
     if (!shop) throw new Error("Shop domain is required for native COGS sync");
+    if (!admin) throw new Error("Shopify admin client is required for native COGS sync");
 
-    const products = await this.getProducts(requestOrAdmin);
+    const products = await this.getProducts(admin);
 
     let synced = 0;
     let skipped = 0;
@@ -335,7 +352,7 @@ export class ShopifyService {
       });
 
       const manualOverride = existingRecord?.manualOverride;
-      const effectiveCost = manualOverride ?? shopifyNativeCost ?? (existingRecord?.cogs && existingRecord.cogs > 0 ? existingRecord.cogs : null);
+      const effectiveCost = resolveEffectiveCOGS(existingRecord, shopifyNativeCost);
       const source = manualOverride != null ? "manual_override" : shopifyNativeCost != null ? "shopify_native" : "manual_override";
 
       if (effectiveCost !== null && effectiveCost !== undefined) {
@@ -395,25 +412,14 @@ export class ShopifyService {
 
     let hasRtoEvent = false;
     const fulfillments = node.fulfillments || [];
-    for (const f of fulfillments) {
-      const events = f.events?.edges || [];
-      for (const e of events) {
-        const msg = (e.node.message || "").toLowerCase();
-        const status = (e.node.status || "").toLowerCase();
-        const matchesTerm = rtoTags.some(term => msg.includes(term));
-        if (
-          matchesTerm || 
-          status === "failure" && msg.includes("undelivered")
-        ) {
-          hasRtoEvent = true;
-          break;
-        }
-      }
-      if (hasRtoEvent) break;
-    }
-
-    const isRTO = hasRtoTag || hasRtoEvent;
-    const mappedFulfillmentStatus = isRTO ? "RTO" : node.displayFulfillmentStatus;
+    const mappedFulfillmentStatus = determineFulfillmentStatus(
+      node.displayFulfillmentStatus,
+      tagsList,
+      fulfillments,
+      rtoDetectionPattern,
+      true // isGraphQL
+    );
+    const isRTO = mappedFulfillmentStatus === "RTO";
 
     return {
       id: orderId,
@@ -939,30 +945,15 @@ export class ShopifyService {
     const settings = ProfitService.getSettings(rawSettings);
 
     const tagsList = payload.tags ? payload.tags.split(",").map((t: string) => t.trim()) : [];
-    const rtoTags = settings.rtoDetectionPattern.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean);
-    const hasRtoTag = tagsList.some((tag: string) => 
-      rtoTags.some((term: string) => tag.toLowerCase().includes(term))
-    );
-
-    let hasRtoEvent = false;
     const fulfillments = payload.fulfillments || [];
-    for (const f of fulfillments) {
-      const status = (f.status || "").toLowerCase();
-      const shipmentStatus = (f.shipment_status || "").toLowerCase();
-      const trackingCompany = (f.tracking_company || "").toLowerCase();
-      if (
-        status === "failure" || 
-        shipmentStatus === "rto" || 
-        shipmentStatus === "returned" ||
-        rtoTags.some((term: string) => shipmentStatus.includes(term) || trackingCompany.includes(term))
-      ) {
-        hasRtoEvent = true;
-        break;
-      }
-    }
-
-    const isRTO = hasRtoTag || hasRtoEvent;
-    const finalFulfillmentStatus = isRTO ? "RTO" : fulfillmentStatus;
+    
+    const finalFulfillmentStatus = determineFulfillmentStatus(
+      fulfillmentStatus,
+      tagsList,
+      fulfillments,
+      settings.rtoDetectionPattern,
+      false // isGraphQL = false (REST payload from webhook)
+    );
 
     const cogsDict = await ProfitService.getCOGS(shop);
     let snapshotCogs = 0;
@@ -1022,7 +1013,7 @@ export class ShopifyService {
         createdAt,
         processedAt,
         financialStatus,
-        fulfillmentStatus,
+        fulfillmentStatus: finalFulfillmentStatus,
         productId,
         gateway,
         channelType,
@@ -1205,5 +1196,58 @@ export class ShopifyService {
       console.error("[ShopifyService.tagOrder] exception:", err);
       return { success: false, error: err };
     }
+  }
+
+  // ── Refresh Historical COGS ─────────────────────────────
+  static async refreshHistoricalCOGS(shop: string): Promise<{ count: number; message: string }> {
+    // ⚡ Run safely in the background to avoid timeouts on large stores
+    setTimeout(async () => {
+      try {
+        const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+        const settings = ProfitService.getSettings(rawSettings);
+        const cogsDict = await ProfitService.getCOGS(shop);
+
+        let cursor: string | undefined = undefined;
+        let updatedCount = 0;
+
+        while (true) {
+          const dbOrders: any[] = await prisma.order.findMany({
+            where: { shop },
+            take: 500,
+            ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+            orderBy: { id: 'asc' }
+          });
+
+          if (dbOrders.length === 0) break;
+          cursor = dbOrders[dbOrders.length - 1].id;
+
+          const updates = [];
+          for (const o of dbOrders) {
+            const cleanId = o.productId || "";
+            const currentCogs = cogsDict[cleanId] !== undefined ? cogsDict[cleanId] : (o.totalPrice * settings.defaultCOGSPct / 100);
+            
+            if (o.cogsAtTimeOfOrder !== currentCogs) {
+              updates.push(prisma.order.update({
+                where: { id: o.id },
+                data: { cogsAtTimeOfOrder: currentCogs },
+              }));
+              updatedCount++;
+            }
+          }
+
+          if (updates.length > 0) {
+            await prisma.$transaction(updates);
+          }
+        }
+        console.log(`[refreshHistoricalCOGS] Successfully processed ${updatedCount} orders for ${shop}`);
+      } catch (err) {
+        console.error(`[refreshHistoricalCOGS] Background task failed for ${shop}:`, err);
+      }
+    }, 0);
+
+    return {
+      count: 0,
+      message: "Recalculation started in the background. Large stores may take a few minutes to fully update.",
+    };
   }
 }
