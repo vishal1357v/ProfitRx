@@ -1,0 +1,145 @@
+
+Shopify App pre-submission report  —  score 82/100  —  [31mNOT READY[0m
+Blockers: 7   Warnings: 5   Skipped: 10
+
+[[31mFAIL[0m] gdpr-webhooks
+   [31mBLOCKER[0m  customers/data_request accepts unsigned POSTs (HTTP 200)
+     https://greek-god-saas.vercel.app/webhooks/customers/data_request returned 200 for a request without any X-Shopify-Hmac-Sha256 header. The endpoint must verify the HMAC and reject unsigned requests with 401 before processing.
+     fix: Compute HMAC-SHA256 over the raw request body using your client secret, compare against X-Shopify-Hmac-Sha256, and return 401 if missing or invalid.
+     docs: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+   [31mBLOCKER[0m  customers/redact accepts unsigned POSTs (HTTP 200)
+     https://greek-god-saas.vercel.app/webhooks/customers/redact returned 200 for a request without any X-Shopify-Hmac-Sha256 header. The endpoint must verify the HMAC and reject unsigned requests with 401 before processing.
+     fix: Compute HMAC-SHA256 over the raw request body using your client secret, compare against X-Shopify-Hmac-Sha256, and return 401 if missing or invalid.
+     docs: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+   [31mBLOCKER[0m  shop/redact accepts unsigned POSTs (HTTP 200)
+     https://greek-god-saas.vercel.app/webhooks/shop/redact returned 200 for a request without any X-Shopify-Hmac-Sha256 header. The endpoint must verify the HMAC and reject unsigned requests with 401 before processing.
+     fix: Compute HMAC-SHA256 over the raw request body using your client secret, compare against X-Shopify-Hmac-Sha256, and return 401 if missing or invalid.
+     docs: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+
+[[90mSKIP[0m] security-headers
+   [36mINFO[0m  Skipped — provide your deployed app URL to enable header check
+     We fetch your app's HTTP headers and validate CSP frame-ancestors, HSTS, X-Content-Type-Options, and Set-Cookie attributes (SameSite=None; Secure) so the embedded app loads in the Shopify admin and meets modern browser requirements.
+     fix: Deploy your app and paste the public HTTPS URL in the App URL field. Skip if you're testing other checks for now — but you'll need this before App Store submission.
+     docs: https://shopify.dev/docs/apps/build/store/security/iframe-protection
+
+[[32mPASS[0m] billing-api
+   [33mWARNING[0m  No Shopify Billing API usage detected
+     Free apps without charges are fine, but if you plan to monetize you must use the Shopify Billing API.
+     docs: https://shopify.dev/docs/apps/launch/billing
+
+[[32mPASS[0m] api-scopes
+   [36mINFO[0m  Scope 'write_metafields' outside our heuristic
+     We don't have a usage pattern for 'write_metafields' yet, so we can't verify it. Manually check your code uses this scope.
+     docs: https://shopify.dev/docs/api/usage/access-scopes
+   [36mINFO[0m  Scope 'read_metafields' outside our heuristic
+     We don't have a usage pattern for 'read_metafields' yet, so we can't verify it. Manually check your code uses this scope.
+     docs: https://shopify.dev/docs/api/usage/access-scopes
+   [36mINFO[0m  Scope 'write_payment_customizations' outside our heuristic
+     We don't have a usage pattern for 'write_payment_customizations' yet, so we can't verify it. Manually check your code uses this scope.
+     docs: https://shopify.dev/docs/api/usage/access-scopes
+
+[[90mSKIP[0m] privacy-policy
+   [36mINFO[0m  Skipped — provide your privacy policy URL to enable check
+     Every public Shopify App must link to a privacy policy from its App Store listing. The policy must disclose what customer data the app accesses, why, where it is stored, retention period, how merchants and customers can request access or deletion, and a privacy contact.
+     fix: Publish a privacy policy at a public URL and paste it in the Privacy policy URL field. You'll need this before App Store submission — Shopify rejects listings without it.
+     docs: https://shopify.dev/docs/apps/launch/privacy-requirements
+
+[[90mSKIP[0m] listing-copy
+   [36mINFO[0m  Skipped — paste listing copy to enable AI review
+     Provide your App Store listing title, introduction, and description to get a content-quality review against Shopify's most common rejection patterns (vague descriptions, keyword stuffing, missing benefits, misleading claims).
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/app-listing-page
+
+[[32mPASS[0m] app-bridge
+
+[[32mPASS[0m] https-only
+
+[[32mPASS[0m] theme-cleanup
+   [36mINFO[0m  No theme code injection detected
+     We didn't find ScriptTag or Asset API usage in the source. If your app doesn't modify the merchant's storefront, this check doesn't apply.
+     docs: https://shopify.dev/docs/apps/build/online-store/asset-app-extensions
+
+[[90mSKIP[0m] demo-store
+   [36mINFO[0m  Skipped — provide demo store URL to verify reachability
+     Every public App Store listing requires a working demo store URL. We probe it for reachability and basic content checks.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/app-listing-page#demo-store
+
+[[90mSKIP[0m] install-flow
+   [36mINFO[0m  Skipped — provide your deployed app URL to enable install-flow check
+     Shopify requires apps to begin OAuth immediately when a merchant clicks 'Add app'. Without a URL we can't probe the install entry.
+     fix: Deploy your app and paste the public HTTPS URL in the App URL field. You'll need this before App Store submission anyway.
+     docs: https://shopify.dev/docs/apps/auth/oauth/getting-started
+
+[[90mSKIP[0m] auto-populate-forms
+   [36mINFO[0m  Skipped — provide your deployed app URL to enable form auto-populate check
+     We probe the app entry with shop+email query params and look for signup-form inputs that were pre-filled from those params. Without a URL we can't probe.
+     fix: Deploy your app and paste the public HTTPS URL in the App URL field. You'll need this before App Store submission anyway.
+     docs: https://shopify.dev/docs/apps/launch/app-store-review-process
+
+[[90mSKIP[0m] screenshots
+   [36mINFO[0m  Skipped — upload your listing screenshots to enable review
+     We send your listing screenshots to Gemini Vision to flag the issues that drive listing-image rejections: browser chrome left in the screenshot, Lorem-Ipsum or fake products, logo-only images, real customer PII, and quality problems.
+     fix: Upload 1–10 PNG/JPEG screenshots from the App Store listing form. We never store them after the check.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+
+[[32mPASS[0m] graphql-api-compliance
+
+[[32mPASS[0m] import-consistency
+
+[[90mSKIP[0m] theme-extension-quality
+   [36mINFO[0m  No theme extensions found
+     Skipped because no `extensions/*/shopify.extension.toml` declares `type = "theme"`. This check only applies to apps that ship a theme app extension.
+
+[[32mPASS[0m] shopify-function-quality
+
+[[90mSKIP[0m] merchant-grade-function
+   [36mINFO[0m  Skipped — project persona is not 'merchant'
+     This rule only applies to merchant-generated Functions (Phase 6). Dev-authored Shopify Functions are gated by shopify-function-quality + App-Review.
+
+[[90mSKIP[0m] performance-budget
+   [36mINFO[0m  Skipped - provide APP_BASE_URL to enable performance budget probe
+     This check needs the deployed embedded-admin entry URL in ctx.appUrl. Set APP_BASE_URL for the deployed app, then pass it as appUrl when running readiness checks.
+     fix: Deploy the app and provide its public HTTPS URL before App Store submission.
+     docs: https://shopify.dev/docs/apps/launch/app-store-review-process
+
+[[31mFAIL[0m] trust-asset-checklist
+   [33mWARNING[0m  App name assets differ
+     shopify.app.toml declares "ProfitRx RTO & Profit" at shopify.app.toml:4, but README.md declares "ProfitRx ⚡ — The Actionable Profit & RTO Shield Platform for Shopify" at README.md:1. Shopify reviewers expect the public app name, package metadata, and README title to match closely.
+     fix: Use one canonical app name across shopify.app.toml, package.json, README, and App Store listing.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [33mWARNING[0m  App name assets differ
+     package.json declares "ProfitRx RTO & Profit" at package.json:2, but README.md declares "ProfitRx ⚡ — The Actionable Profit & RTO Shield Platform for Shopify" at README.md:1. Shopify reviewers expect the public app name, package metadata, and README title to match closely.
+     fix: Use one canonical app name across shopify.app.toml, package.json, README, and App Store listing.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [33mWARNING[0m  SUPPORT_EMAIL missing from .env.example
+     Could not find .env.example in the repo snapshot.
+     fix: Add SUPPORT_EMAIL to .env.example and configure a monitored inbox before submission.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [36mINFO[0m  Privacy URL probe skipped - no app URL
+     Set ctx.appUrl to the deployed app URL so the checker can probe /privacy.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [31mBLOCKER[0m  Unsupported marketing claim detected
+     app/routes/verify-cod.tsx:206 contains "#1". Shopify can reject unsubstantiated superlatives, guarantees, percentages, and scale claims.
+     fix: Remove the claim or add specific, current substantiation in the listing and app assets.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [31mBLOCKER[0m  Unsupported marketing claim detected
+     app/routes/verify-cod.tsx:215 contains "100%". Shopify can reject unsubstantiated superlatives, guarantees, percentages, and scale claims.
+     fix: Remove the claim or add specific, current substantiation in the listing and app assets.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [31mBLOCKER[0m  Unsupported marketing claim detected
+     app/routes/verify-cod.tsx:289 contains "100%". Shopify can reject unsubstantiated superlatives, guarantees, percentages, and scale claims.
+     fix: Remove the claim or add specific, current substantiation in the listing and app assets.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [31mBLOCKER[0m  Unsupported marketing claim detected
+     app/routes/verify-cod.tsx:309 contains "100%". Shopify can reject unsubstantiated superlatives, guarantees, percentages, and scale claims.
+     fix: Remove the claim or add specific, current substantiation in the listing and app assets.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+   [36mINFO[0m  Screenshot testimonial scan skipped - no screenshots
+     Upload listing screenshots to scan for testimonials, review stars, and unsubstantiated stats.
+     docs: https://shopify.dev/docs/apps/launch/shopify-app-store/listing-requirements
+
+[[32mPASS[0m] ci-workflow
+   [33mWARNING[0m  No Wrangler deploy step in any workflow
+     No workflow contains a Wrangler deploy step. Reviewers expect deploys to run from CI on push to main.
+     fix: If you self-host or deploy manually you can ignore this. Otherwise, add a `run: pnpm wrangler deploy` step under the deploy job.
+     docs: https://docs.github.com/en/actions/writing-workflows/quickstart
+

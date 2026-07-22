@@ -7,6 +7,8 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { SubscriptionSyncService } from "./services/subscription-sync.service";
+
 
 const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
 const DEFAULT_APP_URL = rawAppUrl || "https://greek-god-saas.vercel.app";
@@ -60,14 +62,8 @@ const shopify = shopifyApp({
         });
 
         // Re-activate canceled subscriptions upon reinstall to prevent lockout
-        const existingSub = await prisma.subscription.findUnique({ where: { shop: session.shop } });
-        if (!existingSub || existingSub.status === "CANCELED") {
-           await prisma.subscription.upsert({
-             where: { shop: session.shop },
-             update: { status: "ACTIVE", plan: existingSub?.plan === "FREE" ? "FREE" : (existingSub?.plan || "FREE") },
-             create: { shop: session.shop, plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 }
-           });
-        }
+        await SubscriptionSyncService.handleAfterAuth(session.shop);
+
 
         // Trigger background 30-day orders and native COGS sync
         setTimeout(async () => {

@@ -115,3 +115,53 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
     return localSub;
   }
 }
+
+export async function handleAfterAuth(shop: string) {
+  const existingSub = await prisma.subscription.findUnique({ where: { shop } });
+  if (!existingSub || existingSub.status === "CANCELED") {
+    const plan = existingSub?.plan === "FREE" ? "FREE" : (existingSub?.plan || "FREE");
+    return await upsertSubscriptionRecord({
+      shop,
+      plan,
+      status: "ACTIVE",
+    });
+  }
+  return existingSub;
+}
+
+export async function cancelSubscription(shop: string, billing: any) {
+  const subscription = await prisma.subscription.findUnique({
+    where: { shop },
+  });
+
+  if (subscription?.shopifyChargeId) {
+    try {
+      await billing.cancel({
+        subscriptionId: subscription.shopifyChargeId,
+        isTest: true,
+      });
+    } catch (err) {
+      console.error("Failed to cancel Shopify subscription:", err);
+    }
+  }
+
+  return await prisma.subscription.update({
+    where: { shop },
+    data: {
+      plan: "FREE",
+      status: "CANCELED",
+      orderLimit: 50,
+      shopifyChargeId: null,
+      trialEndsAt: null,
+    },
+  });
+}
+
+export const SubscriptionSyncService = {
+  mapPlanDetails,
+  upsertSubscriptionRecord,
+  syncSubscriptionWithShopify,
+  handleAfterAuth,
+  cancelSubscription,
+};
+

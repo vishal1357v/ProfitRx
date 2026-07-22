@@ -28,12 +28,11 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { getSubscription } from "../services/feature-access.service";
-import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
-import prisma from "../db.server";
+import { SubscriptionSyncService } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
-  const subscription = await syncSubscriptionWithShopify(session.shop, billing);
+  const subscription = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
 
@@ -54,36 +53,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent") as string;
 
   if (intent === "sync_subscription") {
-    const subscription = await syncSubscriptionWithShopify(session.shop, billing);
+    const subscription = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
     return { success: true, message: `Subscription synced successfully. Current plan: ${subscription.plan}` };
   }
 
   if (intent === "cancel_subscription") {
-    const subscription = await prisma.subscription.findUnique({
-      where: { shop: session.shop },
-    });
-
-    if (subscription?.shopifyChargeId) {
-      try {
-        await billing.cancel({
-          subscriptionId: subscription.shopifyChargeId,
-          isTest: true,
-        });
-      } catch (err) {
-        console.error("Failed to cancel Shopify subscription:", err);
-      }
-    }
-
-    await prisma.subscription.update({
-      where: { shop: session.shop },
-      data: {
-        plan: "FREE",
-        status: "CANCELED",
-        orderLimit: 50,
-        shopifyChargeId: null,
-        trialEndsAt: null,
-      },
-    });
+    await SubscriptionSyncService.cancelSubscription(session.shop, billing);
     return { success: true, message: "Subscription cancelled successfully." };
   }
 

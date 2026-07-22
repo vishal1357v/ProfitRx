@@ -19,12 +19,11 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { SubscriptionSyncService } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
-  const sub = await syncSubscriptionWithShopify(session.shop, billing);
+  const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
   const currentPlan = sub.plan === "PRO" ? "Pro" : sub.plan === "GROWTH" ? "Growth" : sub.plan === "STARTER" ? "Starter" : "Free";
   return { currentPlan, shop: session.shop };
 };
@@ -66,10 +65,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
     // Fallback to local DB update for dev mode / non-public distribution apps
-    await prisma.subscription.upsert({
-      where: { shop: session.shop },
-      update: { plan: dbPlan, status: "TRIALING", orderLimit, trialEndsAt },
-      create: { shop: session.shop, plan: dbPlan, status: "TRIALING", orderLimit, ordersUsed: 0, trialEndsAt },
+    await SubscriptionSyncService.upsertSubscriptionRecord({
+      shop: session.shop,
+      plan: dbPlan,
+      status: "TRIALING",
+      trialEndsAt,
     });
     return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
   }
