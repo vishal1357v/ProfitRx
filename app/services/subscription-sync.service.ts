@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { unauthenticated } from "../shopify.server";
 
 export function mapPlanDetails(planName: string) {
   const upper = (planName || "").toUpperCase().trim();
@@ -119,11 +120,12 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any) {
 export async function handleAfterAuth(shop: string) {
   const existingSub = await prisma.subscription.findUnique({ where: { shop } });
   if (!existingSub || existingSub.status === "CANCELED") {
-    const plan = existingSub?.plan === "FREE" ? "FREE" : (existingSub?.plan || "FREE");
     return await upsertSubscriptionRecord({
       shop,
-      plan,
+      plan: "FREE",
       status: "ACTIVE",
+      shopifyChargeId: null,
+      trialEndsAt: null,
     });
   }
   return existingSub;
@@ -136,10 +138,30 @@ export async function cancelSubscription(shop: string, billing: any) {
 
   if (subscription?.shopifyChargeId) {
     try {
-      await billing.cancel({
-        subscriptionId: subscription.shopifyChargeId,
-        isTest: true,
+      const { admin } = await unauthenticated.admin(shop);
+      const res = await admin.graphql(`
+        mutation appSubscriptionCancel($id: ID!) {
+          appSubscriptionCancel(id: $id) {
+            appSubscription {
+              id
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        variables: { id: subscription.shopifyChargeId }
       });
+      
+      const data = await res.json();
+      if (data?.data?.appSubscriptionCancel?.userErrors?.length > 0) {
+        console.error("[SubscriptionSync] GraphQL UserErrors canceling subscription:", data.data.appSubscriptionCancel.userErrors);
+      } else {
+        console.log("[SubscriptionSync] Successfully canceled Shopify charge:", subscription.shopifyChargeId);
+      }
     } catch (err) {
       console.error("Failed to cancel Shopify subscription:", err);
     }

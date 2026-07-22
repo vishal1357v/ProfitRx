@@ -1,6 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { CODManagementService } from "../services/cod-management.service";
-import { ShopifyService } from "../services/shopify.service";
 import prisma from "../db.server";
 
 const CORS_HEADERS = {
@@ -100,26 +99,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return corsResponse(res);
     }
 
-    if (intent === "cancel_order") {
-      const { orderId } = payload;
-      if (!orderId) {
-        return corsResponse({ error: "Missing orderId" }, 400);
-      }
-      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-      const res = await ShopifyService.cancelOrder(shop, cleanOrderId);
-      if (res.success) {
-        await prisma.cODOrder.update({
-          where: { orderId: cleanOrderId },
-          data: { status: "CANCELLED" },
-        });
-      }
-      return corsResponse(res);
-    }
 
-    if (intent === "update_settings") {
-      const updated = await CODManagementService.updateCODSettings(shop, payload.settings);
-      return corsResponse({ success: true, settings: updated });
-    }
 
     return corsResponse({ error: "Invalid intent" }, 400);
   } catch (err: any) {

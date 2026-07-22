@@ -4,14 +4,21 @@ import { useLoaderData, useSubmit, useNavigation } from "react-router";
 import prisma from "../db.server";
 import { CODManagementService } from "../services/cod-management.service";
 import { ShopifyService } from "../services/shopify.service";
+import * as crypto from "crypto";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") || "";
   const orderId = url.searchParams.get("orderId") || "";
+  const token = url.searchParams.get("token") || "";
 
-  if (!shop || !orderId) {
-    return { error: "Invalid verification link. Missing shop or order details." };
+  if (!shop || !orderId || !token) {
+    return { error: "Invalid verification link. Missing shop, order details, or security token." };
+  }
+
+  const expectedToken = crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "fallback").update(`${shop}:${orderId}`).digest("hex");
+  if (token !== expectedToken) {
+    return { error: "Invalid security token. This link is tampered or expired." };
   }
 
   const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
@@ -36,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status: codOrder.status,
     verified: codOrder.otpVerified,
     phone: codOrder.phone ? `******${codOrder.phone.slice(-4)}` : "your registered number",
+    token,
   };
 };
 
@@ -45,9 +53,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const intent = formData.get("intent") as string;
     const shop = formData.get("shop") as string;
     const orderId = formData.get("orderId") as string;
+    const token = formData.get("token") as string;
 
-    if (!shop || !orderId) {
+    if (!shop || !orderId || !token) {
       return Response.json({ error: "Missing required parameters" }, { status: 400 });
+    }
+
+    const expectedToken = crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "fallback").update(`${shop}:${orderId}`).digest("hex");
+    if (token !== expectedToken) {
+      return Response.json({ error: "Unauthorized request signature" }, { status: 401 });
     }
 
     if (intent === "verify_otp") {
@@ -104,7 +118,7 @@ export default function VerifyCODPage() {
     );
   }
 
-  const { shop, orderId, orderNumber, totalPrice, customerName, verified, phone, status } = data;
+  const { shop, orderId, orderNumber, totalPrice, customerName, verified, phone, status, token } = data as any;
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,6 +135,7 @@ export default function VerifyCODPage() {
       fd.append("intent", "verify_otp");
       fd.append("shop", shop);
       fd.append("orderId", orderId);
+      fd.append("token", token as string);
       fd.append("otp", otp);
 
       const response = await fetch("", { method: "POST", body: fd });
@@ -150,6 +165,7 @@ export default function VerifyCODPage() {
       fd.append("intent", "resend_otp");
       fd.append("shop", shop);
       fd.append("orderId", orderId);
+      fd.append("token", token as string);
 
       const response = await fetch("", { method: "POST", body: fd });
       const res = await response.json();
@@ -177,6 +193,7 @@ export default function VerifyCODPage() {
       fd.append("intent", "cancel_order");
       fd.append("shop", shop);
       fd.append("orderId", orderId);
+      fd.append("token", token as string);
 
       const response = await fetch("", { method: "POST", body: fd });
       const res = await response.json();

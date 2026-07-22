@@ -10,6 +10,11 @@ import prisma from "../db.server";
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop") || "greek-god-wvwt8ptt.myshopify.com";
+  const secret = url.searchParams.get("secret");
+
+  if (secret !== process.env.SHOPIFY_API_SECRET) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   let deleted = 0;
   try {

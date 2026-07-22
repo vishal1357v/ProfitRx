@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import prisma from "../db.server";
 import { ProfitService } from "./profit.service";
 
@@ -93,7 +94,8 @@ export class WhatsAppService {
     let msg = `*ProfitRx COD Order Verification* 🛡️\n\nYour OTP confirmation code is: *${otp}*\n\nValid for 10 minutes.`;
     if (shop && orderId) {
       const appUrl = process.env.SHOPIFY_APP_URL || "https://greek-god-saas.vercel.app";
-      msg += `\n\nPlease confirm your order here: ${appUrl}/verify-cod?shop=${shop}&orderId=${orderId}`;
+      const token = crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "fallback").update(`${shop}:${orderId}`).digest("hex");
+      msg += `\n\nPlease confirm your order here: ${appUrl}/verify-cod?shop=${shop}&orderId=${orderId}&token=${token}`;
     } else {
       msg += `\n\nPlease enter this code to confirm your COD order.`;
     }

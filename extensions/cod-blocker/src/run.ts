@@ -11,7 +11,7 @@ type Configuration = {
   blockedPincodes?: string[];
 };
 
-export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransformRunInput): CartPaymentMethodsTransformRunResult {
+export function run(input: CartPaymentMethodsTransformRunInput): CartPaymentMethodsTransformRunResult {
   const configuration: Configuration = JSON.parse(
     input?.paymentCustomization?.metafield?.value ?? "{}"
   );
@@ -21,7 +21,6 @@ export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransfor
     return NO_CHANGES;
   }
 
-  // Get shipping zip codes from cart delivery groups
   const zipCodes: string[] = [];
   const deliveryGroups = input.cart?.deliveryGroups || [];
   for (const group of deliveryGroups) {
@@ -35,14 +34,12 @@ export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransfor
     return NO_CHANGES;
   }
 
-  // Check if any zip is blocked
   const isBlocked = zipCodes.some(zip => blockedPincodes.includes(zip));
 
   if (!isBlocked) {
     return NO_CHANGES;
   }
 
-  // Find COD payment method(s)
   const paymentMethods = input.paymentMethods || [];
   const codPaymentMethods = paymentMethods.filter(method => {
     const name = (method.name || "").toLowerCase();
@@ -53,7 +50,6 @@ export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransfor
     return NO_CHANGES;
   }
 
-  // Return hide operations for COD payment methods
   return {
     operations: codPaymentMethods.map(method => ({
       paymentMethodHide: {
@@ -62,3 +58,9 @@ export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransfor
     })),
   };
 }
+
+export function cartPaymentMethodsTransformRun(input: CartPaymentMethodsTransformRunInput): CartPaymentMethodsTransformRunResult {
+  return run(input);
+}
+
+export default run;

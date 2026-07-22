@@ -150,6 +150,17 @@ export default function ROASRoute() {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const [month, setMonth] = useState(currentMonth);
+  const [channel, setChannel] = useState("Meta");
+  const [amount, setAmount] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [selectedPlatform, setSelectedPlatform] = useState<any | null>(null);
+  const [customAccountId, setCustomAccountId] = useState("");
+  const [connectingModal, setConnectingModal] = useState(false);
+
   if (!hasAccess) {
     return (
       <Page title="📈 Ad Spend Sync & Blended ROAS">
@@ -168,17 +179,6 @@ export default function ROASRoute() {
       </Page>
     );
   }
-
-  const currentMonth = new Date().toISOString().substring(0, 7);
-  const [month, setMonth] = useState(currentMonth);
-  const [channel, setChannel] = useState("Meta");
-  const [amount, setAmount] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  const [selectedPlatform, setSelectedPlatform] = useState<any | null>(null);
-  const [customAccountId, setCustomAccountId] = useState("");
-  const [connectingModal, setConnectingModal] = useState(false);
 
   const handleOpenConnectModal = (p: any) => {
     setSelectedPlatform(p);

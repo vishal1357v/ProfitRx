@@ -410,7 +410,7 @@ export class ShopifyService {
       rtoTags.some(term => tag.toLowerCase().includes(term))
     );
 
-    let hasRtoEvent = false;
+    const hasRtoEvent = false;
     const fulfillments = node.fulfillments || [];
     const mappedFulfillmentStatus = determineFulfillmentStatus(
       node.displayFulfillmentStatus,
@@ -1210,6 +1210,7 @@ export class ShopifyService {
         let cursor: string | undefined = undefined;
         let updatedCount = 0;
 
+        // eslint-disable-next-line no-constant-condition
         while (true) {
           const dbOrders: any[] = await prisma.order.findMany({
             where: { shop },
