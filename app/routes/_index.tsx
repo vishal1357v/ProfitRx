@@ -86,7 +86,7 @@ export default function IndexRoute() {
                   </InlineStack>
                   <InlineStack gap="300" blockAlign="center">
                     <Badge tone="success">Active India Moat Engine</Badge>
-                    <Button variant="primary" onClick={() => handleConnectShop()}>
+                    <Button variant="primary" url="/auth/login">
                       Install App
                     </Button>
                   </InlineStack>

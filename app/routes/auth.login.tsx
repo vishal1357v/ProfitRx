@@ -15,19 +15,19 @@ import { login } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const errors = await login(request);
 
-  return { errors };
+  return errors;
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const errors = await login(request);
 
-  return { errors };
+  return errors;
 };
 
 export default function AuthLogin() {
   const loaderData = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const errors = actionData?.errors ?? loaderData?.errors;
+  const errors = actionData ?? loaderData;
   const [shop, setShop] = useState("");
 
   const shopError =
