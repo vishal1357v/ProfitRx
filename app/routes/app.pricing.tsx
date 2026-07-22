@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useActionData, redirect } from "react-router";
+import { Form, useLoaderData, useActionData, redirect, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -23,9 +23,25 @@ import { SubscriptionSyncService } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
-  const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
+  const url = new URL(request.url);
+  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
+  
+  const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing, forceSync);
+  
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
+
+  // Redirect to dashboard if they already have an active subscription (and aren't trying to change plans)
+  const isChangingPlan = url.searchParams.get("change_plan") === "true";
+  if (!isChangingPlan && sub && sub.plan !== "FREE" && (sub.status === "ACTIVE" || sub.status === "TRIALING")) {
+    return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
+  }
+
   const currentPlan = sub.plan === "PRO" ? "Pro" : sub.plan === "GROWTH" ? "Growth" : sub.plan === "STARTER" ? "Starter" : "Free";
-  return { currentPlan, shop: session.shop };
+  return { currentPlan, shop: session.shop, host };
 };
 
 type BillingPlan = "STARTER" | "GROWTH" | "PRO";
@@ -35,6 +51,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const formData = await request.formData();
+  const intent = formData.get("intent") as string;
+
+  if (intent === "sync_subscription") {
+    try {
+      const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing, true);
+      if (sub && sub.plan !== "FREE" && (sub.status === "ACTIVE" || sub.status === "TRIALING")) {
+        return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
+      }
+      return Response.json({ success: true, message: `Subscription synced. Local plan status is ${sub.plan}.` });
+    } catch (err: any) {
+      return Response.json({ error: err.message || "Failed to sync subscription" }, { status: 500 });
+    }
+  }
+
   const rawPlan = (formData.get("plan") as string) || "";
   const upperPlan = rawPlan.toUpperCase();
 
@@ -46,14 +76,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Invalid plan selected" }, { status: 400 });
   }
 
-  const orderLimit = plan === "PRO" ? null : plan === "GROWTH" ? 2000 : 500;
   const dbPlan = plan;
+  const returnUrl = `https://${url.host}/app/dashboard?shop=${session.shop}&host=${encodeURIComponent(host)}&plan_updated=true`;
 
   try {
     return await (billing.request as any)({
       plan: plan,
       isTest: true,
       trialDays: 14,
+      returnUrl,
     });
   } catch (error: any) {
     console.error("[Pricing Action Error]:", error);
@@ -76,8 +107,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Pricing() {
-  const { currentPlan } = useLoaderData<typeof loader>();
-  const actionData = useActionData<{ error?: string }>();
+  const { currentPlan, shop, host } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ error?: string; success?: boolean; message?: string }>();
+  const navigation = useNavigation();
+  const isSyncing = navigation.state === "submitting" && navigation.formData?.get("intent") === "sync_subscription";
 
   const plans = [
     {
@@ -131,8 +164,16 @@ export default function Pricing() {
       <Layout>
         {actionData?.error && (
           <Layout.Section>
-            <Banner tone="critical" title="Plan Selection Failed">
+            <Banner tone="critical" title="Operation Failed">
               <p>{actionData.error}</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {actionData?.success && actionData?.message && (
+          <Layout.Section>
+            <Banner tone="success" title="Subscription Status Synced">
+              <p>{actionData.message}</p>
             </Banner>
           </Layout.Section>
         )}
@@ -152,9 +193,17 @@ export default function Pricing() {
               Select Your Subscription Plan
             </Text>
             <div style={{ marginTop: "8px" }}>
-              <Text variant="bodyMd" as="p" tone="subdued" fontWeight="medium">
-                💡 Try any plan risk-free for 14 days. Instant setup, cancel anytime.
-              </Text>
+              <InlineStack gap="300" align="center" blockAlign="center">
+                <Text variant="bodyMd" as="span" tone="subdued" fontWeight="medium">
+                  💡 Try any plan risk-free for 14 days. Instant setup, cancel anytime.
+                </Text>
+                <Form method="POST" style={{ display: "inline-flex" }}>
+                  <input type="hidden" name="intent" value="sync_subscription" />
+                  <Button variant="plain" submit loading={isSyncing}>
+                    🔄 Refresh Subscription Status
+                  </Button>
+                </Form>
+              </InlineStack>
             </div>
           </div>
         </Layout.Section>

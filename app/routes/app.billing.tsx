@@ -232,7 +232,7 @@ export default function BillingPage() {
                         Change tiers, update billing information, or review transaction histories inside Shopify Billing portal.
                       </Text>
                       <BlockStack gap="200">
-                        <Button url={`/app/pricing?shop=${shop}&host=${host}`} variant="primary" fullWidth>
+                        <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="primary" fullWidth>
                           Change Plan Tier
                         </Button>
                         <Form method="POST">

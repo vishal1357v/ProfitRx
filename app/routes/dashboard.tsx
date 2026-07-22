@@ -78,9 +78,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw authErr;
   }
 
+  const url = new URL(request.url);
+  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
+
   try {
     // Perform active subscription check with Shopify Billing API
-    const subscription = await syncSubscriptionWithShopify(shop, billing);
+    const subscription = await syncSubscriptionWithShopify(shop, billing, forceSync);
     const isFreeTier = (subscription?.plan || "FREE") === "FREE";
     const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
     const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
@@ -1142,7 +1145,7 @@ export default function DashboardRoute() {
               title={`Basic Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 500} orders this month`}
               action={{
                 content: "Upgrade to Pro",
-                url: `/app/pricing?shop=${data.shop}&host=${data.host}`,
+                url: `/app/pricing?shop=${data.shop}&host=${data.host}&change_plan=true`,
               }}
             >
               <p>You are currently on the <strong>Basic Plan ($15/mo)</strong>. Upgrade to <strong>Pro ($29/mo)</strong> or <strong>Advance ($45/mo)</strong> to unlock COD Risk Scoring, Pincode RTO Heatmaps, and Cohort LTV Analytics!</p>

@@ -151,7 +151,7 @@ export default function CustomersRoute() {
             <Banner tone="info" title="🔒 Pro Plan Feature Required">
               <p>Customer LTV & Cohort Retention analysis require a Pro plan upgrade.</p>
               <div style={{ marginTop: "12px" }}>
-                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="primary">
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&change_plan=true`} variant="primary">
                   Upgrade to Pro Tier →
                 </Button>
               </div>

@@ -99,13 +99,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
+  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
+
   // ── Step 2 + 4: Sync billing and load features in parallel ─────────────────
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
   let features: string[] = [];
 
   try {
     [localSub, features] = await Promise.all([
-      syncSubscriptionWithShopify(session.shop, billing).catch((syncErr: any) => {
+      syncSubscriptionWithShopify(session.shop, billing, forceSync).catch((syncErr: any) => {
         console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
         return { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
       }),

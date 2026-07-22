@@ -169,7 +169,7 @@ export default function ROASRoute() {
             <Banner tone="info" title="🔒 Pro Plan Feature Required">
               <p>Ad Spend Sync and Blended ROAS analytics require a Pro plan upgrade.</p>
               <div style={{ marginTop: "12px" }}>
-                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`} variant="primary">
+                <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&change_plan=true`} variant="primary">
                   Upgrade to Pro Tier →
                 </Button>
               </div>

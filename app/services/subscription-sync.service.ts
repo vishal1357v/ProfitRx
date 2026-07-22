@@ -51,18 +51,20 @@ export async function upsertSubscriptionRecord({
   });
 }
 
-export async function syncSubscriptionWithShopify(shop: string, billing: any) {
+export async function syncSubscriptionWithShopify(shop: string, billing: any, force: boolean = false) {
   // ⚡ TTFB Cache Check: Query our database first to see if subscription status was checked recently (within 1 hour)
-  try {
-    const existing = await prisma.subscription.findUnique({ where: { shop } });
-    if (existing && existing.status !== "CANCELED") {
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      if (existing.updatedAt > oneHourAgo) {
-        return existing;
+  if (!force) {
+    try {
+      const existing = await prisma.subscription.findUnique({ where: { shop } });
+      if (existing && existing.status !== "CANCELED") {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        if (existing.updatedAt > oneHourAgo) {
+          return existing;
+        }
       }
+    } catch (dbErr) {
+      console.error(`[SubscriptionSync] Error checking local cache for ${shop}:`, dbErr);
     }
-  } catch (dbErr) {
-    console.error(`[SubscriptionSync] Error checking local cache for ${shop}:`, dbErr);
   }
 
   try {
