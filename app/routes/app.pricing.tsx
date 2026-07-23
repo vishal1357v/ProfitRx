@@ -97,7 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   } catch (error: any) {
     console.error("[Pricing Action Error]:", error);
-    if (error instanceof Response) {
+    if (error instanceof Response || (error && typeof error.status === "number" && error.headers)) {
       throw error;
     }
     
