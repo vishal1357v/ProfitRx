@@ -5,7 +5,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const secret = url.searchParams.get("secret");
 
-  if (!secret || secret !== "diagnose123") {
+  if (process.env.NODE_ENV === "production" || !secret || secret !== process.env.SHOPIFY_API_SECRET) {
     return new Response("Not Found", { status: 404 });
   }
   let dbStatus = "UNKNOWN";

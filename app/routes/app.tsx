@@ -62,6 +62,17 @@ import { getFeatureList, getSubscription } from "../services/feature-access.serv
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  let url = new URL(request.url);
+  let host = url.searchParams.get("host") || "";
+  const shopParam = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+
+  if (!host && shopParam) {
+    const storeHandle = shopParam.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+    url.searchParams.set("host", host);
+    request = new Request(url.toString(), request);
+  }
+
   // ── Step 1: Authenticate with Shopify ─────────────────────────────────────
   // IMPORTANT: Do NOT wrap authenticate.admin in a try/catch that swallows its
   // redirect Response. The Shopify SDK throws a special Response with ExitIframe
@@ -90,8 +101,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
-  const url = new URL(request.url);
-  let host = url.searchParams.get("host") || "";
+  url = new URL(request.url);
+  host = url.searchParams.get("host") || "";
 
   // Auto-generate base64 host parameter if missing from query string
   if (!host && session?.shop) {

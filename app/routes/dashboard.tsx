@@ -64,8 +64,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let host = "";
 
   try {
-    const url = new URL(request.url);
+    let url = new URL(request.url);
     host = url.searchParams.get("host") || "";
+    const shopParam = url.searchParams.get("shop") || "";
+
+    if (!host && shopParam) {
+      const storeHandle = shopParam.replace(".myshopify.com", "");
+      host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+      url.searchParams.set("host", host);
+      request = new Request(url.toString(), request);
+    }
 
     const auth = await authenticate.admin(request);
     session = auth.session;
