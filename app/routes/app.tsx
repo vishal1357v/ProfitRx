@@ -58,7 +58,7 @@ function RemixLink({ url, children, external, ...props }: any) {
 
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { getFeatureList, getSubscription } from "../services/feature-access.service";
+import { getFeatureList, getSubscription, normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -112,46 +112,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
 
-  // ── Step 2 + 4: Sync billing and load features in parallel ─────────────────
+  // ── Step 2: Sync billing with Shopify (sequential to avoid stale reads) ────
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
-  let features: string[] = [];
 
   try {
-    [localSub, features] = await Promise.all([
-      syncSubscriptionWithShopify(session.shop, billing, forceSync).catch((syncErr: any) => {
-        console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
-        return { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
-      }),
-      getFeatureList(session.shop).catch((featErr: any) => {
-        console.error("[app.tsx getFeatureList FAILED]:", featErr);
-        return [] as string[];
-      }),
-    ]);
-  } catch (err: any) {
-    console.error("[app.tsx parallel load failed]:", err);
+    localSub = await syncSubscriptionWithShopify(session.shop, billing, forceSync);
+  } catch (syncErr: any) {
+    console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
     localSub = { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
-    features = [];
   }
 
-  const isFreePlan = localSub.plan === "FREE";
-
-  // ── Step 3: Require billing for paid plans ─────────────────────────────────
-  if (!isFreePlan && !url.pathname.includes("/app/pricing") && !url.pathname.includes("/app/billing")) {
-    try {
-      await billing.require({
-        plans: ["STARTER", "GROWTH", "PRO", "Starter", "Growth", "Pro"] as any,
-        isTest: true,
-        onFailure: async () => {
-          return shopifyRedirect(`/app/pricing?shop=${session.shop}&host=${host}`);
-        },
-      });
-    } catch (err) {
-      if (err instanceof Response || (err && typeof err === "object" && "status" in err)) {
-        throw err;
-      }
-      console.error("[app.tsx billing.require Error]:", err);
-    }
-  }
+  // ── Step 3: Derive features from the SYNCED plan (no stale DB read) ────────
+  const normalizedPlan = normalizePlanName(localSub.plan);
+  const features: string[] = PLAN_FEATURES[normalizedPlan] || [];
 
   const billingStatus = localSub.status || "ACTIVE";
 

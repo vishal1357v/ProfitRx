@@ -79,6 +79,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const dbPlan = plan;
   const returnUrl = `https://${url.host}/app/dashboard?shop=${session.shop}&host=${encodeURIComponent(host)}&plan_updated=true`;
 
+  // Pre-persist the selected plan as PENDING so the DB records merchant intent
+  // before Shopify redirect. If the post-payment sync fails (race condition),
+  // the sync service can respect this PENDING state instead of reverting to FREE.
+  await SubscriptionSyncService.upsertSubscriptionRecord({
+    shop: session.shop,
+    plan: dbPlan,
+    status: "PENDING",
+  });
+
   try {
     return await (billing.request as any)({
       plan: plan,

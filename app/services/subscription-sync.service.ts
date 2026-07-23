@@ -52,13 +52,14 @@ export async function upsertSubscriptionRecord({
 }
 
 export async function syncSubscriptionWithShopify(shop: string, billing: any, force: boolean = false) {
-  // ⚡ TTFB Cache Check: Query our database first to see if subscription status was checked recently (within 1 hour)
+  // ⚡ TTFB Cache Check: Query our database first to see if subscription was checked recently (within 5 min)
   if (!force) {
     try {
       const existing = await prisma.subscription.findUnique({ where: { shop } });
-      if (existing && existing.status !== "CANCELED") {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        if (existing.updatedAt > oneHourAgo) {
+      // Always re-check PENDING records (merchant just selected a plan, awaiting Shopify confirmation)
+      if (existing && existing.status !== "CANCELED" && existing.status !== "PENDING") {
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+        if (existing.updatedAt > fiveMinAgo) {
           return existing;
         }
       }
@@ -92,6 +93,20 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
     // No active payment found on Shopify
     const existing = await prisma.subscription.findUnique({ where: { shop } });
     if (!existing || existing.status === "CANCELED") {
+      return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
+    }
+
+    // Protect PENDING records: merchant selected a plan but Shopify hasn't confirmed yet.
+    // If the PENDING record was created/updated less than 5 minutes ago, keep it as-is
+    // so the merchant isn't downgraded during the Shopify approval window.
+    if (existing.status === "PENDING") {
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (existing.updatedAt > fiveMinAgo) {
+        console.log(`[SubscriptionSync] Preserving PENDING record for ${shop} (created ${existing.updatedAt.toISOString()}, within 5-min window)`);
+        return existing;
+      }
+      // PENDING record is stale (>5 min) — merchant likely abandoned checkout, revert to FREE
+      console.log(`[SubscriptionSync] Stale PENDING record for ${shop}, reverting to FREE`);
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 
