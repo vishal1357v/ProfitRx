@@ -126,28 +126,31 @@ export default function Pricing() {
       name: "Starter",
       price: "₹1,500",
       description: "Small & early-stage stores",
-      tagline: "Essential profit tracking, product COGS management, and basic RTO insights.",
+      tagline: "Essential profit tracking, COGS management, GST reports, and basic RTO insights.",
       features: [
         "Up to 500 orders / month",
         "True Profit Dashboard",
         "Store Health Score",
-        "Product cost tracking (COGS)",
+        "Product Cost Tracking (COGS)",
         "Basic RTO & COD insights",
-        "Weekly WhatsApp report digest (BYO API Key)",
+        "GST Compliance Reports",
+        "Weekly WhatsApp Digest",
+        "CSV Data Export",
       ],
     },
     {
       name: "Growth",
       price: "₹3,000",
       description: "Growing stores ⭐ Most Popular",
-      tagline: "Pincode-level logistics intelligence and pre-shipment COD risk detection.",
+      tagline: "Pincode-level logistics intelligence, COD Risk Shield, and profit leak detection.",
       features: [
         "Up to 2,000 orders / month",
         "Everything in Starter",
         "COD Risk Score (Pre-shipment prediction)",
         "Pincode RTO Heatmap",
         "Profit Leak Recommendations",
-        "Advanced email & system alerts",
+        "COD Shield & OTP Verification",
+        "Advanced Email & System Alerts",
       ],
       popular: true,
     },
@@ -155,14 +158,15 @@ export default function Pricing() {
       name: "Pro",
       price: "₹6,000",
       description: "Established brands & high-volume stores",
-      tagline: "Full enterprise intelligence suite with unlimited order sync and cohort retention.",
+      tagline: "Full enterprise intelligence suite with unlimited order sync, ROAS ad spend, and cohort retention.",
       features: [
         "Unlimited orders / month",
         "Everything in Growth",
         "LTV & Cohort Retention Analysis",
         "Blended ROAS & Ad Spend Sync",
-        "Multi-store support",
-        "Predictive Margins",
+        "Full Customer Intelligence",
+        "Multi-Store Support",
+        "API Access for Custom Integrations",
         "Priority Support & Dedicated Onboarding",
       ],
     },
@@ -327,35 +331,35 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Product Cost Tracking & Profit Calc</td>
+                        <td>Product Cost Tracking (COGS)</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Basic COD/RTO Insights</td>
+                        <td>GST Compliance Reports & Export</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Weekly WhatsApp Digest</td>
+                        <td>Basic RTO Insights & Alerts</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>COD Risk Score & High-Risk COD Areas</td>
+                        <td>COD Risk Score & Heatmap</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>AI Profit Recommendations</td>
+                        <td>Profit Leaks & COD Risk Shield</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
@@ -369,7 +373,14 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>ROAS & Ad Spend Metrics</td>
+                        <td>ROAS & Ad Spend Sync</td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Multi-store & API Access</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>

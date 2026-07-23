@@ -1,6 +1,6 @@
 import prisma from "../db.server";
 
-export const PLAN_FEATURES = {
+export const PLAN_FEATURES: Record<string, string[]> = {
   FREE: [
     "profit_dashboard",
     "health_score",
@@ -8,80 +8,61 @@ export const PLAN_FEATURES = {
   STARTER: [
     "profit_dashboard",
     "health_score",
+    "product_cost",
     "basic_rto",
     "basic_alerts",
     "weekly_whatsapp",
-    "product_cost",
     "basic_insights",
+    "gst_reports",
+    "order_analytics",
+    "export_csv",
   ],
   GROWTH: [
     "profit_dashboard",
     "health_score",
+    "product_cost",
     "basic_rto",
     "basic_alerts",
     "weekly_whatsapp",
-    "product_cost",
     "basic_insights",
-    "ai_attribution",
-    "rto_heatmap",
+    "gst_reports",
+    "order_analytics",
+    "export_csv",
     "cod_risk",
     "high_risk_areas",
-    "ai_recommendations",
+    "rto_heatmap",
+    "profit_leaks",
     "advanced_alerts",
+    "ai_recommendations",
+    "cod_shield",
   ],
   PRO: [
     "profit_dashboard",
     "health_score",
+    "product_cost",
     "basic_rto",
     "basic_alerts",
     "weekly_whatsapp",
-    "product_cost",
     "basic_insights",
-    "ai_attribution",
-    "rto_heatmap",
+    "gst_reports",
+    "order_analytics",
+    "export_csv",
     "cod_risk",
     "high_risk_areas",
-    "ai_recommendations",
+    "rto_heatmap",
+    "profit_leaks",
     "advanced_alerts",
+    "ai_recommendations",
+    "cod_shield",
     "ltv_cohort",
     "blended_roas",
     "roas_adspend",
+    "customer_analytics",
     "priority_support",
     "multistore_support",
     "beta_features",
     "onboarding",
-  ],
-  // Legacy aliases
-  BASIC: [
-    "profit_dashboard",
-    "health_score",
-    "basic_rto",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
-  ],
-  ADVANCE: [
-    "profit_dashboard",
-    "health_score",
-    "basic_rto",
-    "basic_alerts",
-    "weekly_whatsapp",
-    "product_cost",
-    "basic_insights",
-    "ai_attribution",
-    "rto_heatmap",
-    "cod_risk",
-    "high_risk_areas",
-    "ai_recommendations",
-    "advanced_alerts",
-    "ltv_cohort",
-    "blended_roas",
-    "roas_adspend",
-    "priority_support",
-    "multistore_support",
-    "beta_features",
-    "onboarding",
+    "api_access",
   ],
 };
 
@@ -96,6 +77,15 @@ export function normalizePlanName(plan: string): "FREE" | "STARTER" | "GROWTH" |
 export function hasFeature(plan: string, feature: string): boolean {
   const normalizedPlan = normalizePlanName(plan);
   return PLAN_FEATURES[normalizedPlan]?.includes(feature) || false;
+}
+
+/**
+ * Derive features directly from a plan name without a DB read.
+ * Use this when you already have the plan from a synced subscription object.
+ */
+export function getFeaturesForPlan(plan: string): string[] {
+  const normalizedPlan = normalizePlanName(plan);
+  return PLAN_FEATURES[normalizedPlan] || [];
 }
 
 export async function getSubscription(shop: string) {

@@ -9,14 +9,15 @@ import {
 import { authenticate } from "../shopify.server";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
 import { CustomerIntelligenceService } from "../services/customer-intelligence.service";
-import { canAccessFeature } from "../services/feature-access.service";
+import { canAccessFeature, hasFeature } from "../services/feature-access.service";
+import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
   const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
@@ -25,7 +26,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  const hasAccess = await canAccessFeature(shop, "ltv_cohort");
+  // Sync with Shopify Billing API first to ensure plan is up-to-date
+  const sub = await syncSubscriptionWithShopify(shop, billing);
+  const hasAccess = sub && (sub.status === "ACTIVE" || sub.status === "TRIALING")
+    ? hasFeature(sub.plan, "ltv_cohort")
+    : false;
 
   const [cohorts, channelQuality, customers] = await Promise.all([
     CustomerIntelligenceService.getLTVCohorts(shop),

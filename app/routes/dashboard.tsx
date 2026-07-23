@@ -45,7 +45,7 @@ import prisma from "../db.server";
 import { ProfitService } from "../services/profit.service";
 import { ShopifyService } from "../services/shopify.service";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
-import { getFeatureList, getSubscription } from "../services/feature-access.service";
+import { normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 import { AdSpendService } from "../services/ad-spend.service";
 
@@ -100,7 +100,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const subStatus = subscription?.status || "ACTIVE";
     const trialEndsAt = subscription?.trialEndsAt ? subscription.trialEndsAt.toISOString() : null;
 
-    const features = await getFeatureList(shop);
+    const normalizedPlan = normalizePlanName(subscription.plan);
+    const features: string[] = PLAN_FEATURES[normalizedPlan] || [];
 
     let orders = await prisma.order.findMany({
       where: { shop },
@@ -479,7 +480,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
       aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
       products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
-      leakTrend: [], features: {}, missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
+      leakTrend: [], features: [], missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
       excludedOrdersCount: 0, syncCapped: false, isBasicTier: true, planName: "Free", ordersUsed: 0, ordersLimit: 50,
       configuredCogsCount: 0, connectedAdPlatforms: [], hasConnectedAdAccount: false, nativeCogsCount: 0, manualCogsCount: 0,
       feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
@@ -1150,13 +1151,13 @@ export default function DashboardRoute() {
           <Layout.Section>
             <Banner
               tone="info"
-              title={`Basic Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 500} orders this month`}
+              title={`${data.planName} Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 50} orders this month`}
               action={{
-                content: "Upgrade to Pro",
+                content: data.planName === "Free" ? "Upgrade to Starter" : "Upgrade to Growth",
                 url: `/app/pricing?shop=${data.shop}&host=${data.host}&change_plan=true`,
               }}
             >
-              <p>You are currently on the <strong>Basic Plan ($15/mo)</strong>. Upgrade to <strong>Pro ($29/mo)</strong> or <strong>Advance ($45/mo)</strong> to unlock COD Risk Scoring, Pincode RTO Heatmaps, and Cohort LTV Analytics!</p>
+              <p>You are currently on the <strong>{data.planName} Plan</strong>. Upgrade to unlock COD Risk Scoring, Pincode RTO Heatmaps, Profit Leak Detection, and more advanced analytics!</p>
             </Banner>
           </Layout.Section>
         )}
