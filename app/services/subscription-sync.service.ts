@@ -73,21 +73,25 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
       plans: ["STARTER", "GROWTH", "PRO"],
       isTest: true,
     });
+    console.log("[DEBUG-SYNC] checkResult:", JSON.stringify(checkResult, null, 2));
 
     const activeSub = checkResult.appSubscriptions?.find((sub: any) => {
       const s = (sub.status || "").toUpperCase();
       return s === "ACTIVE" || s === "TRIALING";
     });
 
+    console.log("[DEBUG-SYNC] activeSub found:", activeSub);
+
     if (activeSub) {
       const trialEndsAt = activeSub.trialEndsAt ? new Date(activeSub.trialEndsAt) : null;
-      return await upsertSubscriptionRecord({
+      const updated = await upsertSubscriptionRecord({
         shop,
         plan: activeSub.name,
         status: activeSub.status.toUpperCase(),
         shopifyChargeId: activeSub.id,
         trialEndsAt,
       });
+      return updated;
     }
 
     // No active payment found on Shopify
@@ -110,7 +114,11 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 
-    if (existing.plan !== "FREE" && (existing.status === "ACTIVE" || existing.status === "TRIALING")) {
+    if (
+      existing.plan !== "FREE" && 
+      (existing.status === "ACTIVE" || existing.status === "TRIALING") &&
+      existing.updatedAt < new Date(Date.now() - 5 * 60 * 1000)
+    ) {
       // Downgrade or expire if Shopify says inactive
       return await prisma.subscription.update({
         where: { shop },
