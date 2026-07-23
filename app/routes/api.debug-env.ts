@@ -47,6 +47,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       SHOPIFY_APP_URL: configuredAppUrl,
       SHOPIFY_API_KEY_PREFIX: apiKey ? `${apiKey.substring(0, 6)}...` : "MISSING",
       SHOPIFY_API_KEY_SET: !!process.env.SHOPIFY_API_KEY,
+      SHOPIFY_API_SECRET_PREFIX: process.env.SHOPIFY_API_SECRET ? `${process.env.SHOPIFY_API_SECRET.substring(0, 8)}...` : "MISSING",
       SHOPIFY_API_SECRET_SET: !!process.env.SHOPIFY_API_SECRET,
       SCOPES: process.env.SCOPES || "MISSING",
       NODE_ENV: process.env.NODE_ENV || "UNKNOWN",
