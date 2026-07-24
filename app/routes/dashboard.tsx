@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLoaderData, useRevalidator } from "react-router";
+import { useLoaderData, useRevalidator, redirect } from "react-router";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -83,6 +83,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   } catch (authErr: any) {
     if (authErr instanceof Response) throw authErr;
     console.error("[dashboard.tsx loader authenticate.admin FAILED]:", authErr);
+    
+    const url = new URL(request.url);
+    const shopFallback = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+    
+    if (shopFallback) {
+      throw redirect(`/auth/login?shop=${shopFallback}&host=${host}`);
+    }
+    
     throw authErr;
   }
 
