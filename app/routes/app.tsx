@@ -84,8 +84,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
-    const host = url.searchParams.get("host") || "";
+    const shopFallback = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+    const hostFallback = url.searchParams.get("host") || "";
     const reauthFailed = url.searchParams.get("reauth_failed") === "true";
 
     if (authErr instanceof Response) {
@@ -100,9 +100,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       // If status is 500 / 4xx ("Unexpected Server Error" / missing session),
       // attempt automatic OAuth recovery if shop parameter is present and not already retried
-      if (shop && !reauthFailed) {
-        console.warn(`[app.tsx] Session validation returned HTTP ${status}. Triggering OAuth re-auth for ${shop}...`);
-        throw redirect(`/auth/login?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+      if (shopFallback && !reauthFailed) {
+        console.warn(`[app.tsx] Session validation returned HTTP ${status}. Triggering OAuth re-auth for ${shopFallback}...`);
+        throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
       }
 
       throw authErr;
@@ -110,8 +110,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
 
-    if (shop && !reauthFailed) {
-      throw redirect(`/auth/login?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+    if (shopFallback && !reauthFailed) {
+      throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
     }
 
     throw authErr;
