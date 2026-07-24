@@ -1,14 +1,36 @@
 # ProfitRx ⚡ — The Actionable Profit & RTO Shield Platform for Shopify
 
-ProfitRx is a production-grade, headless **Profit Intelligence & Automated Cash on Delivery (COD) Risk Management Platform** built for high-volume Shopify merchants navigating the Indian e-commerce market. 
+ProfitRx is a production-grade, commercial Shopify application designed for modern e-commerce merchants (specifically D2C brands operating in high-COD markets like India and LATAM). It functions as a dual **Profit Intelligence Engine** and **Return-to-Origin (RTO) Risk Shield**.
 
-By combining advanced profit analytics with automated pre-shipment logistics control, it bridges the gap between financial intelligence (True Profit, native COGS sync, GST compliance) and operational risk control (Pincode-level RTO heatmap tracking, automated COD blocking via Shopify WebAssembly Functions, and WhatsApp OTP verification).
+Unlike standard Shopify analytics tools that display superficial gross sales, ProfitRx calculates a merchant's **True Net Pocket Profit** in real-time by ingesting item-level Cost of Goods Sold (COGS), shipping weight slabs, payment gateway fees, Cash on Delivery (COD) charges, and ad platform spends. Additionally, it deploys custom **Shopify Functions** and **WhatsApp OTP verification workflows** to block high-risk COD orders.
+
+---
+
+## 🎯 The Problem It Solves
+
+E-commerce merchants frequently operate under the illusion of profitability because traditional dashboards display gross revenue without accounting for operational profit drains:
+1. **RTO (Return to Origin) Drain:** In markets like India, 20% to 40% of COD orders are returned or rejected at delivery. Merchants lose forward and return freight costs plus packaging and handling fees.
+2. **Hidden Payment Gateway & Tax Overhead:** Payment gateways charge transaction fees that are subject to GST. Shopify also imposes plan-based transaction surcharges.
+3. **Inaccurate COGS:** Merchants lack a unified view when COGS is partially recorded in Shopify and partially managed via manual overrides.
+4. **Blended CAC vs. True Margin:** Paid marketing dashboards display channel-specific ROAS based on gross revenue, leading merchants to scale campaigns that are actually net-unprofitable after COGS and return costs.
+
+---
+
+## 🌟 Main Differentiators & Features
+
+- **Triple-Engine Profit Calculation:** Order-level profit calculations with historical COGS snapshotting (`cogsAtTimeOfOrder`), preventing past order profit distortion when product costs change.
+- **Checkout Payment Customization (Shopify Function):** Native WASM-compiled payment customization function (`cod-blocker`) that dynamically hides COD payment methods at Shopify Checkout based on real-time pincode risk lists synced via GraphQL metafields.
+- **Dynamic OTP Verification:** Risk-gated OTP verification (via WhatsApp Meta Cloud API or Twilio) triggered only for Medium/High/Critical risk orders or buyers with personal RTO history > 20%, bypassing Low-risk buyers to preserve checkout conversion.
+- **Regional Cold-Start Pincode Analytics:** Aggregated pincode RTO heatmaps with a 2-digit regional prefix fallback algorithm to estimate risk for newly encountered pincodes.
+- **Blended & Profit-Adjusted ROAS:** Multi-platform ad spend aggregation (Meta, Google, TikTok) mapped against true net profit to calculate True CAC and CAC Payback per order.
+- **GST Accountant Report Export:** Exports 1-click GSTR-1 compliant spreadsheets with transaction splits, taxable values, and SGST/CGST/IGST breakdown.
+- **AI Search Query Tracker:** Measures store product visibility, CTR, impressions, and rank in AI search engines (ChatGPT Search, Gemini, Microsoft Copilot).
 
 ---
 
 ## 🏛️ System Architecture
 
-ProfitRx separates the presentation layer, business logic container, data persistence layer, and Shopify edge extensions:
+ProfitRx employs a hybrid serverless architecture utilizing React Router 7 SSR endpoints hosted on Vercel, connected to a PostgreSQL database via Prisma ORM, and integrated into Shopify via Shopify App Bridge, Admin GraphQL API, Webhooks, and Shopify Functions.
 
 ```mermaid
 graph TD
@@ -37,7 +59,7 @@ graph TD
     %% Data & Infrastructure
     subgraph Data ["Data Persistence Layer"]
         Prisma["Prisma ORM Client v6"]
-        DB[(Neon PostgreSQL Serverless Database)]
+        DB[(PostgreSQL Serverless Database)]
     end
 
     %% Webhook & Sync Layer
@@ -57,32 +79,18 @@ graph TD
     SyncAPI --> SS
 ```
 
----
+### Advanced Technical Moats
 
-## 🛠️ Advanced Technical Moats
-
-### 1. WebAssembly-powered Payment Customization (`cod-blocker`)
-Built as a native **Shopify Function** running on Shopify's edge servers. It intercepts checkout requests and dynamically hides Cash on Delivery (COD) payment methods based on:
-* Pincodes marked as high-risk by the merchant.
-* Dynamic rules (e.g. order value exceeding a threshold or specific tags).
-This prevents high-volume checkout drops and completely bypasses slow theme script injections.
-
-### 2. High-Performance Serverless Architecture (TTFB < 100ms)
-Fully compliant with Shopify's strict App Store performance budgets:
-* **TTFB Optimization**: Implemented a 1-hour database cache layer for active subscriptions and a 15-minute static cache for products to bypass slow Shopify GraphQL catalog lookups. TTFB dropped from **7,567ms** to **under 100ms**.
-* **Zero-Waterfall Rendering**: Inlined custom dark-mode CSS directly into the HTML payload via server-side loaders and asynchronous font styling. This reduces blocking header files to exactly **1 external file** (Polaris CSS), passing the `<head>` budget constraints.
-* **Non-Blocking GDPR Webhooks**: Handled database purges asynchronously via deferred background threads (`setTimeout`/`Promise.all`), preventing cold-start timeouts and returning a `200 OK` under 10ms.
-
-### 3. Automated Pincode Risk Scoring
-Instead of relying on manual lists, the `ShopifyService` aggregates order metrics to auto-calculate and update local pincode risks:
-$$\text{RTO Rate} = \frac{\text{Returned Orders}}{\text{Total COD Orders}} \times 100$$
-Calculates localized metrics and generates a color-coded interactive heatmap (Low, Medium, High, Critical) with 1-click bulk-blocking rules.
+1. **High-Performance Serverless Architecture (TTFB < 100ms)**
+   - **TTFB Optimization:** Implemented a 1-hour database cache layer for active subscriptions and a 15-minute static cache for products to bypass slow Shopify GraphQL catalog lookups. 
+   - **Zero-Waterfall Rendering:** Inlined custom dark-mode CSS directly into the HTML payload via server-side loaders and asynchronous font styling.
+2. **Production-Hardened Resilience**
+   - **Billing Propagation Protections:** 1.5s retry delay on billing checks and a 5-minute `PENDING` protection prevent premature downgrades while checkout propagates through Shopify.
+   - **Security:** Strict isolated multi-tenant operations (`where: { shop }`) and completely parameterized SQL execution through Prisma, defending against SQL Injection vulnerabilities. HMAC verification for all Shopify webhooks.
 
 ---
 
-## 📊 Database Schema (Prisma ORM)
-
-ProfitRx utilizes a serverless **Neon PostgreSQL** database configured with optimized indexes for fast spatial/pincode aggregates:
+## 📊 Database Schema Overview (Prisma ORM)
 
 | Model | Purpose | Primary Fields |
 | :--- | :--- | :--- |
@@ -98,15 +106,7 @@ ProfitRx utilizes a serverless **Neon PostgreSQL** database configured with opti
 | **`Alert`** | Automated profit leak alerts | `shop`, `type`, `severity`, `isRead` |
 | **`Subscription`**| Plan verification cache | `shop`, `plan`, `status`, `orderLimit`, `ordersUsed` |
 | **`StoreSettings`**| Logistics cost and feature configurations | `shop`, `defaultForwardShipping`, `whatsappEnabled` |
-
----
-
-## 📦 Features & Capabilities
-
-* **True Profit Intelligence**: Aggregates product catalog variant costs (`unitCost` and metafields) to deduce real COGS, calculates payment gateway fees, and applies India-specific **18% GST** splits (CGST/SGST vs. IGST).
-* **AI Search Query Tracker**: Measures store product visibility, CTR, impressions, and rank in AI search search engines (ChatGPT Search, Gemini, Microsoft Copilot).
-* **WhatsApp OTP Verification & Digests**: Triggers customer-facing OTP confirmation codes on COD checkouts to reduce dummy/incorrect numbers, and sends weekly digests to the merchant's business WhatsApp.
-* **GST Accountant Report Export**: Exports 1-click GSTR-1 compliant spreadsheets with transaction splits, taxable values, and SGST/CGST/IGST breakdown.
+| **`CODOrder`**| OTP verification and state management | `orderId`, `shop`, `otp`, `status` |
 
 ---
 
@@ -115,7 +115,7 @@ ProfitRx utilizes a serverless **Neon PostgreSQL** database configured with opti
 ### Prerequisites
 * **Node.js** (v20.19+ recommended)
 * **Shopify Partners account** and a development store
-* **Neon PostgreSQL** database connection URL
+* **PostgreSQL** database connection URL
 
 ### Installation
 
@@ -141,6 +141,7 @@ ProfitRx utilizes a serverless **Neon PostgreSQL** database configured with opti
    DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
    BYPASS_BILLING="true"
    SUPPORT_EMAIL="support@yourdomain.com"
+   CRON_SECRET="your-vercel-cron-secret"
    ```
 
 4. **Initialize database & Prisma client**
@@ -153,6 +154,11 @@ ProfitRx utilizes a serverless **Neon PostgreSQL** database configured with opti
    ```bash
    npm run dev
    ```
+
+---
+
+## 📖 Complete Engineering Handbook
+For an in-depth understanding of the system's runtime architecture, webhook lifecycles, and feature gating matrix, please refer to the [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) handbook located in the repository root.
 
 ---
 
