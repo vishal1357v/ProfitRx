@@ -69,10 +69,11 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
   }
 
   try {
+    const isTest = process.env.NODE_ENV !== "production";
     // First attempt
     let checkResult = await billing.check({
       plans: ["STARTER", "GROWTH", "PRO"],
-      isTest: true,
+      isTest,
     });
 
     console.log(`[Billing Check] shop=${shop} attempt=1 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
@@ -83,7 +84,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
       await new Promise(r => setTimeout(r, 1500));
       checkResult = await billing.check({
         plans: ["STARTER", "GROWTH", "PRO"],
-        isTest: true,
+        isTest,
       });
       console.log(`[Billing Check] shop=${shop} attempt=2 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
     }

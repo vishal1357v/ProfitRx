@@ -22,9 +22,11 @@ async function testStep(name: string, fn: () => Promise<any>) {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
-  const secret = url.searchParams.get("secret");
+  const secretHeader = request.headers.get("Authorization")?.replace("Bearer ", "");
+  const secretParam = url.searchParams.get("secret");
+  const secret = secretHeader || secretParam;
 
-  if (process.env.NODE_ENV === "production" || !secret || secret !== process.env.SHOPIFY_API_SECRET) {
+  if (process.env.NODE_ENV === "production" || !secret || !process.env.SHOPIFY_API_SECRET || secret !== process.env.SHOPIFY_API_SECRET) {
     return new Response("Not Found", { status: 404 });
   }
   const hostHeader = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";

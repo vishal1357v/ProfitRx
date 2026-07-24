@@ -73,21 +73,22 @@ export class ProfitService {
    */
   static getSettings(settings: any) {
     return {
-      defaultCOGSPct: Number(settings?.defaultCOGSPct) || 40,
-      defaultForwardShipping: Number(settings?.defaultForwardShipping) || 60,
-      defaultReturnShipping: Number(settings?.defaultReturnShipping) || 70,
-      defaultCODHandling: Number(settings?.defaultCODHandling) || 50,
-      defaultPackaging: Number(settings?.defaultPackaging) || 10,
-      defaultGatewayFeePct: Number(settings?.defaultGatewayFeePct) || 2,
-      gatewayFixedFee: Number(settings?.gatewayFixedFee) || 0,
+      defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
+      defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
+      defaultReturnShipping: settings?.defaultReturnShipping ?? 70,
+      defaultCODHandling: settings?.defaultCODHandling ?? 50,
+      defaultPackaging: settings?.defaultPackaging ?? 10,
+      defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
+      gatewayFixedFee: settings?.gatewayFixedFee ?? 0,
+      merchantState: settings?.merchantState || "MAHARASHTRA",
       shopifyPlanName: settings?.shopifyPlanName || "Basic",
       gstin: settings?.gstin || "",
-      gstRate: Number(settings?.gstRate) || 18,
+      gstRate: settings?.gstRate ?? 18,
       isGstRegistered: Boolean(settings?.isGstRegistered),
       hsnCodes: settings?.hsnCodes || {},
       rtoDetectionPattern: settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
-      rtoThreshold: Number(settings?.rtoThreshold) || 30,
-      marginThreshold: Number(settings?.marginThreshold) || 15,
+      rtoThreshold: settings?.rtoThreshold ?? 30,
+      marginThreshold: settings?.marginThreshold ?? 15,
       alertEmail: settings?.alertEmail || "",
       whatsappPhone: settings?.whatsappPhone || "",
       whatsappEnabled: Boolean(settings?.whatsappEnabled),
@@ -271,7 +272,7 @@ export class ProfitService {
         totalTaxableSales += taxablePrice;
         totalGstCollected += orderTax;
 
-        const merchantState = "MAHARASHTRA";
+        const merchantState = (settings.merchantState || "MAHARASHTRA").toUpperCase();
         const customerState = (o.province || "").toUpperCase();
 
         if (customerState && customerState !== merchantState) {

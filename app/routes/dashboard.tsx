@@ -64,7 +64,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let host = "";
 
   try {
-    let url = new URL(request.url);
+    const url = new URL(request.url);
     host = url.searchParams.get("host") || "";
     const shopParam = url.searchParams.get("shop") || "";
 

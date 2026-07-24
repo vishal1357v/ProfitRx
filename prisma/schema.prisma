@@ -75,6 +75,7 @@ model Order {
   @@index([shop, createdAt])
   @@index([shop, pincode])
   @@index([shop, isCOD])
+  @@index([shop, fulfillmentStatus])
   @@map("orders")
 }
 
@@ -335,6 +336,7 @@ model StoreSettings {
   codFeeType             String   @default("fixed") // "fixed" or "percentage"
   // GST Compliance Suite & Gateway Fees
   gstin                  String?
+  merchantState          String?
   gstRate                Float    @default(18)
   isGstRegistered        Boolean  @default(false)
   hsnCodes               Json?
@@ -356,13 +358,14 @@ model CODOrder {
   shop            String
   phone           String
   otp             String?
+  otpAttempts     Int      @default(0)
   otpVerified     Boolean  @default(false)
   otpSentAt       DateTime?
   otpVerifiedAt   DateTime?
   partialPaid     Boolean  @default(false)
   partialAmount   Float?
   codFee          Float?
-  status          String   @default("PENDING") // PENDING, OTP_SENT, VERIFIED, FAILED, CANCELED
+  status          String   @default("PENDING") // PENDING, OTP_SENT, VERIFIED, FAILED, CANCELED, LOCKED
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

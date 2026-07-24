@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { CODManagementService } from "../services/cod-management.service";
+import { getCorsHeaders } from "../utils/security.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -61,7 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return new Response(scriptContent, {
     headers: {
       "Content-Type": "application/javascript",
-      "Access-Control-Allow-Origin": "*",
+      ...getCorsHeaders(request),
       "Cache-Control": "public, max-age=300",
     },
   });

@@ -12,12 +12,16 @@ import { SubscriptionSyncService } from "./services/subscription-sync.service";
 
 const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
 const DEFAULT_APP_URL = rawAppUrl || "https://greek-god-saas.vercel.app";
-const DEFAULT_API_KEY = process.env.SHOPIFY_API_KEY || "08f8a7442c2182a3a390f753591c06f3";
+const DEFAULT_API_KEY = process.env.SHOPIFY_API_KEY || "";
 const DEFAULT_SCOPES = process.env.SCOPES
   ? process.env.SCOPES.split(",")
   : ["read_products","read_orders","write_orders","read_customers","read_fulfillments","write_metafields","read_metafields","write_payment_customizations"];
 
 const apiSecretKey = process.env.SHOPIFY_API_SECRET || "";
+
+if (!DEFAULT_API_KEY && process.env.NODE_ENV === "production") {
+  console.error("[ProfitRx Critical Error] SHOPIFY_API_KEY is missing from environment variables.");
+}
 
 if (!apiSecretKey && process.env.NODE_ENV === "production") {
   console.error("[ProfitRx Critical Error] SHOPIFY_API_SECRET is missing from environment variables. Copy Client Secret from Shopify Partner Dashboard -> App setup -> Client credentials.");
@@ -65,18 +69,16 @@ const shopify = shopifyApp({
         await SubscriptionSyncService.handleAfterAuth(session.shop);
 
 
-        // Trigger background 30-day orders and native COGS sync
-        setTimeout(async () => {
-          try {
-            const { ShopifyService } = await import("./services/shopify.service");
-            console.log(`[afterAuth.background] Triggering 30-day sync for ${session.shop}...`);
-            await ShopifyService.syncOrdersForShop(session.shop);
-            await ShopifyService.syncNativeCOGS(session.shop);
-            console.log(`[afterAuth.background] Initial background sync complete for ${session.shop}`);
-          } catch (err: any) {
-            console.error(`[afterAuth.background] Error syncing shop ${session.shop}:`, err);
-          }
-        }, 100);
+        // Trigger initial orders and native COGS sync for shop synchronously so Vercel does not terminate task
+        try {
+          const { ShopifyService } = await import("./services/shopify.service");
+          console.log(`[afterAuth] Triggering initial sync for ${session.shop}...`);
+          await ShopifyService.syncOrdersForShop(session.shop);
+          await ShopifyService.syncNativeCOGS(session.shop);
+          console.log(`[afterAuth] Initial sync complete for ${session.shop}`);
+        } catch (err: any) {
+          console.error(`[afterAuth] Error syncing shop ${session.shop}:`, err);
+        }
       } catch (err: any) {
         console.error(`[afterAuth] Error in afterAuth hook:`, err);
       }

@@ -92,9 +92,10 @@ export class WhatsAppService {
    */
   static async sendOTP(phone: string, otp: string, shop: string = "", orderId: string = "") {
     let msg = `*ProfitRx COD Order Verification* 🛡️\n\nYour OTP confirmation code is: *${otp}*\n\nValid for 10 minutes.`;
-    if (shop && orderId) {
+    const secret = process.env.SHOPIFY_API_SECRET || "";
+    if (shop && orderId && secret) {
       const appUrl = process.env.SHOPIFY_APP_URL || "https://greek-god-saas.vercel.app";
-      const token = crypto.createHmac("sha256", process.env.SHOPIFY_API_SECRET || "fallback").update(`${shop}:${orderId}`).digest("hex");
+      const token = crypto.createHmac("sha256", secret).update(`${shop}:${orderId}`).digest("hex");
       msg += `\n\nPlease confirm your order here: ${appUrl}/verify-cod?shop=${shop}&orderId=${orderId}&token=${token}`;
     } else {
       msg += `\n\nPlease enter this code to confirm your COD order.`;

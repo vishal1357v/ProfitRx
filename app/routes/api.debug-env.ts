@@ -3,9 +3,11 @@ import prisma from "../db.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
-  const secret = url.searchParams.get("secret");
+  const secretHeader = request.headers.get("Authorization")?.replace("Bearer ", "");
+  const secretParam = url.searchParams.get("secret");
+  const secret = secretHeader || secretParam;
 
-  if (process.env.NODE_ENV === "production" || !secret || secret !== process.env.SHOPIFY_API_SECRET) {
+  if (process.env.NODE_ENV === "production" || !secret || !process.env.SHOPIFY_API_SECRET || secret !== process.env.SHOPIFY_API_SECRET) {
     return new Response("Not Found", { status: 404 });
   }
   let dbStatus = "UNKNOWN";
@@ -47,7 +49,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
       SHOPIFY_APP_URL: configuredAppUrl,
       SHOPIFY_API_KEY_PREFIX: apiKey ? `${apiKey.substring(0, 6)}...` : "MISSING",
       SHOPIFY_API_KEY_SET: !!process.env.SHOPIFY_API_KEY,
-      SHOPIFY_API_SECRET_PREFIX: process.env.SHOPIFY_API_SECRET ? `${process.env.SHOPIFY_API_SECRET.substring(0, 8)}...` : "MISSING",
       SHOPIFY_API_SECRET_SET: !!process.env.SHOPIFY_API_SECRET,
       SCOPES: process.env.SCOPES || "MISSING",
       NODE_ENV: process.env.NODE_ENV || "UNKNOWN",

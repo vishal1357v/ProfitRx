@@ -1,8 +1,13 @@
+import * as crypto from "crypto";
 import prisma from "../db.server";
 import { unauthenticated } from "../shopify.server";
 import { ProfitService } from "./profit.service";
 import { WhatsAppService } from "./whatsapp.service";
 import { ShopifyService } from "./shopify.service";
+
+function hashOTP(otp: string, orderId: string): string {
+  return crypto.createHash("sha256").update(`${otp}:${orderId}`).digest("hex");
+}
 
 export interface CODSettings {
   codBlockingEnabled: boolean;
@@ -134,6 +139,16 @@ export class CODManagementService {
     let pincode: string | null = null;
     let riskLevel = "LOW";
 
+    // Rate limit check: Ensure at least 60 seconds between resends
+    const existingRecord = await (prisma as any).cODOrder.findUnique({ where: { orderId } });
+    if (existingRecord?.otpSentAt) {
+      const timeSinceLastSent = Date.now() - new Date(existingRecord.otpSentAt).getTime();
+      if (timeSinceLastSent < 60_000) {
+        const waitSec = Math.ceil((60_000 - timeSinceLastSent) / 1000);
+        return { success: false, message: `Please wait ${waitSec} seconds before requesting a new OTP.` };
+      }
+    }
+
     // 1. Resolve order shipping pincode and customer ID from local order database
     const localOrder = await prisma.order.findFirst({
       where: { shop, OR: [{ id: orderId }, { id: `gid://shopify/Order/${orderId}` }] },
@@ -184,6 +199,7 @@ export class CODManagementService {
           shop,
           phone,
           otp: null,
+          otpAttempts: 0,
           otpVerified: true,
           otpSentAt: null,
           otpVerifiedAt: new Date(),
@@ -194,6 +210,7 @@ export class CODManagementService {
           shop,
           phone,
           otp: null,
+          otpAttempts: 0,
           otpVerified: true,
           otpSentAt: null,
           otpVerifiedAt: new Date(),
@@ -204,13 +221,15 @@ export class CODManagementService {
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOtp = hashOTP(otp, orderId);
 
     const record = await (prisma as any).cODOrder.upsert({
       where: { orderId },
       update: {
         shop,
         phone,
-        otp,
+        otp: hashedOtp,
+        otpAttempts: 0,
         otpVerified: false,
         otpSentAt: new Date(),
         status: "OTP_SENT",
@@ -219,7 +238,8 @@ export class CODManagementService {
         orderId,
         shop,
         phone,
-        otp,
+        otp: hashedOtp,
+        otpAttempts: 0,
         otpVerified: false,
         otpSentAt: new Date(),
         status: "OTP_SENT",
@@ -229,7 +249,7 @@ export class CODManagementService {
     // Dispatch live SMS/WhatsApp message for Medium/High/Critical risk
     const dispatchRes = await WhatsAppService.sendOTP(phone, otp, shop, orderId);
 
-    console.log(`[CODManagementService] Generated and dispatched OTP ${otp} to ${phone} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
+    console.log(`[CODManagementService] Generated and dispatched OTP to ***${phone.slice(-4)} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
     return { success: true, record, otpSent: true, provider: dispatchRes.provider };
   }
 
@@ -242,10 +262,28 @@ export class CODManagementService {
       return { success: false, message: "Order verification record not found." };
     }
 
-    if (record.otp === inputOtp) {
+    if (record.otpVerified) {
+      return { success: true, message: "COD order is already verified.", record };
+    }
+
+    if (record.status === "LOCKED" || (record.otpAttempts || 0) >= 5) {
+      return { success: false, message: "Maximum verification attempts exceeded. Please contact store support." };
+    }
+
+    // OTP Expiry check (10 minutes)
+    if (record.otpSentAt && (Date.now() - new Date(record.otpSentAt).getTime()) > 10 * 60 * 1000) {
+      return { success: false, message: "OTP has expired. Please request a new code." };
+    }
+
+    const hashedInput = hashOTP(inputOtp, orderId);
+    const isMatch = record.otp === hashedInput || record.otp === inputOtp;
+
+    if (isMatch) {
       const updated = await (prisma as any).cODOrder.update({
         where: { orderId },
         data: {
+          otp: null, // Clear OTP to prevent replay attacks
+          otpAttempts: 0,
           otpVerified: true,
           otpVerifiedAt: new Date(),
           status: "VERIFIED",
@@ -261,15 +299,37 @@ export class CODManagementService {
       return { success: true, message: "COD order verified successfully!", record: updated };
     }
 
-    return { success: false, message: "Invalid OTP code. Please try again." };
+    // Increment failed attempts
+    const newAttempts = (record.otpAttempts || 0) + 1;
+    const isLocked = newAttempts >= 5;
+    await (prisma as any).cODOrder.update({
+      where: { orderId },
+      data: {
+        otpAttempts: newAttempts,
+        status: isLocked ? "LOCKED" : record.status,
+      },
+    });
+
+    if (isLocked) {
+      return { success: false, message: "Maximum verification attempts exceeded. Order verification is locked." };
+    }
+
+    return { success: false, message: `Invalid OTP code. ${5 - newAttempts} attempt(s) remaining.` };
   }
 
   /**
    * Calculate COD vs Prepaid Profitability & Actionable Insights
    */
   static async getCODProfitBreakdown(shop: string, host: string = "") {
-    const orders = await prisma.order.findMany({ where: { shop } });
-    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const orders = await prisma.order.findMany({
+      where: { shop, createdAt: { gte: ninetyDaysAgo } },
+      orderBy: { createdAt: "desc" },
+      take: 2500,
+    });
+    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop }, take: 1000 });
     const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop } });
     const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
     const settings = await prisma.storeSettings.findUnique({ where: { shop } });

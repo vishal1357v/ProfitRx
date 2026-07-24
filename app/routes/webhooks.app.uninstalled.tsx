@@ -7,7 +7,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     authResult = await authenticate.webhook(request);
   } catch (err: any) {
-    console.warn("GDPR App Uninstalled signature verification skipped/failed (likely reviewer probe):", err.message);
+    console.warn("GDPR App Uninstalled signature verification failed:", err.message);
+    if (process.env.NODE_ENV === "production") {
+      return new Response("Unauthorized webhook signature", { status: 401 });
+    }
     return new Response("OK", { status: 200 });
   }
 
