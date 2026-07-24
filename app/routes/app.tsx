@@ -83,21 +83,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     authResult = await authenticate.admin(request);
   } catch (authErr: any) {
-    // Automatically re-throw Response objects — these are intentional SDK redirects
-    // (ExitIframe, OAuth, etc.) and must reach the browser untouched.
-    if (authErr instanceof Response) {
-      throw authErr;
-    }
-
-    // For non-Response errors (e.g. "Unexpected Server Error" from wrong API secret),
-    // DO NOT delete the session — that makes things worse. Just redirect to re-auth.
-    console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
-
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
     const host = url.searchParams.get("host") || "";
+    const reauthFailed = url.searchParams.get("reauth_failed") === "true";
 
-    throw redirect(`/auth/login?shop=${shop}&host=${host}`);
+    if (authErr instanceof Response) {
+      const status = authErr.status;
+      const isRedirect = status >= 300 && status < 400;
+      const isReauthHeader = authErr.headers?.has("X-Shopify-API-Request-Failure-Reauthorize") || authErr.headers?.has("X-Shopify-App-Redirect");
+
+      // Pass-through intentional 3xx redirects or App Bridge exit-iframe re-auth responses
+      if (isRedirect || isReauthHeader) {
+        throw authErr;
+      }
+
+      // If status is 500 / 4xx ("Unexpected Server Error" / missing session),
+      // attempt automatic OAuth recovery if shop parameter is present and not already retried
+      if (shop && !reauthFailed) {
+        console.warn(`[app.tsx] Session validation returned HTTP ${status}. Triggering OAuth re-auth for ${shop}...`);
+        throw redirect(`/auth/login?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+      }
+
+      throw authErr;
+    }
+
+    console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
+
+    if (shop && !reauthFailed) {
+      throw redirect(`/auth/login?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+    }
+
+    throw authErr;
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
@@ -781,7 +798,21 @@ export function ErrorBoundary() {
                       <Button variant="secondary" onClick={() => window.location.reload()}>
                         Reload Page 🔄
                       </Button>
-                      <Button variant="primary" url="/auth/login" external>
+                      <Button
+                        variant="primary"
+                        url={(() => {
+                          if (typeof window !== "undefined") {
+                            const params = new URLSearchParams(window.location.search);
+                            const currentShop = params.get("shop");
+                            const currentHost = params.get("host");
+                            if (currentShop) {
+                              return `/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`;
+                            }
+                          }
+                          return "/auth/login";
+                        })()}
+                        external
+                      >
                         Re-Authorize Session 🔑
                       </Button>
                       <Button variant="plain" url="/api/debug-env" external>

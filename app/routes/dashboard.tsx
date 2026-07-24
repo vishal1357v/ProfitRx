@@ -81,16 +81,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     admin = auth.admin;
     shop = session.shop;
   } catch (authErr: any) {
-    if (authErr instanceof Response) throw authErr;
-    console.error("[dashboard.tsx loader authenticate.admin FAILED]:", authErr);
-    
     const url = new URL(request.url);
     const shopFallback = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
-    
-    if (shopFallback) {
-      throw redirect(`/auth/login?shop=${shopFallback}&host=${host}`);
+    const reauthFailed = url.searchParams.get("reauth_failed") === "true";
+
+    if (authErr instanceof Response) {
+      const status = authErr.status;
+      const isRedirect = status >= 300 && status < 400;
+      const isReauthHeader = authErr.headers?.has("X-Shopify-API-Request-Failure-Reauthorize") || authErr.headers?.has("X-Shopify-App-Redirect");
+
+      if (isRedirect || isReauthHeader) {
+        throw authErr;
+      }
+
+      if (shopFallback && !reauthFailed) {
+        console.warn(`[dashboard.tsx] Session validation returned HTTP ${status}. Redirecting to re-auth for ${shopFallback}...`);
+        throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+      }
+
+      throw authErr;
     }
-    
+
+    console.error("[dashboard.tsx loader authenticate.admin FAILED]:", authErr);
+
+    if (shopFallback && !reauthFailed) {
+      throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+    }
+
     throw authErr;
   }
 

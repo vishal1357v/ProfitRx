@@ -10,14 +10,17 @@ import prisma from "./db.server";
 import { SubscriptionSyncService } from "./services/subscription-sync.service";
 
 
-const rawAppUrl = process.env.SHOPIFY_APP_URL || "";
+const rawAppUrl = (process.env.SHOPIFY_APP_URL || "").trim().replace(/\/$/, "");
 const DEFAULT_APP_URL = rawAppUrl || "https://greek-god-saas.vercel.app";
-const DEFAULT_API_KEY = process.env.SHOPIFY_API_KEY || "";
+const DEFAULT_API_KEY = (process.env.SHOPIFY_API_KEY || "").trim();
 const DEFAULT_SCOPES = process.env.SCOPES
-  ? process.env.SCOPES.split(",")
+  ? process.env.SCOPES.split(",").map((s) => s.trim())
   : ["read_products","read_orders","write_orders","read_customers","read_fulfillments","write_metafields","read_metafields","write_payment_customizations"];
 
-const apiSecretKey = process.env.SHOPIFY_API_SECRET || "";
+let apiSecretKey = (process.env.SHOPIFY_API_SECRET || "").trim();
+if (apiSecretKey.startsWith("<") && apiSecretKey.endsWith(">")) {
+  apiSecretKey = apiSecretKey.slice(1, -1).trim();
+}
 
 if (!DEFAULT_API_KEY && process.env.NODE_ENV === "production") {
   console.error("[ProfitRx Critical Error] SHOPIFY_API_KEY is missing from environment variables.");
