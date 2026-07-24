@@ -69,21 +69,36 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
   }
 
   try {
-    const checkResult = await billing.check({
+    // First attempt
+    let checkResult = await billing.check({
       plans: ["STARTER", "GROWTH", "PRO"],
       isTest: true,
     });
-    console.log("[DEBUG-SYNC] checkResult:", JSON.stringify(checkResult, null, 2));
+
+    console.log(`[Billing Check] shop=${shop} attempt=1 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
+
+    // Retry once after 1.5s if Shopify returned no subscriptions — covers propagation delay
+    if (!checkResult.appSubscriptions?.length) {
+      console.log(`[Billing Check] shop=${shop} No subscriptions on first check, retrying in 1.5s...`);
+      await new Promise(r => setTimeout(r, 1500));
+      checkResult = await billing.check({
+        plans: ["STARTER", "GROWTH", "PRO"],
+        isTest: true,
+      });
+      console.log(`[Billing Check] shop=${shop} attempt=2 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
+    }
 
     const activeSub = checkResult.appSubscriptions?.find((sub: any) => {
       const s = (sub.status || "").toUpperCase();
       return s === "ACTIVE" || s === "TRIALING";
     });
 
-    console.log("[DEBUG-SYNC] activeSub found:", activeSub);
+    console.log(`[Billing Check] shop=${shop} activeSub=${activeSub ? JSON.stringify({ name: activeSub.name, status: activeSub.status, id: activeSub.id }) : "NONE"}`);
 
     if (activeSub) {
       const trialEndsAt = activeSub.trialEndsAt ? new Date(activeSub.trialEndsAt) : null;
+      const dbBefore = await prisma.subscription.findUnique({ where: { shop } });
+      console.log(`[Billing Check] shop=${shop} DB BEFORE update: plan=${dbBefore?.plan} status=${dbBefore?.status}`);
       const updated = await upsertSubscriptionRecord({
         shop,
         plan: activeSub.name,
@@ -91,35 +106,41 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
         shopifyChargeId: activeSub.id,
         trialEndsAt,
       });
+      console.log(`[Billing Check] shop=${shop} DB AFTER update: plan=${updated.plan} status=${updated.status}`);
       return updated;
     }
 
-    // No active payment found on Shopify
+    // No active payment found on Shopify after retry
     const existing = await prisma.subscription.findUnique({ where: { shop } });
+    console.log(`[Billing Check] shop=${shop} No active sub from Shopify. Local DB: plan=${existing?.plan} status=${existing?.status} updatedAt=${existing?.updatedAt?.toISOString()}`);
+
     if (!existing || existing.status === "CANCELED") {
+      console.log(`[Billing Check] shop=${shop} No local record or CANCELED — defaulting to FREE`);
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 
     // Protect PENDING records: merchant selected a plan but Shopify hasn't confirmed yet.
-    // If the PENDING record was created/updated less than 5 minutes ago, keep it as-is
-    // so the merchant isn't downgraded during the Shopify approval window.
+    // Never downgrade a PENDING record — only Shopify confirmation or stale timeout should clear it.
     if (existing.status === "PENDING") {
       const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
       if (existing.updatedAt > fiveMinAgo) {
-        console.log(`[SubscriptionSync] Preserving PENDING record for ${shop} (created ${existing.updatedAt.toISOString()}, within 5-min window)`);
+        console.log(`[Billing Check] shop=${shop} PENDING record preserved (plan=${existing.plan}, age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s)`);
         return existing;
       }
       // PENDING record is stale (>5 min) — merchant likely abandoned checkout, revert to FREE
-      console.log(`[SubscriptionSync] Stale PENDING record for ${shop}, reverting to FREE`);
+      console.log(`[Billing Check] shop=${shop} PENDING record STALE (plan=${existing.plan}, age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s) — reverting to FREE`);
       return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
     }
 
+    // Only downgrade ACTIVE/TRIALING subscriptions after Shopify confirms they're gone.
+    // The billing.check() above (with retry) already ran — if we're here, Shopify genuinely
+    // has no active subscription for this shop.
     if (
       existing.plan !== "FREE" && 
       (existing.status === "ACTIVE" || existing.status === "TRIALING") &&
       existing.updatedAt < new Date(Date.now() - 5 * 60 * 1000)
     ) {
-      // Downgrade or expire if Shopify says inactive
+      console.log(`[Billing Check] shop=${shop} DOWNGRADING: Shopify confirmed no active sub. Local was plan=${existing.plan} status=${existing.status} (age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s)`);
       return await prisma.subscription.update({
         where: { shop },
         data: {
@@ -131,6 +152,7 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
       });
     }
 
+    console.log(`[Billing Check] shop=${shop} Keeping existing record as-is: plan=${existing.plan} status=${existing.status}`);
     return existing;
   } catch (err) {
     console.error(`[SubscriptionSync] Error checking billing for ${shop}:`, err);
