@@ -532,6 +532,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       isDemoData: false,
       adSpendDisconnected: false,
+      subStatus: "ACTIVE",
+      trialEndsAt: null,
     };
   }
 };
@@ -569,6 +571,21 @@ function StatNumber({ value, prefix = "", suffix = "", colorClass = "gg-stat-val
 // ── Profit Trend Chart ────────────────────────────────────
 type ChartItem = { date: string; revenue: number; profit: number };
 function ProfitTrendChart({ data }: { data: ChartItem[] }) {
+  // Guard: handle undefined, null, or empty chart data gracefully
+  if (!data || data.length === 0) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: 230, color: "var(--gg-text-muted, #64748b)",
+        fontFamily: "'Inter', sans-serif", fontSize: 14,
+        background: "rgba(255,255,255,0.02)", borderRadius: 8,
+        border: "1px dashed rgba(255,255,255,0.08)",
+      }}>
+        <span>📊 No revenue data yet — sync your orders to see the trend chart</span>
+      </div>
+    );
+  }
+
   const width = 640;
   const height = 230;
   const padL = 52, padR = 16, padT = 16, padB = 36;
@@ -686,6 +703,20 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
 
 // ── Channel Bar Chart ─────────────────────────────────────
 function ChannelBarChart({ data }: { data: any[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: 210, color: "var(--gg-text-muted, #64748b)",
+        fontFamily: "'Inter', sans-serif", fontSize: 14,
+        background: "rgba(255,255,255,0.02)", borderRadius: 8,
+        border: "1px dashed rgba(255,255,255,0.08)",
+      }}>
+        <span>📈 No channel data available</span>
+      </div>
+    );
+  }
+
   const width = 440;
   const height = 210;
   const padL = 48, padR = 12, padT = 16, padB = 40;
@@ -833,6 +864,20 @@ function DonutChart({ segments }: { segments: Array<{ value: number; color: stri
 // ── Leak Trend Chart ──────────────────────────────────────
 type TrendItem = { date: string; rto: number; shipping: number; discount: number };
 function LeakTrendChart({ data }: { data: TrendItem[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        height: 180, color: "var(--gg-text-muted, #64748b)",
+        fontFamily: "'Inter', sans-serif", fontSize: 14,
+        background: "rgba(255,255,255,0.02)", borderRadius: 8,
+        border: "1px dashed rgba(255,255,255,0.08)",
+      }}>
+        <span>📉 No leak trend data available</span>
+      </div>
+    );
+  }
+
   const width = 640;
   const height = 180;
   const padL = 44, padR = 16, padT = 12, padB = 30;
