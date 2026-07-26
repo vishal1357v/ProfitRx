@@ -24,6 +24,7 @@ import {
   Select,
   Icon,
   Pagination,
+  EmptyState,
 } from "@shopify/polaris";
 import {
   SearchIcon,
@@ -536,13 +537,33 @@ export default function COGSPage() {
                   </Grid.Cell>
                 </Grid>
 
-                <div className="gg-desktop-only">
-                  <DataTable
-                    columnContentTypes={["text", "text", "text", "text", "text"]}
-                    headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
-                    rows={rows}
-                  />
-                </div>
+                {filteredProducts.length === 0 ? (
+                  <Box padding="800">
+                    <EmptyState
+                      heading="No products found"
+                      action={{
+                        content: "Clear Filters",
+                        onAction: () => {
+                          setSearchQuery("");
+                          setSourceFilter("all");
+                        },
+                      }}
+                      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                    >
+                      <p>Try searching for a different product title or change the cost source filter.</p>
+                    </EmptyState>
+                  </Box>
+                ) : (
+                  <>
+                    <div className="gg-desktop-only">
+                      <DataTable
+                        columnContentTypes={["text", "text", "text", "text", "text"]}
+                        headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
+                        rows={rows}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="gg-mobile-only">
                   <BlockStack gap="300">
