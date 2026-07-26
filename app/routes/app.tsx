@@ -4,7 +4,7 @@ import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigat
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
-import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon, Popover, ActionList } from "@shopify/polaris";
+import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon, Popover, ActionList, TextField } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import {
   HomeIcon,
@@ -105,7 +105,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
       }
 
-      throw authErr;
+      // Last resort: no shop param to recover with — redirect to login instead
+      // of propagating the raw Shopify SDK error as a 500
+      console.warn(`[app.tsx] Auth response HTTP ${status} with no shop param. Redirecting to login.`);
+      throw redirect("/auth/login");
     }
 
     console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
@@ -114,7 +117,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
     }
 
-    throw authErr;
+    // Last resort: redirect to login rather than showing a raw 500 error page
+    console.warn("[app.tsx] Auth failed with no shop param to recover. Redirecting to login.");
+    throw redirect("/auth/login");
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
@@ -686,6 +691,7 @@ export default function App() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const location = useLocation();
+  const [recoveryShop, setRecoveryShop] = useState("");
 
   console.error("[ProfitRx Error Diagnostic]:", error);
 
@@ -736,11 +742,63 @@ export function ErrorBoundary() {
     detailsText = String(error);
   }
 
+  // Try to extract shop from URL search params for the re-auth button
+  const currentShop = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("shop") : null;
+  const currentHost = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("host") : null;
+
+  const handleRecoverySubmit = () => {
+    let domain = recoveryShop.trim().toLowerCase();
+    if (!domain) return;
+    if (!domain.includes(".")) domain = `${domain}.myshopify.com`;
+    window.location.href = `/auth/login?shop=${encodeURIComponent(domain)}`;
+  };
+
   return (
     <PolarisProvider i18n={enTranslations}>
       <div style={{ padding: "40px 20px", maxWidth: "900px", margin: "0 auto" }}>
         <Page title="ProfitRx — Diagnostic & Recovery Portal">
           <Layout>
+            {/* Recovery Form — shown prominently when session fails */}
+            {isUnexpectedServerError && (
+              <Layout.Section>
+                <Banner tone="warning" title="🔑 Session Recovery Required">
+                  <BlockStack gap="300">
+                    <Text variant="bodySm" as="p">
+                      Your Shopify session has expired or is missing. Enter your store domain below to re-authorize, or click the button if your shop is already detected.
+                    </Text>
+                    {currentShop ? (
+                      <InlineStack gap="200" blockAlign="center">
+                        <Badge tone="info">{currentShop}</Badge>
+                        <Button
+                          variant="primary"
+                          url={`/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`}
+                          external
+                        >
+                          Re-Authorize {currentShop.replace(".myshopify.com", "")} →
+                        </Button>
+                      </InlineStack>
+                    ) : (
+                      <InlineStack gap="200" blockAlign="end">
+                        <div style={{ flex: 1 }}>
+                          <TextField
+                            label="Store domain"
+                            value={recoveryShop}
+                            onChange={setRecoveryShop}
+                            placeholder="your-store.myshopify.com"
+                            autoComplete="off"
+                            helpText="Enter your .myshopify.com domain or just the store name"
+                          />
+                        </div>
+                        <Button variant="primary" onClick={handleRecoverySubmit}>
+                          Re-Authorize →
+                        </Button>
+                      </InlineStack>
+                    )}
+                  </BlockStack>
+                </Banner>
+              </Layout.Section>
+            )}
+
             <Layout.Section>
               <Banner tone="critical" title={`🚨 ${errorTitle}`}>
                 <BlockStack gap="400">
@@ -785,7 +843,7 @@ export function ErrorBoundary() {
                     <div style={{ marginBottom: "4px" }}>
                       <Text variant="bodyXs" as="p" tone="subdued">RAW DIAGNOSTIC PAYLOAD & STACK TRACE:</Text>
                     </div>
-                    <pre style={{ background: "#090d16", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", maxHeight: "300px", border: "1px solid top-ratede293b" }}>
+                    <pre style={{ background: "#090d16", color: "#38bdf8", padding: "16px", borderRadius: "8px", overflowX: "auto", fontSize: "12px", fontFamily: "monospace", maxHeight: "300px", border: "1px solid rgba(56,189,248,0.2)" }}>
                       {detailsText || "No detailed error payload returned."}
                     </pre>
                   </div>
@@ -800,17 +858,10 @@ export function ErrorBoundary() {
                       </Button>
                       <Button
                         variant="primary"
-                        url={(() => {
-                          if (typeof window !== "undefined") {
-                            const params = new URLSearchParams(window.location.search);
-                            const currentShop = params.get("shop");
-                            const currentHost = params.get("host");
-                            if (currentShop) {
-                              return `/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`;
-                            }
-                          }
-                          return "/auth/login";
-                        })()}
+                        url={currentShop
+                          ? `/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`
+                          : "/auth/login"
+                        }
                         external
                       >
                         Re-Authorize Session 🔑

@@ -26,7 +26,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const secretParam = url.searchParams.get("secret");
   const secret = secretHeader || secretParam;
 
-  if (process.env.NODE_ENV === "production" || !secret || !process.env.SHOPIFY_API_SECRET || secret !== process.env.SHOPIFY_API_SECRET) {
+  // Allow in any environment as long as the caller provides the correct secret.
+  // Previously this was fully blocked in production — now you can diagnose live Vercel deployments.
+  if (!secret || !process.env.SHOPIFY_API_SECRET || secret !== process.env.SHOPIFY_API_SECRET) {
     return new Response("Not Found", { status: 404 });
   }
   const hostHeader = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
