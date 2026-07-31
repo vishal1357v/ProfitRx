@@ -259,6 +259,7 @@ export class CODManagementService {
   static async verifyOTP(shop: string, orderId: string, inputOtp: string) {
     const record = await (prisma as any).cODOrder.findUnique({ where: { orderId } });
     if (!record || record.shop !== shop) {
+      console.warn(`[CODManagementService.verifyOTP] Failed: Record not found for order ${orderId} in shop ${shop}`);
       return { success: false, message: "Order verification record not found." };
     }
 
@@ -267,11 +268,13 @@ export class CODManagementService {
     }
 
     if (record.status === "LOCKED" || (record.otpAttempts || 0) >= 5) {
+      console.warn(`[CODManagementService.verifyOTP] Failed: Max attempts exceeded for order ${orderId}`);
       return { success: false, message: "Maximum verification attempts exceeded. Please contact store support." };
     }
 
     // OTP Expiry check (10 minutes)
     if (record.otpSentAt && (Date.now() - new Date(record.otpSentAt).getTime()) > 10 * 60 * 1000) {
+      console.warn(`[CODManagementService.verifyOTP] Failed: OTP expired for order ${orderId}`);
       return { success: false, message: "OTP has expired. Please request a new code." };
     }
 
@@ -295,7 +298,7 @@ export class CODManagementService {
       } catch (err) {
         console.error(`[CODManagementService.verifyOTP] failed to tag order:`, err);
       }
-
+      console.log(`[CODManagementService.verifyOTP] Success: OTP verified for order ${orderId}`);
       return { success: true, message: "COD order verified successfully!", record: updated };
     }
 
@@ -311,9 +314,11 @@ export class CODManagementService {
     });
 
     if (isLocked) {
+      console.warn(`[CODManagementService.verifyOTP] Failed: Max attempts exceeded (now locked) for order ${orderId}`);
       return { success: false, message: "Maximum verification attempts exceeded. Order verification is locked." };
     }
 
+    console.warn(`[CODManagementService.verifyOTP] Failed: Invalid OTP for order ${orderId}. ${5 - newAttempts} attempt(s) remaining.`);
     return { success: false, message: `Invalid OTP code. ${5 - newAttempts} attempt(s) remaining.` };
   }
 

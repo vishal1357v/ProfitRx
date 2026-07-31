@@ -185,11 +185,7 @@ export class ProfitIntelligenceService {
     // Also count unfulfilled/returned orders automatically using courier RTO costs
     const autoRtoOrders = orders.filter((o: any) => o.fulfillmentStatus === "RTO");
     const autoRtoLoss = autoRtoOrders.reduce((s: number, o: any) => {
-      const forward = settings.defaultForwardShipping;
-      const ret = settings.defaultReturnShipping;
-      const pkg = settings.defaultPackaging;
-      const cod = o.isCOD ? settings.defaultCODHandling : 0;
-      return s + (forward + ret + pkg + cod);
+      return s + ProfitService.calculateRTOLoss(o, settings as any);
     }, 0);
 
     // Shipping Overage — total shipping collected vs avg baseline
@@ -245,11 +241,7 @@ export class ProfitIntelligenceService {
         dailyLeaks[ds].discount += (o as any).discountAmount || 0;
         dailyLeaks[ds].shipping += Math.max(0, o.shippingPrice - settings.defaultForwardShipping);
         if (o.fulfillmentStatus === "RTO") {
-          const forward = settings.defaultForwardShipping;
-          const ret = settings.defaultReturnShipping;
-          const pkg = settings.defaultPackaging;
-          const cod = o.isCOD ? settings.defaultCODHandling : 0;
-          dailyLeaks[ds].rto += (forward + ret + pkg + cod);
+          dailyLeaks[ds].rto += ProfitService.calculateRTOLoss(o, settings as any);
         }
       }
     });
@@ -449,8 +441,17 @@ export class ProfitIntelligenceService {
     const margin = profitRevenue > 0 ? (profit / profitRevenue) * 100 : 0;
 
     const codOrders = orders.filter((o: any) => o.isCOD || isCodGateway(o.gateway));
-    const rtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length + orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
-    const rtoRate = codOrders.length > 0 ? (rtoCount / codOrders.length) * 100 : 0;
+    const manualRtoIds = rtoEvents.filter((e: any) => e.eventType === "RTO").map((e: any) => e.orderId);
+    const autoRtoIds = orders.filter((o: any) => o.fulfillmentStatus === "RTO").map((o: any) => o.id);
+    const uniqueRtoIds = new Set([...manualRtoIds, ...autoRtoIds]);
+    
+    let codRtoCount = 0;
+    for (const o of codOrders) {
+      if (uniqueRtoIds.has(o.id)) codRtoCount++;
+    }
+    
+    const rtoCount = uniqueRtoIds.size;
+    const rtoRate = codOrders.length > 0 ? (codRtoCount / codOrders.length) * 100 : 0;
 
     // Week-over-week margin trend
     const last7 = new Date(Date.now() - 7 * 86400000);

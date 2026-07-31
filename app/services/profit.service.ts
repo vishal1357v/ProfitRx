@@ -185,12 +185,15 @@ export class ProfitService {
    * Upfront partial deposit collected (e.g. ₹100) offsets return shipping loss.
    */
   static calculateRTOLoss(
-    order: { isCOD?: boolean; fulfillmentStatus?: string; partialDepositCollected?: number },
-    settings: { defaultForwardShipping: number; defaultReturnShipping: number }
+    order: { isCOD?: boolean; gateway?: string | null; fulfillmentStatus?: string; partialDepositCollected?: number },
+    settings: { defaultForwardShipping: number; defaultReturnShipping: number; defaultCODHandling?: number; defaultPackaging?: number }
   ): number {
     const forward = Number(settings.defaultForwardShipping) || 60;
     const returnShip = Number(settings.defaultReturnShipping) || 70;
-    const rawLoss = forward + returnShip;
+    const packaging = Number(settings.defaultPackaging) || 10;
+    const codHandling = isCodOrder(order) ? (Number(settings.defaultCODHandling) || 50) : 0;
+    
+    const rawLoss = forward + returnShip + packaging + codHandling;
     const deposit = Number(order.partialDepositCollected) || 0;
     return Math.max(0, rawLoss - deposit);
   }

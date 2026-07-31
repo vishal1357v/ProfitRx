@@ -64,8 +64,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // RTO events (manual events + auto-detected fulfillment status orders)
   const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
-  const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
-  const codRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length + autoRtoCount;
+  const manualRtoIds = rtoEvents.filter((e: any) => e.eventType === "RTO").map((e: any) => e.orderId);
+  const autoRtoIds = orders.filter((o: any) => o.fulfillmentStatus === "RTO").map((o: any) => o.id);
+  const uniqueRtoIds = new Set([...manualRtoIds, ...autoRtoIds]);
+  let codRtoCount = 0;
+  for (const o of codOrders) {
+    if (uniqueRtoIds.has(o.id)) codRtoCount++;
+  }
   const codRtoRate = codOrders.length > 0 ? (codRtoCount / codOrders.length) * 100 : 0;
 
   const codAOV = codOrders.length > 0 ? codRevenue / codOrders.length : 0;

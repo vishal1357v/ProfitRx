@@ -8,8 +8,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     authResult = await authenticate.webhook(request);
   } catch (err: any) {
-    console.warn("GDPR Customer Data Request signature verification skipped/failed (likely reviewer probe):", err.message);
-    return new Response("OK", { status: 200 });
+    console.warn("GDPR Customer Data Request signature verification failed:", err.message);
+    return new Response("Unauthorized webhook signature", { status: 401 });
   }
 
   const { payload, shop, topic } = authResult;

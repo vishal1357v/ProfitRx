@@ -71,6 +71,8 @@ model Order {
   province          String?
   totalWeight       Float?   // Total weight in grams/kg
   cogsAtTimeOfOrder Float?
+  actualShippingCost Float?
+  shippingCostSource String  @default("ESTIMATED") // "MANUAL" | "COURIER" | "DEFAULT" | "ESTIMATED"
 
   @@index([shop, createdAt])
   @@index([shop, pincode])
@@ -99,6 +101,28 @@ model ProductCOGS {
   @@unique([shop, productId])
   @@index([shop, productId])
   @@map("product_cogs")
+}
+
+// ============================================
+// VARIANT COGS - Cost of Goods Sold per variant (Phase 2)
+// ============================================
+model VariantCOGS {
+  id              String   @id @default(cuid())
+  shop            String
+  productId       String
+  variantId       String
+  shopifyVariantId String?
+  cost            Float?   // Effective COGS
+  source          String   @default("manual_override") // "shopify_native" | "manual_override"
+  manualOverride  Float?
+  shopifyNative   Float?
+  cogs            Float    @default(0) // Legacy compatibility field
+  lastSyncedAt    DateTime?
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, variantId])
+  @@index([shop, productId])
+  @@map("variant_cogs")
 }
 
 // ============================================

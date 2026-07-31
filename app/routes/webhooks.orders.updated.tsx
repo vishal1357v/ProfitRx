@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ShopifyService } from "../services/shopify.service";
+import { ProfitService } from "../services/profit.service";
 import prisma from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -35,12 +36,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
 
       if (!existingRtoEvent) {
-        // Estimate RTO loss: forward shipping + return shipping + COD handling + packaging
-        const forwardShipping = storeSettings?.defaultForwardShipping ?? 60;
-        const returnShipping = storeSettings?.defaultReturnShipping ?? 70;
-        const codHandling = storeSettings?.defaultCODHandling ?? 40;
-        const packaging = storeSettings?.defaultPackaging ?? 10;
-        const rtoLossEstimate = forwardShipping + returnShipping + codHandling + packaging;
+        const rtoLossEstimate = ProfitService.calculateRTOLoss(
+          syncedOrder || { isCOD: true, partialDepositCollected: 0 },
+          storeSettings || { defaultForwardShipping: 60, defaultReturnShipping: 70 } as any
+        );
 
         await prisma.rTOEvent.create({
           data: {

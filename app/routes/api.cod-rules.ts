@@ -94,7 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
 
       // Verify token or verify order exists in database for this shop
-      if (token && !verifyToken(shop, cleanOrderId, token)) {
+      if (!token || !verifyToken(shop, cleanOrderId, token)) {
         return corsResponse(request, { error: "Invalid security token" }, 401);
       }
 
@@ -109,7 +109,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
 
-      if (token && !verifyToken(shop, cleanOrderId, token)) {
+      if (!token || !verifyToken(shop, cleanOrderId, token)) {
         return corsResponse(request, { error: "Invalid security token" }, 401);
       }
 

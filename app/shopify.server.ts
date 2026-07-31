@@ -5,8 +5,8 @@ import {
   shopifyApp,
   BillingInterval,
 } from "@shopify/shopify-app-react-router/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { EncryptedPrismaSessionStorage } from "./services/encrypted-session-storage.server";
 import { SubscriptionSyncService } from "./services/subscription-sync.service";
 
 
@@ -26,6 +26,23 @@ if (!DEFAULT_API_KEY && process.env.NODE_ENV === "production") {
   console.error("[ProfitRx Critical Error] SHOPIFY_API_KEY is missing from environment variables.");
 }
 
+const tokenKey = process.env.TOKEN_ENCRYPTION_KEY;
+if (!tokenKey) {
+  console.error("[ProfitRx Critical Error] TOKEN_ENCRYPTION_KEY is missing from environment variables.");
+  if (process.env.NODE_ENV === "production") process.exit(1);
+} else {
+  try {
+    const keyBuffer = Buffer.from(tokenKey, "base64");
+    if (keyBuffer.length !== 32) {
+      console.error("[ProfitRx Critical Error] TOKEN_ENCRYPTION_KEY must be a 32-byte base64 string.");
+      if (process.env.NODE_ENV === "production") process.exit(1);
+    }
+  } catch (err) {
+    console.error("[ProfitRx Critical Error] TOKEN_ENCRYPTION_KEY is not a valid base64 string.");
+    if (process.env.NODE_ENV === "production") process.exit(1);
+  }
+}
+
 if (!apiSecretKey && process.env.NODE_ENV === "production") {
   console.error("[ProfitRx Critical Error] SHOPIFY_API_SECRET is missing from environment variables. Copy Client Secret from Shopify Partner Dashboard -> App setup -> Client credentials.");
 }
@@ -37,7 +54,7 @@ const shopify = shopifyApp({
   scopes: DEFAULT_SCOPES,
   appUrl: DEFAULT_APP_URL,
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: new EncryptedPrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   future: {},
   hooks: {

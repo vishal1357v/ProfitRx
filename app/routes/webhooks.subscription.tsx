@@ -12,12 +12,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     shop = authResult.shop;
     payload = authResult.payload;
     topic = authResult.topic;
-  } catch (err) {
-    // Fallback for direct JSON payloads if hmac verification is handled separately
-    const body = await request.json().catch(() => ({}));
-    shop = body.shop || request.headers.get("x-shopify-shop-domain") || "";
-    payload = body;
-    topic = request.headers.get("x-shopify-topic") || "app/subscription/updated";
+  } catch (err: any) {
+    console.warn("Subscription webhook authentication failed:", err.message);
+    return new Response("Unauthorized webhook signature", { status: 401 });
   }
 
   if (!shop) {

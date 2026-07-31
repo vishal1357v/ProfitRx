@@ -133,7 +133,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { createdAt: "desc" },
     });
 
-    const isDemoData = orders.length === 0;
+    const isDemoData = process.env.NODE_ENV === "development" && orders.length === 0;
     if (isDemoData) {
       // Seed mockup memory orders for new user preview
       const today = new Date();
@@ -235,10 +235,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const codCount = codOrders.length;
     const codRate = orders.length > 0 ? (codCount / orders.length) * 100 : 0;
 
-    const autoRtoCount = orders.filter((o: any) => o.fulfillmentStatus === "RTO").length;
-    const manualRtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
-    const rtoCount = autoRtoCount + manualRtoCount;
-    const rtoRate = codCount > 0 ? (rtoCount / codCount) * 100 : 0;
+    const manualRtoIds = rtoEvents.filter((e: any) => e.eventType === "RTO").map((e: any) => e.orderId);
+    const autoRtoIds = orders.filter((o: any) => o.fulfillmentStatus === "RTO").map((o: any) => o.id);
+    const uniqueRtoIds = new Set([...manualRtoIds, ...autoRtoIds]);
+
+    let codRtoCount = 0;
+    for (const o of codOrders) {
+      if (uniqueRtoIds.has(o.id)) codRtoCount++;
+    }
+
+    const rtoCount = uniqueRtoIds.size;
+    const rtoRate = codCount > 0 ? (codRtoCount / codCount) * 100 : 0;
 
     let healthScore = 100;
     if (margin < 25) healthScore -= 10;
