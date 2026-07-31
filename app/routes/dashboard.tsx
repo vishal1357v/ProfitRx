@@ -247,6 +247,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const rtoCount = uniqueRtoIds.size;
     const rtoRate = codCount > 0 ? (codRtoCount / codCount) * 100 : 0;
 
+    const prepaidOrders = orders.filter((o: any) => !o.isCOD && !isCodGateway(o.gateway));
+    const prepaidCount = prepaidOrders.length;
+    let prepaidRevenue = 0;
+    let codRevenue = 0;
+    for (const o of prepaidOrders) {
+      if (o.fulfillmentStatus !== "RTO") prepaidRevenue += o.totalPrice;
+    }
+    for (const o of codOrders) {
+      if (o.fulfillmentStatus !== "RTO") codRevenue += o.totalPrice;
+    }
+
+    // Phase 3: Risk Intelligence Data
+    const customerRisks = await prisma.customerRisk.findMany({ where: { shop }, orderBy: { riskScore: 'desc' }, take: 10 });
+    const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop }, orderBy: { rtoRate: 'desc' }, take: 10 }).catch(() => []); 
+    // Fallback if riskScore not strictly populated on pincodeStats yet
+    const ordersNeedingReview = await prisma.order.findMany({ 
+      where: { shop, riskLevel: { in: ["HIGH", "CRITICAL"] } },
+      orderBy: { createdAt: 'desc' },
+      take: 10
+    });
+
     let healthScore = 100;
     if (margin < 25) healthScore -= 10;
     if (margin < 15) healthScore -= 15;
@@ -478,6 +499,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       products: products.map((p) => ({ id: p.id, title: p.title })),
       leaks, leakTrend,
       features,
+      prepaidCount, prepaidRevenue, codRevenue,
+      customerRisks, pincodeStats, ordersNeedingReview,
       missingCogsCount,
       hasZeroLogisticsDefaults,
       isColdStart,
@@ -511,8 +534,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
       healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
       aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
-      products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingOverage: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
+      products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingLoss: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
       leakTrend: [], features: [], missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
+      prepaidCount: 0, prepaidRevenue: 0, codRevenue: 0, customerRisks: [], pincodeStats: [], ordersNeedingReview: [],
       excludedOrdersCount: 0, syncCapped: false, isBasicTier: true, planName: "Free", ordersUsed: 0, ordersLimit: 50,
       configuredCogsCount: 0, connectedAdPlatforms: [], hasConnectedAdAccount: false, nativeCogsCount: 0, manualCogsCount: 0,
       feeBreakdown: { gatewayFees: 0, codHandlingFees: 0, forwardShipping: 0, returnShipping: 0, packagingCosts: 0, totalFees: 0 },
@@ -1122,6 +1146,7 @@ export default function DashboardRoute() {
   const tabs = [
     { id: "store-profitability", content: "⚡ Store Profitability", panelID: "tab-0" },
     { id: "profit-leaks", content: "💸 Profit Leaks", panelID: "tab-1" },
+    { id: "risk-intelligence", content: "🛡️ Risk Intelligence", panelID: "tab-2" },
   ];
 
   const productRows = data.topProducts.map((p) => [
@@ -1283,7 +1308,16 @@ export default function DashboardRoute() {
                           <StatNumber value={Math.round(data.revenue)} prefix="₹" />
                         )}
                       </BlockStack>
-                      <span className="gg-trend-up">▲ +12% target</span>
+                      <div style={{ fontSize: 11, color: "var(--gg-text-secondary)", marginTop: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                          <span>Prepaid:</span>
+                          <span style={{ fontWeight: 600, color: "var(--gg-accent-green)" }}>₹{Math.round(data.prepaidRevenue || 0).toLocaleString("en-IN")}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>COD:</span>
+                          <span style={{ fontWeight: 600, color: "var(--gg-accent-amber)" }}>₹{Math.round(data.codRevenue || 0).toLocaleString("en-IN")}</span>
+                        </div>
+                      </div>
                     </BlockStack>
                   </div>
                 </Box>
@@ -2203,7 +2237,7 @@ export default function DashboardRoute() {
                           {data.leaks.totalLeak > 0 ? (
                             <DonutChart segments={[
                               { value: data.leaks.rtoLoss, color: "#ef4444", label: "RTO & COD Failure" },
-                              { value: data.leaks.shippingOverage, color: "#f59e0b", label: "Shipping Overage" },
+                              { value: data.leaks.shippingLoss, color: "#f59e0b", label: "Shipping Loss" },
                               { value: data.leaks.discountLoss, color: "#7c3aed", label: "Discount Loss" },
                             ].filter(s => s.value > 0)} />
                           ) : (
@@ -2225,7 +2259,7 @@ export default function DashboardRoute() {
                         </Grid.Cell>
                         <Grid.Cell>
                           <LeakInsight
-                            icon="🚚" title="Shipping Overage" amount={data.leaks.shippingOverage}
+                            icon="🚚" title="Shipping Loss" amount={data.leaks.shippingLoss}
                             trend={data.leaks.shippingTrend}
                             detail="Shipping costs above ₹60/order baseline. Negotiate bulk rates with logistics partners."
                             tone="warning"
@@ -2277,6 +2311,94 @@ export default function DashboardRoute() {
                         </Text>
                       </BlockStack>
                       <LeakTrendChart data={data.leakTrend} />
+                    </BlockStack>
+                  </Card>
+                </BlockStack>
+              )}
+
+              {/* ══ TAB 3: Risk Intelligence (Phase 3) ══════════════════ */}
+              {selectedTab === 2 && (
+                <BlockStack gap="400">
+                  <div style={{
+                    padding: "20px 24px",
+                    borderRadius: "var(--gg-radius-lg)",
+                    background: "linear-gradient(135deg, rgba(168,85,247,0.12), rgba())",
+                    border: "1px solid rgba(168,85,247,0.2)",
+                  }}>
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <Text variant="headingLg" as="h2">🛡️ Risk Intelligence Engine</Text>
+                        <Text variant="bodySm" as="p" tone="subdued">
+                          Identify high-risk orders, problematic pincodes, and untrustworthy customers before you ship.
+                        </Text>
+                      </BlockStack>
+                    </InlineStack>
+                  </div>
+
+                  <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+                    <Grid.Cell>
+                      <Card>
+                        <BlockStack gap="300">
+                          <Text variant="headingMd" as="h3">Orders Requiring Review</Text>
+                          {data.ordersNeedingReview.length > 0 ? (
+                            <DataTable
+                              columnContentTypes={["text", "text", "text", "text"]}
+                              headings={["Order", "Level", "Reason", "Action"]}
+                              rows={data.ordersNeedingReview.map((o: any) => [
+                                `#${o.orderNumber}`,
+                                <Badge tone={o.riskLevel === "CRITICAL" ? "critical" : "warning"}>{o.riskLevel}</Badge>,
+                                o.riskReasons ? JSON.parse(o.riskReasons).map((r: any) => r.code).join(", ") : "Unknown",
+                                <span style={{ color: "var(--gg-accent-amber)", fontSize: "12px", fontWeight: "bold" }}>{o.merchantRecommendation}</span>
+                              ])}
+                            />
+                          ) : (
+                            <Banner tone="success">No high-risk orders detected recently.</Banner>
+                          )}
+                        </BlockStack>
+                      </Card>
+                    </Grid.Cell>
+                    
+                    <Grid.Cell>
+                      <Card>
+                        <BlockStack gap="300">
+                          <Text variant="headingMd" as="h3">Worst Performing Pincodes</Text>
+                          {data.pincodeStats.length > 0 ? (
+                            <DataTable
+                              columnContentTypes={["text", "numeric", "numeric", "text"]}
+                              headings={["Pincode", "RTO Rate", "RTO Count", "Risk Level"]}
+                              rows={data.pincodeStats.slice(0, 5).map((p: any) => [
+                                p.pincode,
+                                `${p.rtoRate.toFixed(1)}%`,
+                                p.rtoCount,
+                                <Badge tone={p.riskLevel === "CRITICAL" ? "critical" : p.riskLevel === "HIGH" ? "warning" : "info"}>{p.riskLevel || "UNKNOWN"}</Badge>
+                              ])}
+                            />
+                          ) : (
+                            <Banner tone="info">Sync orders to generate pincode risk stats.</Banner>
+                          )}
+                        </BlockStack>
+                      </Card>
+                    </Grid.Cell>
+                  </Grid>
+
+                  <Card>
+                    <BlockStack gap="300">
+                      <Text variant="headingMd" as="h3">Top Risk Customers</Text>
+                      {data.customerRisks.length > 0 ? (
+                        <DataTable
+                          columnContentTypes={["text", "numeric", "numeric", "numeric", "text"]}
+                          headings={["Customer", "Total Orders", "RTOs", "Risk Score", "Risk Level"]}
+                          rows={data.customerRisks.slice(0, 5).map((c: any) => [
+                            c.customerId,
+                            c.totalOrders,
+                            c.rtoCount,
+                            c.riskScore,
+                            <Badge tone={c.riskLevel === "CRITICAL" ? "critical" : c.riskLevel === "HIGH" ? "warning" : "info"}>{c.riskLevel || "UNKNOWN"}</Badge>
+                          ])}
+                        />
+                      ) : (
+                        <Banner tone="info">No customer risk profiles generated yet.</Banner>
+                      )}
                     </BlockStack>
                   </Card>
                 </BlockStack>

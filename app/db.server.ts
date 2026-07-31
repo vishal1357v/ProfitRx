@@ -35,3 +35,4 @@ if (!global.prismaGlobal) {
 const prisma = global.prismaGlobal;
 
 export default prisma;
+// Force IDE TS Server to reload types

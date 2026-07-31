@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
 import { ProfitService } from "./profit.service";
+import { roundMoney, addMoney, subtractMoney } from "../utils/money";
 
 // ── COD Risk Score ────────────────────────────────────────
 export interface CODRiskResult {
@@ -12,7 +13,7 @@ export interface CODRiskResult {
 
 export interface ProfitLeaks {
   rtoLoss: number;
-  shippingOverage: number;
+  shippingLoss: number;
   discountLoss: number;
   codFailureLoss: number;
   totalLeak: number;
@@ -178,44 +179,54 @@ export class ProfitIntelligenceService {
     const prevRTO = rtoEvents.filter((e: any) => e.createdAt >= prev7Start && e.createdAt < last7);
 
     // RTO Loss — from rtoEvents table
-    const rtoLoss = rtoEvents.reduce((s: number, e: any) => s + e.amount, 0);
-    const recentRtoLoss = recentRTO.reduce((s: number, e: any) => s + e.amount, 0);
-    const prevRtoLoss = prevRTO.reduce((s: number, e: any) => s + e.amount, 0);
+    const rtoLoss = rtoEvents.reduce((s: number, e: any) => addMoney(s, e.amount), 0);
+    const recentRtoLoss = recentRTO.reduce((s: number, e: any) => addMoney(s, e.amount), 0);
+    const prevRtoLoss = prevRTO.reduce((s: number, e: any) => addMoney(s, e.amount), 0);
 
     // Also count unfulfilled/returned orders automatically using courier RTO costs
     const autoRtoOrders = orders.filter((o: any) => o.fulfillmentStatus === "RTO");
     const autoRtoLoss = autoRtoOrders.reduce((s: number, o: any) => {
-      return s + ProfitService.calculateRTOLoss(o, settings as any);
+      return addMoney(s, ProfitService.calculateRTOLoss(o, settings as any));
     }, 0);
 
-    // Shipping Overage — total shipping collected vs avg baseline
-    const totalShipping = orders.reduce((s: number, o: any) => s + o.shippingPrice, 0);
-    const avgShipping = orders.length > 0 ? totalShipping / orders.length : 0;
-    const baselineShipping = settings.defaultForwardShipping;
-    const shippingOverage = Math.max(0, avgShipping - baselineShipping) * orders.length;
+    const cogsDict = await ProfitService.getCOGS(shop);
 
-    const recentShipping = recentOrders.reduce((s: number, o: any) => s + Math.max(0, o.shippingPrice - baselineShipping), 0);
-    const prevShipping = prevOrders.reduce((s: number, o: any) => s + Math.max(0, o.shippingPrice - baselineShipping), 0);
+    // Calculate exact shipping loss using ProfitService (Logistics Cost > Customer Paid Shipping)
+    let shippingLossTotal = 0;
+    let recentShippingLoss = 0;
+    let prevShippingLoss = 0;
+    
+    for (const o of orders as any[]) {
+      const cleanId = o.productId || "";
+      const hasCogs = cogsDict[cleanId] !== undefined;
+      const c = hasCogs ? cogsDict[cleanId] : (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+      const effectiveCogs = (o.cogsAtTimeOfOrder !== null && o.cogsAtTimeOfOrder !== undefined) ? o.cogsAtTimeOfOrder : c;
+      const { shippingLoss } = ProfitService.calculateOrderProfit(o, effectiveCogs, settings);
+
+      shippingLossTotal = addMoney(shippingLossTotal, shippingLoss);
+      if (o.createdAt >= last7) recentShippingLoss = addMoney(recentShippingLoss, shippingLoss);
+      else if (o.createdAt >= prev7Start && o.createdAt < last7) prevShippingLoss = addMoney(prevShippingLoss, shippingLoss);
+    }
 
     // Discount Loss
-    const discountLoss = orders.reduce((s: number, o: any) => s + ((o as any).discountAmount || 0), 0);
-    const recentDiscountLoss = recentOrders.reduce((s: number, o: any) => s + ((o as any).discountAmount || 0), 0);
-    const prevDiscountLoss = prevOrders.reduce((s: number, o: any) => s + ((o as any).discountAmount || 0), 0);
+    const discountLoss = orders.reduce((s: number, o: any) => addMoney(s, o.discountAmount || 0), 0);
+    const recentDiscountLoss = recentOrders.reduce((s: number, o: any) => addMoney(s, o.discountAmount || 0), 0);
+    const prevDiscountLoss = prevOrders.reduce((s: number, o: any) => addMoney(s, o.discountAmount || 0), 0);
 
     // COD Failure Loss
-    const codFailureLoss = rtoLoss + autoRtoLoss;
+    const codFailureLoss = addMoney(rtoLoss, autoRtoLoss);
 
-    const totalLeak = Math.max(0, rtoLoss + autoRtoLoss + shippingOverage + discountLoss);
+    const totalLeak = Math.max(0, addMoney(rtoLoss, autoRtoLoss, shippingLossTotal, discountLoss));
 
     return {
-      rtoLoss: Math.round(rtoLoss + autoRtoLoss),
-      shippingOverage: Math.round(shippingOverage),
-      discountLoss: Math.round(discountLoss),
-      codFailureLoss: Math.round(codFailureLoss),
-      totalLeak: Math.round(totalLeak),
-      rtoTrend: prevRtoLoss > 0 ? Math.round(((recentRtoLoss - prevRtoLoss) / prevRtoLoss) * 100) : 0,
-      shippingTrend: prevShipping > 0 ? Math.round(((recentShipping - prevShipping) / prevShipping) * 100) : 0,
-      discountTrend: prevDiscountLoss > 0 ? Math.round(((recentDiscountLoss - prevDiscountLoss) / prevDiscountLoss) * 100) : 0,
+      rtoLoss: roundMoney(rtoLoss + autoRtoLoss),
+      shippingLoss: roundMoney(shippingLossTotal),
+      discountLoss: roundMoney(discountLoss),
+      codFailureLoss: roundMoney(codFailureLoss),
+      totalLeak: roundMoney(totalLeak),
+      rtoTrend: prevRtoLoss > 0 ? roundMoney(((recentRtoLoss - prevRtoLoss) / prevRtoLoss) * 100) : 0,
+      shippingTrend: prevShippingLoss > 0 ? roundMoney(((recentShippingLoss - prevShippingLoss) / prevShippingLoss) * 100) : 0,
+      discountTrend: prevDiscountLoss > 0 ? roundMoney(((recentDiscountLoss - prevDiscountLoss) / prevDiscountLoss) * 100) : 0,
     };
   }
 
@@ -235,13 +246,20 @@ export class ProfitIntelligenceService {
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
 
+    const cogsDict = await ProfitService.getCOGS(shop);
+
     orders.forEach((o: any) => {
       const ds = o.createdAt.toISOString().split("T")[0];
       if (dailyLeaks[ds]) {
-        dailyLeaks[ds].discount += (o as any).discountAmount || 0;
-        dailyLeaks[ds].shipping += Math.max(0, o.shippingPrice - settings.defaultForwardShipping);
+        const cleanId = o.productId || "";
+        const c = cogsDict[cleanId] ?? (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+        const effectiveCogs = (o.cogsAtTimeOfOrder !== null && o.cogsAtTimeOfOrder !== undefined) ? o.cogsAtTimeOfOrder : c;
+        const { shippingLoss } = ProfitService.calculateOrderProfit(o, effectiveCogs, settings);
+
+        dailyLeaks[ds].discount = addMoney(dailyLeaks[ds].discount, (o.discountAmount || 0));
+        dailyLeaks[ds].shipping = addMoney(dailyLeaks[ds].shipping, shippingLoss);
         if (o.fulfillmentStatus === "RTO") {
-          dailyLeaks[ds].rto += ProfitService.calculateRTOLoss(o, settings as any);
+          dailyLeaks[ds].rto = addMoney(dailyLeaks[ds].rto, ProfitService.calculateRTOLoss(o, settings as any));
         }
       }
     });
@@ -358,9 +376,10 @@ export class ProfitIntelligenceService {
     let totalProfit = 0;
     let profitOrdersCount = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
-      const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
-      totalProfit += profit;
+      const c = cogsDict[o.productId || ""] ?? (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+      const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+      const { profit } = ProfitService.calculateOrderProfit(o as any, effectiveCogs, settings);
+      totalProfit = addMoney(totalProfit, profit);
       profitOrdersCount++;
     }
 
@@ -424,11 +443,12 @@ export class ProfitIntelligenceService {
     let totalFees = 0;
     let profitRevenue = 0;
     for (const o of orders) {
-      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
-      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
-      totalCogs += c;
-      totalFees += fees;
-      profitRevenue += o.totalPrice;
+      const c = cogsDict[o.productId || ""] ?? (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+      const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+      const { fees } = ProfitService.calculateOrderProfit(o as any, effectiveCogs, settings);
+      totalCogs = addMoney(totalCogs, effectiveCogs);
+      totalFees = addMoney(totalFees, fees);
+      profitRevenue = addMoney(profitRevenue, o.totalPrice);
     }
 
     const adSpends = await (prisma as any).adSpend.findMany({ where: { shop } });
@@ -462,11 +482,12 @@ export class ProfitIntelligenceService {
     let recentRevenue = 0;
     let recentCogs = 0, recentFees = 0;
     for (const o of recentOrders) {
-      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
-      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
-      recentCogs += c;
-      recentFees += fees;
-      recentRevenue += o.totalPrice;
+      const c = cogsDict[o.productId || ""] ?? (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+      const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+      const { fees } = ProfitService.calculateOrderProfit(o as any, effectiveCogs, settings);
+      recentCogs = addMoney(recentCogs, effectiveCogs);
+      recentFees = addMoney(recentFees, fees);
+      recentRevenue = addMoney(recentRevenue, o.totalPrice);
     }
     const recentProfit = recentRevenue - recentCogs - recentFees;
     const recentMargin = recentRevenue > 0 ? (recentProfit / recentRevenue) * 100 : 0;
@@ -474,11 +495,12 @@ export class ProfitIntelligenceService {
     let prevRevenue = 0;
     let prevCogs = 0, prevFees = 0;
     for (const o of prevOrders) {
-      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (settings.defaultCOGSPct / 100));
-      const { fees } = ProfitService.calculateOrderProfit(o, c, settings);
-      prevCogs += c;
-      prevFees += fees;
-      prevRevenue += o.totalPrice;
+      const c = cogsDict[o.productId || ""] ?? (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+      const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+      const { fees } = ProfitService.calculateOrderProfit(o as any, effectiveCogs, settings);
+      prevCogs = addMoney(prevCogs, effectiveCogs);
+      prevFees = addMoney(prevFees, fees);
+      prevRevenue = addMoney(prevRevenue, o.totalPrice);
     }
     const prevProfit = prevRevenue - prevCogs - prevFees;
     const prevMargin = prevRevenue > 0 ? (prevProfit / prevRevenue) * 100 : 0;

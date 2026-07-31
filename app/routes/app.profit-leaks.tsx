@@ -192,7 +192,7 @@ export default function ProfitLeaksRoute() {
 
   const donutSegments = [
     { value: leaks.rtoLoss, color: "#ef4444", label: "RTO & COD Failure" },
-    { value: leaks.shippingOverage, color: "#f59e0b", label: "Shipping Overage" },
+    { value: leaks.shippingLoss, color: "#f59e0b", label: "Shipping Loss" },
     { value: leaks.discountLoss, color: "#7c3aed", label: "Discount Loss" },
   ].filter(s => s.value > 0);
 
@@ -258,7 +258,7 @@ export default function ProfitLeaksRoute() {
                 </Grid.Cell>
                 <Grid.Cell>
                   <LeakInsight
-                    icon="🚚" title="Shipping Overage" amount={leaks.shippingOverage}
+                    icon="🚚" title="Shipping Loss" amount={leaks.shippingLoss}
                     trend={leaks.shippingTrend}
                     detail="Shipping costs above ₹60/order baseline. Negotiate bulk rates with logistics partners."
                     tone="warning"

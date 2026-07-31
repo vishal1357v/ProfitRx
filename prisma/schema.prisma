@@ -73,6 +73,12 @@ model Order {
   cogsAtTimeOfOrder Float?
   actualShippingCost Float?
   shippingCostSource String  @default("ESTIMATED") // "MANUAL" | "COURIER" | "DEFAULT" | "ESTIMATED"
+  // Risk Intelligence (Phase 3)
+  riskScore         Int?
+  riskLevel         String?
+  riskReasons       Json?
+  riskFlags         Json?
+  merchantRecommendation String?
 
   @@index([shop, createdAt])
   @@index([shop, pincode])
@@ -179,6 +185,10 @@ model PincodeStats {
   totalLoss     Float    @default(0)  // Total ₹ lost to RTO
   rtoRate       Float    @default(0)  // rtoCount / codOrders × 100
   riskLevel     String   @default("LOW")  // "LOW", "MEDIUM", "HIGH", "CRITICAL"
+  successfulDeliveries Int @default(0)
+  deliveryRate  Float    @default(0)
+  aov           Float    @default(0)
+  revenue       Float    @default(0)
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@unique([shop, pincode])
@@ -212,6 +222,34 @@ model CustomerProfile {
   @@index([shop])
   @@index([shop, cohortMonth])
   @@map("customer_profiles")
+}
+
+// ============================================
+// CUSTOMER RISK - Persistent Customer Risk History
+// ============================================
+model CustomerRisk {
+  id              String   @id @default(cuid())
+  shop            String
+  customerId      String
+  phone           String?
+  email           String?
+  totalOrders     Int      @default(0)
+  codOrders       Int      @default(0)
+  prepaidOrders   Int      @default(0)
+  successfulDeliveries Int @default(0)
+  rtoCount        Int      @default(0)
+  cancellationCount Int    @default(0)
+  aov             Float    @default(0)
+  lifetimeSpend   Float    @default(0)
+  lastOrderDate   DateTime?
+  riskScore       Int      @default(0)
+  riskLevel       String   @default("LOW")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([shop, customerId])
+  @@index([shop])
+  @@index([shop, phone])
+  @@map("customer_risk")
 }
 
 // ============================================
@@ -367,6 +405,12 @@ model StoreSettings {
   gatewayFixedFee        Float    @default(0)
   shopifyPlanName        String?  // e.g. "Basic", "Shopify", "Advanced", "Plus"
   shippingSlabs          Json?    // Array of weight slabs: { maxWeightGrams: number, forwardCost: number, returnCost: number }
+  // Merchant Rules Engine (Phase 3)
+  rulesRejectCodOver     Float?
+  rulesRequirePrepaidAbove Float?
+  rulesDisableCodForPincodes String[] @default([])
+  rulesAutoFlagRepeatOffenders Boolean @default(false)
+  rulesAutoRequireOtp    Boolean  @default(false)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

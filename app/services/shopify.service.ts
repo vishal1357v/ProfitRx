@@ -8,6 +8,7 @@ import { ProfitService } from "./profit.service";
 import { CODManagementService } from "./cod-management.service";
 import { resolveEffectiveCOGS } from "../utils/cogs";
 import { determineFulfillmentStatus } from "../utils/fulfillment";
+import { RiskEngineService } from "./risk-engine.service";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -163,7 +164,7 @@ export class ShopifyService {
                 displayName
                 email
               }
-              lineItems(first: 10) {
+              lineItems(first: 250) {
                 edges {
                   node {
                     id
@@ -174,6 +175,10 @@ export class ShopifyService {
                     quantity
                     discountedTotalSet { presentmentMoney { amount } }
                   }
+                }
+                pageInfo {
+                  hasNextPage
+                  endCursor
                 }
               }
             }
@@ -195,6 +200,37 @@ export class ShopifyService {
       if (data.errors?.length) throw new Error(data.errors[0].message);
 
       const edges = data.data.orders.edges || [];
+      
+      // Handle lineItems pagination for each order
+      for (const edge of edges) {
+        let liHasNext = edge.node.lineItems.pageInfo?.hasNextPage;
+        let liCursor = edge.node.lineItems.pageInfo?.endCursor;
+        while (liHasNext) {
+          const liResp = await admin.graphql(`
+            query GetLineItems($orderId: ID!, $cursor: String) {
+              order(id: $orderId) {
+                lineItems(first: 250, after: $cursor) {
+                  edges {
+                    node {
+                      id title product { id } quantity discountedTotalSet { presentmentMoney { amount } }
+                    }
+                  }
+                  pageInfo { hasNextPage endCursor }
+                }
+              }
+            }
+          `, { variables: { orderId: edge.node.id, cursor: liCursor } });
+          const liData = await liResp.json() as any;
+          if (liData.data?.order?.lineItems) {
+            edge.node.lineItems.edges.push(...liData.data.order.lineItems.edges);
+            liHasNext = liData.data.order.lineItems.pageInfo.hasNextPage;
+            liCursor = liData.data.order.lineItems.pageInfo.endCursor;
+          } else {
+            liHasNext = false;
+          }
+        }
+      }
+
       allOrders.push(...edges.map((edge: any) => this.mapOrder(edge.node, pattern)));
 
       const pageInfo = data.data.orders.pageInfo || {};
@@ -256,63 +292,106 @@ export class ShopifyService {
       }
     }
 
-    const response = await admin.graphql(`
-      query GetProducts {
-        products(first: 100) {
-          edges {
-            node {
-              id
-              title
-              variants(first: 50) {
-                edges {
-                  node {
-                    id
-                    price
-                    inventoryItem {
+    let hasNextPage = true;
+    let endCursor: string | null = null;
+    const allProducts: any[] = [];
+
+    while (hasNextPage) {
+      const response = await admin.graphql(`
+        query GetProducts($cursor: String) {
+          products(first: 250, after: $cursor) {
+            edges {
+              node {
+                id
+                title
+                variants(first: 100) {
+                  edges {
+                    node {
                       id
-                      unitCost {
-                        amount
+                      price
+                      inventoryItem {
+                        id
+                        unitCost {
+                          amount
+                        }
                       }
                     }
                   }
+                  pageInfo { hasNextPage endCursor }
+                }
+                metafield(namespace: "greek_god", key: "cogs") {
+                  value
                 }
               }
-              metafield(namespace: "greek_god", key: "cogs") {
-                value
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `, { variables: { cursor: endCursor } });
+
+      const data = await response.json() as any;
+
+      if (data.errors?.length) throw new Error(data.errors[0].message);
+
+      const edges = data.data.products.edges || [];
+      
+      for (const edge of edges) {
+        let vHasNext = edge.node.variants.pageInfo?.hasNextPage;
+        let vCursor = edge.node.variants.pageInfo?.endCursor;
+        while (vHasNext) {
+          const vResp = await admin.graphql(`
+            query GetVariants($productId: ID!, $cursor: String) {
+              product(id: $productId) {
+                variants(first: 100, after: $cursor) {
+                  edges {
+                    node { id price inventoryItem { id unitCost { amount } } }
+                  }
+                  pageInfo { hasNextPage endCursor }
+                }
               }
             }
+          `, { variables: { productId: edge.node.id, cursor: vCursor } });
+          const vData = await vResp.json() as any;
+          if (vData.data?.product?.variants) {
+            edge.node.variants.edges.push(...vData.data.product.variants.edges);
+            vHasNext = vData.data.product.variants.pageInfo.hasNextPage;
+            vCursor = vData.data.product.variants.pageInfo.endCursor;
+          } else {
+            vHasNext = false;
           }
         }
       }
-    `);
 
-    const data = await response.json() as GraphqlResponse<{
-      products: { edges: Array<{ node: any }> };
-    }>;
+      allProducts.push(...edges.map((edge: any) => {
+        return {
+          id: edge.node.id.split("/").pop() || "",
+          title: edge.node.title,
+          cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
+          variants: edge.node.variants.edges.map((ve: any) => ({
+            id: ve.node.id.split("/").pop(),
+            price: ve.node.price,
+            shopifyNativeCost: ve.node.inventoryItem?.unitCost?.amount ? parseFloat(ve.node.inventoryItem.unitCost.amount) : null
+          }))
+        };
+      }));
 
-    if (data.errors?.length) throw new Error(data.errors[0].message);
+      hasNextPage = data.data.products.pageInfo?.hasNextPage || false;
+      endCursor = data.data.products.pageInfo?.endCursor || null;
 
-    const result = data.data.products.edges.map((edge) => {
-      const firstVariant = edge.node.variants?.edges?.[0]?.node;
-      const unitCost = firstVariant?.inventoryItem?.unitCost?.amount ? parseFloat(firstVariant.inventoryItem.unitCost.amount) : null;
-      return {
-        id: edge.node.id.split("/").pop() || "",
-        title: edge.node.title,
-        price: firstVariant?.price || "0",
-        variantId: firstVariant?.id?.split("/")?.pop() || null,
-        shopifyNativeCost: unitCost,
-        cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
-      };
-    });
+      const cost = data.extensions?.cost;
+      if (cost && cost.throttleStatus?.currentlyAvailable < 1000) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
 
     if (shop) {
       ShopifyService.productsCache.set(shop, {
-        data: result,
+        data: allProducts,
         timestamp: Date.now(),
       });
     }
 
-    return result;
+    return allProducts;
   }
 
   // ── Sync Native Shopify COGS ─────────────────────────────────
@@ -345,41 +424,71 @@ export class ShopifyService {
 
     for (const p of products) {
       const productId = p.id;
-      const shopifyNativeCost = p.shopifyNativeCost ?? p.cogsFromMetafield;
+      const cogsFromMetafield = p.cogsFromMetafield;
 
-      const existingRecord = await (prisma as any).productCOGS.findUnique({
-        where: { shop_productId: { shop, productId } },
-      });
+      for (const variant of p.variants) {
+        const variantId = variant.id;
+        const shopifyNativeCost = variant.shopifyNativeCost ?? cogsFromMetafield;
 
-      const manualOverride = existingRecord?.manualOverride;
-      const effectiveCost = resolveEffectiveCOGS(existingRecord, shopifyNativeCost);
-      const source = manualOverride != null ? "manual_override" : shopifyNativeCost != null ? "shopify_native" : "manual_override";
-
-      if (effectiveCost !== null && effectiveCost !== undefined) {
-        await (prisma as any).productCOGS.upsert({
-          where: { shop_productId: { shop, productId } },
-          update: {
-            variantId: p.variantId,
-            cost: effectiveCost,
-            shopifyNative: shopifyNativeCost,
-            source,
-            cogs: effectiveCost, // legacy compatibility
-            lastSyncedAt: new Date(),
-          },
-          create: {
-            shop,
-            productId,
-            variantId: p.variantId,
-            cost: effectiveCost,
-            shopifyNative: shopifyNativeCost,
-            source,
-            cogs: effectiveCost,
-            lastSyncedAt: new Date(),
-          },
+        // Sync VariantCOGS table
+        const existingVariant = await (prisma as any).variantCOGS.findUnique({
+          where: { shop_variantId: { shop, variantId } },
         });
-        synced++;
-      } else {
-        skipped++;
+
+        const manualOverride = existingVariant?.manualOverride;
+        const effectiveCost = resolveEffectiveCOGS(existingVariant, shopifyNativeCost);
+        const source = manualOverride != null ? "manual_override" : shopifyNativeCost != null ? "shopify_native" : "manual_override";
+
+        if (effectiveCost !== null && effectiveCost !== undefined) {
+          await (prisma as any).variantCOGS.upsert({
+            where: { shop_variantId: { shop, variantId } },
+            update: {
+              productId,
+              cost: effectiveCost,
+              shopifyNative: shopifyNativeCost,
+              source,
+              cogs: effectiveCost,
+              lastSyncedAt: new Date(),
+            },
+            create: {
+              shop,
+              productId,
+              variantId,
+              cost: effectiveCost,
+              shopifyNative: shopifyNativeCost,
+              source,
+              cogs: effectiveCost,
+              lastSyncedAt: new Date(),
+            },
+          });
+
+          // Fallback legacy ProductCOGS update (using first variant or the one with cost)
+          await (prisma as any).productCOGS.upsert({
+            where: { shop_productId: { shop, productId } },
+            update: {
+              variantId,
+              cost: effectiveCost,
+              shopifyNative: shopifyNativeCost,
+              source,
+              cogs: effectiveCost,
+              lastSyncedAt: new Date(),
+            },
+            create: {
+              shop,
+              productId,
+              variantId,
+              cost: effectiveCost,
+              shopifyNative: shopifyNativeCost,
+              source,
+              cogs: effectiveCost,
+              lastSyncedAt: new Date(),
+            }
+          });
+
+          synced++;
+        } else {
+          skipped++;
+        }
       }
     }
 
@@ -503,18 +612,50 @@ export class ShopifyService {
       }
     }
 
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop: session.shop } });
+    const settings = ProfitService.getSettings(rawSettings);
+
     const cogsDict = await ProfitService.getCOGS(session.shop);
     const orders = await this.getOrders(admin, 250, session.shop);
+
+    const customerIds = [...new Set(orders.map((o) => o.customerId).filter(Boolean))] as string[];
+    const pincodes = [...new Set(orders.map((o) => o.pincode).filter(Boolean))] as string[];
+    
+    const customerRisks = await prisma.customerRisk.findMany({
+      where: { shop: session.shop, customerId: { in: customerIds } }
+    });
+    const pincodeStats = await prisma.pincodeStats.findMany({
+      where: { shop: session.shop, pincode: { in: pincodes } }
+    });
+    
+    const customerRiskMap = new Map(customerRisks.map((cr: any) => [cr.customerId, cr]));
+    const pincodeStatsMap = new Map(pincodeStats.map((ps: any) => [ps.pincode, ps]));
 
     let count = 0;
     let newOrdersCount = 0;
     for (const order of orders) {
       const existing = await prisma.order.findUnique({
         where: { id: order.id },
-        select: { id: true },
+        select: { id: true, riskScore: true },
       });
       if (!existing) {
         newOrdersCount++;
+      }
+
+      let riskResult = null;
+      if (!existing || existing.riskScore === null) {
+        const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
+        const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
+        
+        const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
+        const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
+        
+        riskResult = RiskEngineService.evaluateOrderRisk(
+          { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
+          customerRiskInput,
+          pincodeRiskInput,
+          settings
+        );
       }
 
       const lineProdId = order.lineItems?.[0]?.productId || null;
@@ -525,11 +666,11 @@ export class ShopifyService {
           if (cogsDict[cleanId] !== undefined) {
             snapshotCogs += (cogsDict[cleanId] * item.quantity);
           } else {
-            snapshotCogs += (item.price * 0.4);
+            snapshotCogs += (item.price * (settings.defaultCOGSPct / 100));
           }
         }
       } else {
-        snapshotCogs = order.totalPrice * 0.4;
+        snapshotCogs = order.totalPrice * (settings.defaultCOGSPct / 100);
       }
 
       await (prisma.order as any).upsert({
@@ -553,6 +694,12 @@ export class ShopifyService {
           pincode: order.pincode,
           city: order.city,
           province: order.province,
+          ...(riskResult && (!existing || existing.riskScore === null) ? {
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
+            riskReasons: riskResult.reasons,
+            merchantRecommendation: riskResult.recommendation,
+          } : {}),
         },
         create: {
           id: order.id,
@@ -579,6 +726,12 @@ export class ShopifyService {
           city: order.city,
           province: order.province,
           cogsAtTimeOfOrder: snapshotCogs,
+          ...(riskResult ? {
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
+            riskReasons: riskResult.reasons,
+            merchantRecommendation: riskResult.recommendation,
+          } : {}),
         },
       });
       count++;
@@ -609,11 +762,47 @@ export class ShopifyService {
   static async syncOrdersForShop(shop: string): Promise<{ count: number }> {
     const { admin, session } = await unauthenticated.admin(shop);
     await this.syncShopPlanName(admin, shop);
+    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const settings = ProfitService.getSettings(rawSettings);
     const cogsDict = await ProfitService.getCOGS(shop);
     const orders = await this.getOrders(admin, 250, shop);
 
+    const customerIds = [...new Set(orders.map((o) => o.customerId).filter(Boolean))] as string[];
+    const pincodes = [...new Set(orders.map((o) => o.pincode).filter(Boolean))] as string[];
+    
+    const customerRisks = await prisma.customerRisk.findMany({
+      where: { shop, customerId: { in: customerIds } }
+    });
+    const pincodeStats = await prisma.pincodeStats.findMany({
+      where: { shop, pincode: { in: pincodes } }
+    });
+    
+    const customerRiskMap = new Map(customerRisks.map((cr: any) => [cr.customerId, cr]));
+    const pincodeStatsMap = new Map(pincodeStats.map((ps: any) => [ps.pincode, ps]));
+
     let count = 0;
     for (const order of orders) {
+      const existing = await prisma.order.findUnique({
+        where: { id: order.id },
+        select: { id: true, riskScore: true },
+      });
+
+      let riskResult = null;
+      if (!existing || existing.riskScore === null) {
+        const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
+        const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
+        
+        const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
+        const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
+        
+        riskResult = RiskEngineService.evaluateOrderRisk(
+          { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
+          customerRiskInput,
+          pincodeRiskInput,
+          settings
+        );
+      }
+
       const lineProdId = order.lineItems?.[0]?.productId || null;
       let snapshotCogs = 0;
       if (order.lineItems && order.lineItems.length > 0) {
@@ -622,11 +811,11 @@ export class ShopifyService {
           if (cogsDict[cleanId] !== undefined) {
             snapshotCogs += (cogsDict[cleanId] * item.quantity);
           } else {
-            snapshotCogs += (item.price * 0.4);
+            snapshotCogs += (item.price * (settings.defaultCOGSPct / 100));
           }
         }
       } else {
-        snapshotCogs = order.totalPrice * 0.4;
+        snapshotCogs = order.totalPrice * (settings.defaultCOGSPct / 100);
       }
 
       await (prisma.order as any).upsert({
@@ -650,6 +839,12 @@ export class ShopifyService {
           pincode: order.pincode,
           city: order.city,
           province: order.province,
+          ...(riskResult && (!existing || existing.riskScore === null) ? {
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
+            riskReasons: riskResult.reasons,
+            merchantRecommendation: riskResult.recommendation,
+          } : {}),
         },
         create: {
           id: order.id,
@@ -676,6 +871,12 @@ export class ShopifyService {
           city: order.city,
           province: order.province,
           cogsAtTimeOfOrder: snapshotCogs,
+          ...(riskResult ? {
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
+            riskReasons: riskResult.reasons,
+            merchantRecommendation: riskResult.recommendation,
+          } : {}),
         },
       });
       count++;
@@ -700,6 +901,17 @@ export class ShopifyService {
     const groupedOrders = await prisma.order.groupBy({
       by: ["pincode", "city", "province"],
       where: { shop },
+      _count: {
+        id: true,
+      },
+      _sum: {
+        totalPrice: true,
+      }
+    });
+
+    const successfulDeliveriesGrouped = await prisma.order.groupBy({
+      by: ["pincode"],
+      where: { shop, fulfillmentStatus: "fulfilled" },
       _count: {
         id: true,
       },
@@ -743,20 +955,30 @@ export class ShopifyService {
     const pincodeMap: Record<string, {
       city?: string; province?: string;
       totalOrders: number; codOrders: number; rtoCount: number; totalLoss: number;
+      successfulDeliveries: number; revenue: number;
     }> = {};
 
     for (const g of groupedOrders) {
       const pin = g.pincode || "UNKNOWN";
       if (!pincodeMap[pin]) {
-        pincodeMap[pin] = { city: g.city || undefined, province: g.province || undefined, totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+        pincodeMap[pin] = { city: g.city || undefined, province: g.province || undefined, totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
       }
       pincodeMap[pin].totalOrders += g._count.id;
+      pincodeMap[pin].revenue += g._sum.totalPrice || 0;
+    }
+    
+    for (const g of successfulDeliveriesGrouped) {
+      const pin = g.pincode || "UNKNOWN";
+      if (!pincodeMap[pin]) {
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
+      }
+      pincodeMap[pin].successfulDeliveries += g._count.id;
     }
 
     for (const g of codOrdersGrouped) {
       const pin = g.pincode || "UNKNOWN";
       if (!pincodeMap[pin]) {
-        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
       }
       pincodeMap[pin].codOrders += g._count.id;
     }
@@ -764,7 +986,7 @@ export class ShopifyService {
     for (const g of rtoOrdersGrouped) {
       const pin = g.pincode || "UNKNOWN";
       if (!pincodeMap[pin]) {
-        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0 };
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
       }
       pincodeMap[pin].rtoCount += g._count.id;
       pincodeMap[pin].totalLoss += g._sum.totalPrice || 0;
@@ -772,10 +994,11 @@ export class ShopifyService {
 
     for (const event of rtoEvents) {
       const pin = orderIdToPincode.get(event.orderId) || "UNKNOWN";
-      if (pincodeMap[pin]) {
-        pincodeMap[pin].rtoCount++;
-        pincodeMap[pin].totalLoss += event.amount;
+      if (!pincodeMap[pin]) {
+        pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
       }
+      pincodeMap[pin].rtoCount++;
+      pincodeMap[pin].totalLoss += event.amount;
     }
 
     const upsertPromises: any[] = [];
@@ -783,12 +1006,14 @@ export class ShopifyService {
       if (pincode === "UNKNOWN" && stats.totalOrders < 3) continue;
       const rtoRate = stats.codOrders > 0 ? (stats.rtoCount / stats.codOrders) * 100 : 0;
       const riskLevel = rtoRate >= 30 ? "CRITICAL" : rtoRate >= 20 ? "HIGH" : rtoRate >= 10 ? "MEDIUM" : "LOW";
+      const aov = stats.totalOrders > 0 ? stats.revenue / stats.totalOrders : 0;
+      const deliveryRate = stats.totalOrders > 0 ? (stats.successfulDeliveries / stats.totalOrders) * 100 : 0;
 
       upsertPromises.push(
         (prisma as any).pincodeStats.upsert({
           where: { shop_pincode: { shop, pincode } },
-          update: { city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
-          create: { shop, pincode, city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel },
+          update: { city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel, successfulDeliveries: stats.successfulDeliveries, deliveryRate, aov, revenue: stats.revenue },
+          create: { shop, pincode, city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel, successfulDeliveries: stats.successfulDeliveries, deliveryRate, aov, revenue: stats.revenue },
         })
       );
     }

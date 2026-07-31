@@ -75,12 +75,14 @@ describe("ProfitService — Trust the Math Suite", () => {
     const settings = {
       defaultForwardShipping: 60,
       defaultReturnShipping: 70,
+      defaultPackaging: 0,
+      defaultCODHandling: 0,
     };
 
     // Raw RTO freight loss = forward(60) + return(70) = 130
     // Net RTO Loss after ₹100 deposit offset = 130 - 100 = 30
 
-    const netLoss = ProfitService.calculateRTOLoss(rtoOrder, settings);
+    const netLoss = ProfitService.calculateRTOLoss(rtoOrder, settings as any);
     expect(netLoss).toEqual(30);
   });
 

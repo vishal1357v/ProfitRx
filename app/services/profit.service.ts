@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "../db.server";
 import { resolveEffectiveCOGS } from "../utils/cogs";
+import { roundMoney, addMoney, subtractMoney } from "../utils/money";
 
 export interface ProfitOrder {
   orderId: string;
@@ -10,6 +11,8 @@ export interface ProfitOrder {
   fees: number;
   profit: number;
   margin: number;
+  shippingProfit: number;
+  shippingLoss: number;
   createdAt: Date;
 }
 
@@ -130,27 +133,43 @@ export class ProfitService {
   }
 
   static calculateOrderProfit(
-    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number; fulfillmentStatus?: string; totalWeight?: number | null },
+    order: { totalPrice?: number; isCOD?: boolean; gateway?: string | null; totalTax?: number; shippingPrice?: number; actualShippingCost?: number | null; cogsAtTimeOfOrder?: number | null; partialDepositCollected?: number; fulfillmentStatus?: string; totalWeight?: number | null },
     cogs: number,
     settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string; shippingSlabs?: any[] | null }
-  ): { profit: number; fees: number; margin: number } {
+  ): { profit: number; fees: number; margin: number; shippingProfit: number; shippingLoss: number } {
     const isRto = order.fulfillmentStatus === "RTO";
-    const totalPrice = isRto ? 0 : (Number(order.totalPrice) || 0);
-    const totalTax = isRto ? 0 : (Number(order.totalTax) || 0);
-    const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? Number(order.cogsAtTimeOfOrder) : (Number(cogs) || 0));
-    const gatewayFixed = Number(settings.gatewayFixedFee) || 0;
-    const packaging = Number(settings.defaultPackaging) || 10;
+    const totalPrice = isRto ? 0 : roundMoney(order.totalPrice);
+    const totalTax = isRto ? 0 : roundMoney(order.totalTax);
+    const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? roundMoney(order.cogsAtTimeOfOrder) : roundMoney(cogs));
+    const gatewayFixed = roundMoney(settings.gatewayFixedFee);
+    const packaging = roundMoney(settings.defaultPackaging);
     
-    const defaultForward = Number(settings.defaultForwardShipping) || 60;
-    const defaultReturn = Number(settings.defaultReturnShipping) || 70;
-    const { forward: forwardShipping, returnShip } = this.getSlabShippingCosts(
-      order.totalWeight,
-      settings.shippingSlabs,
-      defaultForward,
-      defaultReturn
-    );
+    // Shipping logic (Task 1 & Task 2)
+    const customerPaidShipping = isRto ? 0 : roundMoney(order.shippingPrice);
+    let forwardShipping = 0;
+    let returnShip = 0;
 
-    const codHandling = Number(settings.defaultCODHandling) || 50;
+    if (order.actualShippingCost !== null && order.actualShippingCost !== undefined) {
+      forwardShipping = roundMoney(order.actualShippingCost);
+      returnShip = roundMoney(settings.defaultReturnShipping || 70); // Fallback for return if actual is forward only
+    } else {
+      const defaultForward = roundMoney(settings.defaultForwardShipping || 60);
+      const defaultReturn = roundMoney(settings.defaultReturnShipping || 70);
+      const slabsCost = this.getSlabShippingCosts(
+        order.totalWeight,
+        settings.shippingSlabs,
+        defaultForward,
+        defaultReturn
+      );
+      forwardShipping = slabsCost.forward;
+      returnShip = slabsCost.returnShip;
+    }
+
+    const logisticsCost = forwardShipping;
+    const shippingProfit = Math.max(0, subtractMoney(customerPaidShipping, logisticsCost));
+    const shippingLoss = Math.max(0, subtractMoney(logisticsCost, customerPaidShipping));
+
+    const codHandling = roundMoney(settings.defaultCODHandling || 50);
     const isCod = isCodOrder(order);
 
     let gatewayFee = 0;
@@ -164,19 +183,24 @@ export class ProfitService {
         const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
         const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
         const rawGatewayFee = (totalPrice * razorpayRate) + (totalPrice * shopifySurchargeRate) + gatewayFixed;
-        gatewayFee = rawGatewayFee * 1.18; // Apply 18% GST to payment gateway fees
+        gatewayFee = roundMoney(rawGatewayFee * 1.18); // Apply 18% GST to payment gateway fees
       }
     }
 
     const returnShipping = isRto ? returnShip : 0;
-    const fees = totalTax + forwardShipping + returnShipping + gatewayFee + codFee + packaging;
-    const profit = totalPrice - effectiveCogs - fees;
-    const margin = totalPrice > 0 ? (profit / totalPrice) * 100 : 0;
+    // We use logisticsCost in fees, but customerPaidShipping is already part of totalPrice.
+    // So profit = (totalPrice - totalTax) - effectiveCogs - logisticsCost - gatewayFee - codFee - packaging
+    // which implicitly means customerPaidShipping - logisticsCost is accounted for.
+    const fees = addMoney(totalTax, logisticsCost, returnShipping, gatewayFee, codFee, packaging);
+    const profit = subtractMoney(totalPrice, effectiveCogs, fees);
+    const margin = totalPrice > 0 ? roundMoney((profit / totalPrice) * 100) : 0;
 
     return {
       profit: isNaN(profit) ? 0 : profit,
       fees: isNaN(fees) ? 0 : fees,
       margin: isNaN(margin) ? 0 : margin,
+      shippingProfit,
+      shippingLoss,
     };
   }
 
@@ -188,14 +212,14 @@ export class ProfitService {
     order: { isCOD?: boolean; gateway?: string | null; fulfillmentStatus?: string; partialDepositCollected?: number },
     settings: { defaultForwardShipping: number; defaultReturnShipping: number; defaultCODHandling?: number; defaultPackaging?: number }
   ): number {
-    const forward = Number(settings.defaultForwardShipping) || 60;
-    const returnShip = Number(settings.defaultReturnShipping) || 70;
-    const packaging = Number(settings.defaultPackaging) || 10;
-    const codHandling = isCodOrder(order) ? (Number(settings.defaultCODHandling) || 50) : 0;
+    const forward = roundMoney(settings.defaultForwardShipping ?? 60);
+    const returnShip = roundMoney(settings.defaultReturnShipping ?? 70);
+    const packaging = roundMoney(settings.defaultPackaging ?? 10);
+    const codHandling = isCodOrder(order) ? roundMoney(settings.defaultCODHandling ?? 50) : 0;
     
-    const rawLoss = forward + returnShip + packaging + codHandling;
-    const deposit = Number(order.partialDepositCollected) || 0;
-    return Math.max(0, rawLoss - deposit);
+    const rawLoss = addMoney(forward, returnShip, packaging, codHandling);
+    const deposit = roundMoney(order.partialDepositCollected || 0);
+    return Math.max(0, subtractMoney(rawLoss, deposit));
   }
 
   /**
@@ -345,6 +369,56 @@ export class ProfitService {
   }
 
   /**
+   * Task 4: Canonical Profit After Ads
+   * Gross Revenue - Refunds - Discounts - COGS - Shipping - Gateway Fees - Packaging - COD Fees - Taxes - Advertising Cost = Profit After Ads
+   */
+  static async getProfitAfterAds(shop: string, startDate: Date, endDate: Date): Promise<{ profitAfterAds: number; totalAdSpend: number; grossProfit: number }> {
+    try {
+      const orders = await prisma.order.findMany({
+        where: { shop, createdAt: { gte: startDate, lte: endDate } },
+      });
+
+      const adSpends = await prisma.adSpendDaily.findMany({
+        where: { shop, date: { gte: startDate, lte: endDate } },
+      });
+
+      const totalAdSpend = adSpends.reduce((sum: number, ad: any) => addMoney(sum, ad.spend), 0);
+
+      const cogsDict = await this.getCOGS(shop);
+      const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+      const settings = this.getSettings(rawSettings);
+
+      let grossProfit = 0;
+
+      for (const o of orders) {
+        const cleanId = o.productId || "";
+        const hasCogs = cogsDict[cleanId] !== undefined;
+        const c = hasCogs ? cogsDict[cleanId] : (roundMoney(o.totalPrice) * (settings.defaultCOGSPct / 100));
+
+        const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
+        const { profit } = this.calculateOrderProfit(o, effectiveCogs, settings);
+        
+        // The profit calculated by calculateOrderProfit already does:
+        // Revenue - COGS - Logistics - Gateway - Packaging - COD - Taxes
+        // And Shopify's totalPrice is already net of discounts.
+        grossProfit = addMoney(grossProfit, profit);
+      }
+
+      // Subtract refunds and ads (Refunds can be integrated if we have a refund model, currently omitting refunds per schema limits, assuming fulfillmentStatus takes care of RTOs)
+      const profitAfterAds = subtractMoney(grossProfit, totalAdSpend);
+
+      return {
+        profitAfterAds,
+        totalAdSpend,
+        grossProfit
+      };
+    } catch (err) {
+      console.error(`[getProfitAfterAds] Error calculating profit after ads for ${shop}:`, err);
+      return { profitAfterAds: 0, totalAdSpend: 0, grossProfit: 0 };
+    }
+  }
+
+  /**
    * Backward-compatible calculate method for api.profit.ts and health.service.ts
    */
   static async calculate(shop: string, limit: number = 100) {
@@ -366,43 +440,45 @@ export class ProfitService {
       let totalProfit = 0;
 
       for (const o of orders) {
-        const totalPrice = Number(o.totalPrice) || 0;
+        const totalPrice = roundMoney(o.totalPrice);
         const cleanId = o.productId || "";
         const hasCogs = cogsDict[cleanId] !== undefined;
-        const c = hasCogs ? cogsDict[cleanId] : (totalPrice * settings.defaultCOGSPct / 100);
+        const c = hasCogs ? cogsDict[cleanId] : (totalPrice * (settings.defaultCOGSPct / 100));
 
         const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
-        const { profit, fees, margin } = this.calculateOrderProfit(o, effectiveCogs, settings);
+        const { profit, fees, margin, shippingProfit, shippingLoss } = this.calculateOrderProfit(o, effectiveCogs, settings);
 
         const isRto = o.fulfillmentStatus === "RTO";
         const finalRevenue = isRto ? 0 : totalPrice;
-        const finalCogs = isRto ? 0 : effectiveCogs;
+        const finalCogs = isRto ? 0 : roundMoney(effectiveCogs);
 
         results.push({
           orderId: o.id,
           orderNumber: o.orderNumber || 0,
           revenue: finalRevenue,
-          cogs: Number(finalCogs) || 0,
-          fees: Number(fees) || 0,
-          profit: Number(profit) || 0,
-          margin: Number(margin) || 0,
+          cogs: finalCogs,
+          fees: roundMoney(fees),
+          profit: roundMoney(profit),
+          margin: roundMoney(margin),
+          shippingProfit,
+          shippingLoss,
           createdAt: o.createdAt || new Date(),
         });
 
-        totalRevenue += finalRevenue;
-        totalCOGS += Number(finalCogs) || 0;
-        totalFees += Number(fees) || 0;
-        totalProfit += Number(profit) || 0;
+        totalRevenue = addMoney(totalRevenue, finalRevenue);
+        totalCOGS = addMoney(totalCOGS, finalCogs);
+        totalFees = addMoney(totalFees, fees);
+        totalProfit = addMoney(totalProfit, profit);
       }
 
-      const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+      const avgMargin = totalRevenue > 0 ? roundMoney((totalProfit / totalRevenue) * 100) : 0;
 
       const summary: ProfitSummary = {
-        totalRevenue: Math.round(totalRevenue) || 0,
-        totalCOGS: Math.round(totalCOGS) || 0,
-        totalFees: Math.round(totalFees) || 0,
-        totalProfit: Math.round(totalProfit) || 0,
-        avgMargin: Math.round(avgMargin * 10) / 10 || 0,
+        totalRevenue,
+        totalCOGS,
+        totalFees,
+        totalProfit,
+        avgMargin,
         orderCount: orders.length,
       };
 

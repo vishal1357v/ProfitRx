@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { RiskEngineService } from "./risk-engine.service";
 
 export interface LTVCohort {
   cohortMonth: string;
@@ -83,6 +84,56 @@ export class CustomerIntelligenceService {
             aov,
             cohortMonth,
             channelSource,
+            updatedAt: new Date(),
+          },
+        })
+      );
+
+      // Phase 3: CustomerRisk Profile Updates
+      const codOrdersCount = custOrders.filter(o => o.isCOD).length;
+      const prepaidOrders = orderCount - codOrdersCount;
+      const successfulDeliveries = custOrders.filter(o => o.fulfillmentStatus === "fulfilled").length;
+      const rtoCount = custOrders.filter(o => (o.fulfillmentStatus || "").toUpperCase() === "RTO").length;
+      const cancellationCount = custOrders.filter(o => (o.fulfillmentStatus || "").toLowerCase() === "cancelled").length;
+
+      const riskInput = { rtoCount, codOrders: codOrdersCount, cancellationCount, aov };
+      const riskResult = RiskEngineService.calculateCustomerRisk(riskInput);
+
+      upsertPromises.push(
+        (prisma as any).customerRisk.upsert({
+          where: { shop_customerId: { shop, customerId } },
+          update: {
+            phone: (firstOrder as any).phone || null,
+            email: customerEmail,
+            totalOrders: orderCount,
+            codOrders: codOrdersCount,
+            prepaidOrders,
+            successfulDeliveries,
+            rtoCount,
+            cancellationCount,
+            aov,
+            lifetimeSpend: totalRevenue,
+            lastOrderDate,
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
+            updatedAt: new Date(),
+          },
+          create: {
+            shop,
+            customerId,
+            phone: (firstOrder as any).phone || null,
+            email: customerEmail,
+            totalOrders: orderCount,
+            codOrders: codOrdersCount,
+            prepaidOrders,
+            successfulDeliveries,
+            rtoCount,
+            cancellationCount,
+            aov,
+            lifetimeSpend: totalRevenue,
+            lastOrderDate,
+            riskScore: riskResult.score,
+            riskLevel: riskResult.level,
             updatedAt: new Date(),
           },
         })
