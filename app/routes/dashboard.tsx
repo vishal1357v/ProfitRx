@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLoaderData, useRevalidator, redirect } from "react-router";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -48,6 +48,7 @@ import { ProfitIntelligenceService } from "../services/profit-intelligence.servi
 import { normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 import { AdSpendService } from "../services/ad-spend.service";
+import { MetricCard, StatGrid, SectionHeader, EmptyStateCard, LoadingCard, RiskBadge, ProfitBadge, StatusBadge } from "../components";
 
 // Helper to check for COD gateways
 const isCodGateway = (gateway: string | null) => {
@@ -213,7 +214,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         : fallbackCost;
 
       const { fees } = ProfitService.calculateOrderProfit(o, orderCogs, settings);
-      
+
       const isRto = o.fulfillmentStatus === "RTO";
       if (!isRto) {
         profitRevenue += o.totalPrice;
@@ -260,9 +261,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Phase 3: Risk Intelligence Data
     const customerRisks = await prisma.customerRisk.findMany({ where: { shop }, orderBy: { riskScore: 'desc' }, take: 10 });
-    const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop }, orderBy: { rtoRate: 'desc' }, take: 10 }).catch(() => []); 
+    const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop }, orderBy: { rtoRate: 'desc' }, take: 10 }).catch(() => []);
     // Fallback if riskScore not strictly populated on pincodeStats yet
-    const ordersNeedingReview = await prisma.order.findMany({ 
+    const ordersNeedingReview = await prisma.order.findMany({
       where: { shop, riskLevel: { in: ["HIGH", "CRITICAL"] } },
       orderBy: { createdAt: 'desc' },
       take: 10
@@ -1285,251 +1286,101 @@ export default function DashboardRoute() {
 
 
         <Layout.Section>
-          <Grid columns={gridCols}>
+          <StatGrid columns={gridCols}>
             {/* Revenue */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <div className="gg-card-revenue">
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between" blockAlign="start">
-                        <div className="gg-stat-icon gg-stat-icon--blue">
-                          <Icon source={FinanceIcon} />
-                        </div>
-                        <Tooltip content="Sum of all order sales including shipping and tax.">
-                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                        </Tooltip>
-                      </InlineStack>
-                      <BlockStack gap="050">
-                        <Text variant="bodySm" as="span" tone="subdued">Total Revenue</Text>
-                        {syncing ? (
-                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                        ) : (
-                          <StatNumber value={Math.round(data.revenue)} prefix="₹" />
-                        )}
-                      </BlockStack>
-                      <div style={{ fontSize: 11, color: "var(--gg-text-secondary)", marginTop: 4 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                          <span>Prepaid:</span>
-                          <span style={{ fontWeight: 600, color: "var(--gg-accent-green)" }}>₹{Math.round(data.prepaidRevenue || 0).toLocaleString("en-IN")}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>COD:</span>
-                          <span style={{ fontWeight: 600, color: "var(--gg-accent-amber)" }}>₹{Math.round(data.codRevenue || 0).toLocaleString("en-IN")}</span>
-                        </div>
-                      </div>
-                    </BlockStack>
-                  </div>
-                </Box>
-              </Card>
-            </Grid.Cell>
+            <MetricCard
+              title="Total Revenue"
+              value={`₹${Math.round(data.revenue).toLocaleString("en-IN")}`}
+              tone="info"
+              icon="💰"
+              tooltip="Sum of all order sales including shipping and tax."
+              loading={syncing}
+              subtitle={
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Prepaid: <strong style={{ color: "var(--gg-accent-green)" }}>₹{Math.round(data.prepaidRevenue || 0).toLocaleString("en-IN")}</strong></span>
+                  <span>COD: <strong style={{ color: "var(--gg-accent-amber)" }}>₹{Math.round(data.codRevenue || 0).toLocaleString("en-IN")}</strong></span>
+                </div>
+              }
+            />
 
             {/* Net Profit */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <div className={`gg-card-${data.netProfit >= 0 ? "profit" : "danger"}`}>
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between" blockAlign="start">
-                        <div className={`gg-stat-icon gg-stat-icon--${data.netProfit >= 0 ? "green" : "red"}`}>
-                          <Icon source={ChartLineIcon} />
-                        </div>
-                        <Tooltip content="Sales minus COGS, shipping cost, and transaction/RTO leaks.">
-                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                        </Tooltip>
-                      </InlineStack>
-                      <BlockStack gap="050">
-                        <InlineStack gap="100">
-                          <Text variant="bodySm" as="span" tone="subdued">Net Profit</Text>
-                          {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
-                        </InlineStack>
-                        {syncing ? (
-                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                        ) : (
-                          <StatNumber
-                            value={Math.round(Math.abs(data.netProfit))}
-                            prefix={data.netProfit < 0 ? "-₹" : "₹"}
-                            colorClass={data.netProfit >= 0 ? "gg-stat-value-green" : "gg-stat-value-red"}
-                          />
-                        )}
-                      </BlockStack>
-                      <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
-                        {data.netProfit >= 0 ? "▲ Positive Profit" : "▼ Negative Profit"}
-                      </span>
-                    </BlockStack>
-                  </div>
-                </Box>
-              </Card>
-            </Grid.Cell>
+            <MetricCard
+              title="Net Profit"
+              value={`₹${Math.round(Math.abs(data.netProfit)).toLocaleString("en-IN")}`}
+              prefix={data.netProfit < 0 ? "-" : ""}
+              tone={data.netProfit >= 0 ? "success" : "critical"}
+              icon="⚡"
+              tooltip="Sales minus COGS, shipping cost, and transaction/RTO leaks."
+              loading={syncing}
+              badge={data.missingCogsCount > 0 ? { content: "Est. Excl.", tone: "warning" } : undefined}
+              subtitle={
+                <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
+                  {data.netProfit >= 0 ? "▲ Positive Profit" : "▼ Negative Profit"}
+                </span>
+              }
+            />
 
             {/* Margin */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--purple">
-                        <Icon source={LightbulbIcon} />
-                      </div>
-                      <Tooltip content="Net Profit divided by Revenue. Aim for >20%.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <InlineStack gap="100">
-                        <Text variant="bodySm" as="span" tone="subdued">Net Margin</Text>
-                        {data.missingCogsCount > 0 && <Badge tone="warning" size="small">Est. Excl.</Badge>}
-                      </InlineStack>
-                      {syncing ? (
-                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                      ) : (
-                        <StatNumber
-                          value={Math.round(data.netMargin)}
-                          suffix="%"
-                          colorClass={data.netMargin > 20 ? "gg-stat-value-green" : data.netMargin > 10 ? "gg-stat-value" : "gg-stat-value-red"}
-                        />
-                      )}
-                    </BlockStack>
-                    <Badge tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}>
-                      {data.netMargin > 20 ? "Healthy" : "Low Margin"}
-                    </Badge>
-                  </BlockStack>
-                </Box>
-              </Card>
-            </Grid.Cell>
+            <MetricCard
+              title="Net Margin"
+              value={`${Math.round(data.netMargin)}%`}
+              tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}
+              icon="💡"
+              tooltip="Net Profit divided by Revenue. Aim for >20%."
+              loading={syncing}
+              badge={data.missingCogsCount > 0 ? { content: "Est. Excl.", tone: "warning" } : undefined}
+              subtitle={data.netMargin > 20 ? "Healthy Margin" : "Low Margin"}
+            />
 
+            {/* ROAS & CAC (if connected) */}
             {data.hasConnectedAdAccount && (
               <>
-    {/* Blended ROAS */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--blue">
-                        <Icon source={SearchIcon} />
-                      </div>
-                      <Tooltip content="Total Revenue divided by Blended Ad Spend across Meta, Google, and TikTok.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="span" tone="subdued">Blended ROAS</Text>
-                      {syncing ? (
-                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                      ) : (
-                        <StatNumber
-                          value={data.roasData.blendedROAS}
-                          suffix="x"
-                          colorClass={data.roasData.blendedROAS >= 2.5 ? "gg-stat-value-green" : data.roasData.blendedROAS >= 1.5 ? "gg-stat-value" : "gg-stat-value-red"}
-                        />
-                      )}
-                    </BlockStack>
-                    <span style={{ fontSize: "11px", color: "var(--gg-text-secondary)" }}>
-                      Meta says ~4.0x. True Blended: <strong>{data.roasData.blendedROAS || 0}x</strong>
-                    </span>
-                  </BlockStack>
-                </Box>
-              </Card>
-            </Grid.Cell>
-
-            {/* True CAC */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--amber">
-                        <Icon source={PersonIcon} />
-                      </div>
-                      <Tooltip content="Total Blended Ad Spend divided by total number of unique customers.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="span" tone="subdued">True CAC</Text>
-                      {syncing ? (
-                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                      ) : (
-                        <StatNumber
-                          value={data.roasData.trueCACRaw}
-                          prefix="₹"
-                          colorClass="gg-stat-value-neutral"
-                        />
-                      )}
-                    </BlockStack>
-                    <span style={{ fontSize: "11px", color: "var(--gg-text-secondary)" }}>
-                      Blended customer acquisition cost
-                    </span>
-                  </BlockStack>
-                </Box>
-              </Card>
-            </Grid.Cell>
+                <MetricCard
+                  title="Blended ROAS"
+                  value={`${data.roasData.blendedROAS}x`}
+                  tone={data.roasData.blendedROAS >= 2.5 ? "success" : data.roasData.blendedROAS >= 1.5 ? "warning" : "critical"}
+                  icon="🔍"
+                  tooltip="Total Revenue divided by Blended Ad Spend."
+                  loading={syncing}
+                  subtitle={`Meta says ~4.0x. True: ${data.roasData.blendedROAS || 0}x`}
+                />
+                <MetricCard
+                  title="True CAC"
+                  value={`₹${Math.round(data.roasData.trueCACRaw).toLocaleString("en-IN")}`}
+                  tone="neutral"
+                  icon="👤"
+                  tooltip="Total Blended Ad Spend divided by unique customers."
+                  loading={syncing}
+                  subtitle="Blended customer acquisition cost"
+                />
               </>
             )}
 
             {/* Orders */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between" blockAlign="start">
-                      <div className="gg-stat-icon gg-stat-icon--amber">
-                        <Icon source={CalendarIcon} />
-                      </div>
-                      <Tooltip content="Cumulative order volume in store.">
-                        <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                      </Tooltip>
-                    </InlineStack>
-                    <BlockStack gap="050">
-                      <Text variant="bodySm" as="span" tone="subdued">Total Orders</Text>
-                      {syncing ? (
-                        <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                      ) : (
-                        <StatNumber value={data.orderCount} colorClass="gg-stat-value-neutral" />
-                      )}
-                    </BlockStack>
-                    <span className="gg-trend-neutral">All-time orders</span>
-                  </BlockStack>
-                </Box>
-              </Card>
-            </Grid.Cell>
+            <MetricCard
+              title="Total Orders"
+              value={data.orderCount.toLocaleString("en-IN")}
+              tone="neutral"
+              icon="📅"
+              tooltip="Cumulative order volume in store."
+              loading={syncing}
+              subtitle="All-time orders"
+            />
 
             {/* Profit Leaks */}
-            <Grid.Cell>
-              <Card>
-                <Box padding="400">
-                  <div className="gg-card-health" style={{ border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.05)" }}>
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between" blockAlign="start">
-                        <div className="gg-stat-icon gg-stat-icon--red">
-                          <Icon source={AlertBubbleIcon} />
-                        </div>
-                        <Tooltip content="Recoverable money lost to RTO, shipping overage, and discounts.">
-                          <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                        </Tooltip>
-                      </InlineStack>
-                      <BlockStack gap="050">
-                        <Text variant="bodySm" as="span" tone="critical">Profit Leaks</Text>
-                        {syncing ? (
-                          <div className="skeleton-pulse" style={{ height: "28px", width: "80px" }} />
-                        ) : (
-                          <StatNumber
-                            value={Math.round(data.leaks.totalLeak)}
-                            prefix="₹"
-                            colorClass="gg-stat-value-red"
-                          />
-                        )}
-                      </BlockStack>
-                      <Button variant="plain" onClick={() => setSelectedTab(3)}>
-                        Leak Details →
-                      </Button>
-                    </BlockStack>
-                  </div>
-                </Box>
-              </Card>
-            </Grid.Cell>
-          </Grid>
+            <MetricCard
+              title="Profit Leaks"
+              value={`₹${Math.round(data.leaks.totalLeak).toLocaleString("en-IN")}`}
+              tone="critical"
+              icon="⚠️"
+              tooltip="Recoverable money lost to RTO, shipping overage, and discounts."
+              loading={syncing}
+              action={{
+                content: "Leak Details →",
+                onAction: () => setSelectedTab(3)
+              }}
+            />
+          </StatGrid>
         </Layout.Section>
 
         {/* ── TOP SECTION: REVENUE & NET PROFIT TREND CHART ── */}
@@ -1537,16 +1388,16 @@ export default function DashboardRoute() {
           <Card>
             <Box padding="500">
               <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <Text variant="headingMd" as="h2">Revenue & Net Profit Trend</Text>
-                    <Text variant="bodySm" as="p" tone="subdued">Last 30 days — day-by-day performance index</Text>
-                  </BlockStack>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div className="gg-pulse" />
-                    <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
-                  </div>
-                </InlineStack>
+                <SectionHeader
+                  title="Revenue & Net Profit Trend"
+                  subtitle="Last 30 days — day-by-day performance index"
+                  action={
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div className="gg-pulse" />
+                      <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
+                    </div>
+                  }
+                />
                 {syncing ? (
                   <div className="skeleton-pulse skeleton-chart" />
                 ) : (
@@ -1634,13 +1485,10 @@ export default function DashboardRoute() {
                   <Card>
                     <Box padding="500">
                       <BlockStack gap="300">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="150" blockAlign="center">
-                            <Icon source={FinanceIcon} />
-                            <Text variant="headingMd" as="h3">Fee Breakdown</Text>
-                          </InlineStack>
-                          <Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>
-                        </InlineStack>
+                        <SectionHeader
+                          title="Fee Breakdown"
+                          action={<Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>}
+                        />
                         <Divider />
                         <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
                           <Grid.Cell>
@@ -1690,15 +1538,14 @@ export default function DashboardRoute() {
                   <Card>
                     <Box padding="500">
                       <BlockStack gap="300">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="150" blockAlign="center">
-                            <Icon source={DatabaseIcon} />
-                            <Text variant="headingMd" as="h3">GST Tax Summary (GSTR-1)</Text>
-                          </InlineStack>
-                          <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
-                            Export GSTR CSV 📄
-                          </Button>
-                        </InlineStack>
+                        <SectionHeader
+                          title="GST Tax Summary (GSTR-1)"
+                          action={
+                            <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
+                              Export GSTR CSV 📄
+                            </Button>
+                          }
+                        />
                         <Divider />
                         <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
                           <Grid.Cell>
@@ -1829,77 +1676,77 @@ export default function DashboardRoute() {
                 <BlockStack gap="400">
                   <InlineStack align="space-between">
                     <BlockStack gap="100">
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 20 }}>🤖</span>
-                      <Text variant="headingMd" as="h2">
-                        AI Storefront Setup Wizard
-                      </Text>
-                    </div>
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      Complete these steps to unlock the full ProfitRx AI commerce advantage.
-                    </Text>
-                  </BlockStack>
-                  <Button variant="plain" onClick={() => setWizardDismissed(true)}>
-                    Dismiss
-                  </Button>
-                </InlineStack>
-
-                {/* Progress bar */}
-                <div>
-                  <InlineStack align="space-between">
-                    <span className="gg-text-sm gg-text-muted gg-font-body">
-                      {completedSteps}/{wizardSteps.length} steps complete
-                    </span>
-                    <span className="gg-text-sm gg-font-body" style={{ color: wizardProgress === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)", fontWeight: 600 }}>
-                      {wizardProgress.toFixed(0)}%
-                    </span>
-                  </InlineStack>
-                  <div style={{ marginTop: 6 }}>
-                    <ProgressBar progress={wizardProgress} tone={wizardProgress === 100 ? "success" : "primary"} />
-                  </div>
-                </div>
-
-                <Divider />
-
-                {/* Wizard steps grid */}
-                <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                  {wizardSteps.map((step, idx) => (
-                    <Grid.Cell key={idx}>
-                      <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                        <BlockStack gap="200">
-                          <InlineStack gap="200" blockAlign="center">
-                            <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
-                              {step.status === "complete" ? "✓" : (idx + 1)}
-                            </div>
-                            <span style={{ fontSize: 16 }}>{step.icon}</span>
-                          </InlineStack>
-                          <Text variant="bodySm" as="p" fontWeight="semibold">{step.label}</Text>
-                          <Text variant="bodyXs" as="p" tone="subdued">{step.desc}</Text>
-                          <div style={{ marginTop: "10px" }}>
-                            {step.actionUrl ? (
-                              <Button variant="secondary" url={step.actionUrl} size="slim">
-                                {step.actionText} →
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="secondary"
-                                onClick={step.actionClick}
-                                size="slim"
-                                disabled={step.status === "complete" && idx === 2}
-                              >
-                                {step.actionText}
-                              </Button>
-                            )}
-                          </div>
-                        </BlockStack>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>🤖</span>
+                        <Text variant="headingMd" as="h2">
+                          AI Storefront Setup Wizard
+                        </Text>
                       </div>
-                    </Grid.Cell>
-                  ))}
-                </Grid>
-              </BlockStack>
-            </Box>
-          </Card>
-        </Layout.Section>
+                      <Text variant="bodySm" as="p" tone="subdued">
+                        Complete these steps to unlock the full ProfitRx AI commerce advantage.
+                      </Text>
+                    </BlockStack>
+                    <Button variant="plain" onClick={() => setWizardDismissed(true)}>
+                      Dismiss
+                    </Button>
+                  </InlineStack>
+
+                  {/* Progress bar */}
+                  <div>
+                    <InlineStack align="space-between">
+                      <span className="gg-text-sm gg-text-muted gg-font-body">
+                        {completedSteps}/{wizardSteps.length} steps complete
+                      </span>
+                      <span className="gg-text-sm gg-font-body" style={{ color: wizardProgress === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)", fontWeight: 600 }}>
+                        {wizardProgress.toFixed(0)}%
+                      </span>
+                    </InlineStack>
+                    <div style={{ marginTop: 6 }}>
+                      <ProgressBar progress={wizardProgress} tone={wizardProgress === 100 ? "success" : "primary"} />
+                    </div>
+                  </div>
+
+                  <Divider />
+
+                  {/* Wizard steps grid */}
+                  <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
+                    {wizardSteps.map((step, idx) => (
+                      <Grid.Cell key={idx}>
+                        <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                          <BlockStack gap="200">
+                            <InlineStack gap="200" blockAlign="center">
+                              <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
+                                {step.status === "complete" ? "✓" : (idx + 1)}
+                              </div>
+                              <span style={{ fontSize: 16 }}>{step.icon}</span>
+                            </InlineStack>
+                            <Text variant="bodySm" as="p" fontWeight="semibold">{step.label}</Text>
+                            <Text variant="bodyXs" as="p" tone="subdued">{step.desc}</Text>
+                            <div style={{ marginTop: "10px" }}>
+                              {step.actionUrl ? (
+                                <Button variant="secondary" url={step.actionUrl} size="slim">
+                                  {step.actionText} →
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="secondary"
+                                  onClick={step.actionClick}
+                                  size="slim"
+                                  disabled={step.status === "complete" && idx === 2}
+                                >
+                                  {step.actionText}
+                                </Button>
+                              )}
+                            </div>
+                          </BlockStack>
+                        </div>
+                      </Grid.Cell>
+                    ))}
+                  </Grid>
+                </BlockStack>
+              </Box>
+            </Card>
+          </Layout.Section>
         )}
 
         {/* ── Main Tabs ───────────────────────────────── */}
@@ -2033,50 +1880,50 @@ export default function DashboardRoute() {
                   {/* Onboarding Accuracy Meter */}
                   {showAdvanced && (
                     <Card>
-                          <BlockStack gap="400">
-                            <BlockStack gap="100">
-                              <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
-                              <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
+                      <BlockStack gap="400">
+                        <BlockStack gap="100">
+                          <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
+                          <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
+                        </BlockStack>
+
+                        {/* Progress bar accuracy */}
+                        <BlockStack gap="200">
+                          <InlineStack align="space-between">
+                            <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
+                              {accuracyScore}% Accuracy
+                            </span>
+                          </InlineStack>
+                          <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
+                        </BlockStack>
+
+                        {/* Setup Tasks Checklist */}
+                        <BlockStack gap="200">
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
+                            <BlockStack gap="0">
+                              <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
+                              <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
                             </BlockStack>
+                          </InlineStack>
 
-                            {/* Progress bar accuracy */}
-                            <BlockStack gap="200">
-                              <InlineStack align="space-between">
-                                <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
-                                  {accuracyScore}% Accuracy
-                                </span>
-                              </InlineStack>
-                              <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
+                            <BlockStack gap="0">
+                              <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
+                              <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
                             </BlockStack>
+                          </InlineStack>
 
-                            {/* Setup Tasks Checklist */}
-                            <BlockStack gap="200">
-                              <InlineStack gap="150" blockAlign="center">
-                                <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
-                                <BlockStack gap="0">
-                                  <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
-                                  <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
-                                </BlockStack>
-                              </InlineStack>
-
-                              <InlineStack gap="150" blockAlign="center">
-                                <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
-                                <BlockStack gap="0">
-                                  <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
-                                  <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
-                                </BlockStack>
-                              </InlineStack>
-
-                              <InlineStack gap="150" blockAlign="center">
-                                <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
-                                <BlockStack gap="0">
-                                  <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
-                                  <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
-                                </BlockStack>
-                              </InlineStack>
+                          <InlineStack gap="150" blockAlign="center">
+                            <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
+                            <BlockStack gap="0">
+                              <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
+                              <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
                             </BlockStack>
-                          </BlockStack>
-                        </Card>
+                          </InlineStack>
+                        </BlockStack>
+                      </BlockStack>
+                    </Card>
                   )}
 
                   {/* Alerts Inbox */}
@@ -2357,7 +2204,7 @@ export default function DashboardRoute() {
                         </BlockStack>
                       </Card>
                     </Grid.Cell>
-                    
+
                     <Grid.Cell>
                       <Card>
                         <BlockStack gap="300">
@@ -2406,7 +2253,7 @@ export default function DashboardRoute() {
             </Box>
           </Tabs>
         </Layout.Section>
-      
+
         {data.settings.whatsappEnabled && data.settings.whatsappPhone && (
           <Layout.Section>
             <Card>
@@ -2473,7 +2320,7 @@ export default function DashboardRoute() {
             </Card>
           </Layout.Section>
         )}
-        </Layout>
+      </Layout>
     </Page>
   );
 }

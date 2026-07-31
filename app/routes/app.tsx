@@ -1,10 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Outlet, useLoaderData, useRouteError, redirect, useLocation, useNavigation, Link as ReactRouterLink, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import { AppProvider as PolarisProvider, Banner, Page, Layout, BlockStack, InlineStack, Text, Button, Badge, Icon, Popover, ActionList, TextField } from "@shopify/polaris";
+import { SearchCommand } from "../components/SearchCommand";
+import { NotificationCenter } from "../components/NotificationCenter";
+import { ProductTour } from "../components/ProductTour";
+import { LoadingCard } from "../components/LoadingCard";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import {
   HomeIcon,
@@ -20,6 +24,7 @@ import {
   HeartIcon,
   PaymentIcon,
   SettingsIcon,
+  ExportIcon,
 } from "@shopify/polaris-icons";
 
 
@@ -237,6 +242,7 @@ export default function App() {
         <a href="/app/profit-leaks">Profit Leaks</a>
         <a href="/app/customers">Customer LTV</a>
         <a href="/app/roas">Ad Spend Sync</a>
+        <a href="/app/reports">Reports</a>
         <a href="/app/alerts">Alerts</a>
         <a href="/app/health">Store Health</a>
         <a href="/app/billing">Plans & Billing</a>
@@ -258,6 +264,11 @@ export default function App() {
             </Banner>
           </div>
         )}
+
+        {/* Skip to main content — Accessibility */}
+        <a href="#prx-main-content" className="prx-skip-link" tabIndex={0}>
+          Skip to main content
+        </a>
 
         <div style={{ minHeight: "100vh", backgroundColor: "var(--gg-bg-base)" }}>
           {/* Top Navigation Bar */}
@@ -282,8 +293,11 @@ export default function App() {
                 </InlineStack>
               </InlineStack>
 
-              {/* Header Right Area: Theme Toggle, Shop Badge, and Mobile Menu Toggle */}
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* Header Right Area: Search, Notifications, Theme Toggle, Shop Badge, and Mobile Menu Toggle */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {/* Notifications Bell */}
+                <NotificationCenter shop={shop} host={host} />
+
                 <button
                   onClick={toggleTheme}
                   style={{
@@ -299,6 +313,7 @@ export default function App() {
                     transition: "background-color 0.2s ease",
                   }}
                   title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 >
                   <span style={{ fontSize: "18px" }}>{isDarkMode ? "☀️" : "🌙"}</span>
                 </button>
@@ -534,6 +549,26 @@ export default function App() {
                     ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
                   />
                 </Popover>
+                {/* Reports Direct Link */}
+                <ReactRouterLink
+                  to={`/app/reports?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                  className={`gg-nav-link ${location.pathname.startsWith("/app/reports") ? "active" : ""}`}
+                  data-tour="reports"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon source={ExportIcon} tone={location.pathname.startsWith("/app/reports") ? "primary" : "subdued"} />
+                  <span>Reports</span>
+                </ReactRouterLink>
               </div>
 
               {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}
@@ -665,16 +700,16 @@ export default function App() {
           </header>
 
           {/* Main Content Area */}
-          <main style={{ padding: "0 0 40px 0" }}>
+          <main id="prx-main-content" style={{ padding: "0 0 40px 0" }} role="main">
             {isNavigating ? (
-              <div className="skeleton-container" style={{ padding: "24px" }}>
-                <div className="skeleton-pulse skeleton-card" style={{ height: "40px", marginBottom: "16px" }} />
-                <div className="skeleton-row" style={{ gap: "16px" }}>
-                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
-                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
-                  <div className="skeleton-pulse skeleton-card" style={{ height: "120px" }} />
+              <div className="prx-loading-container" style={{ padding: "24px" }} aria-busy="true" aria-label="Loading page">
+                <LoadingCard variant="metric" columns={5} rows={1} />
+                <div style={{ marginTop: 16 }}>
+                  <LoadingCard variant="chart" />
                 </div>
-                <div className="skeleton-pulse skeleton-chart" style={{ height: "240px", marginTop: "16px" }} />
+                <div style={{ marginTop: 16 }}>
+                  <LoadingCard variant="table" rows={5} />
+                </div>
               </div>
             ) : (
               <div className="gg-page-enter">
@@ -682,6 +717,12 @@ export default function App() {
               </div>
             )}
           </main>
+
+          {/* Global Search Command Palette (Ctrl+K) */}
+          <SearchCommand shop={shop} host={host} />
+
+          {/* Product Tour — shows once after onboarding */}
+          <ProductTour />
         </div>
       </PolarisProvider>
     </AppProvider>

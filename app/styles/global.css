@@ -1131,3 +1131,247 @@ nav[aria-label="App navigation"] > a {
     font-size: 13px !important;
   }
 }
+
+/* ==========================================================================
+   PHASE 4: MERCHANT EXPERIENCE (ONBOARDING, SEARCH, TOUR, SKELETON)
+   ========================================================================== */
+
+/* Accessibility Skip Link */
+.prx-skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--gg-accent-blue);
+  color: white;
+  padding: 8px;
+  z-index: 100000;
+  transition: top 0.2s;
+  font-weight: 600;
+  text-decoration: none;
+}
+.prx-skip-link:focus {
+  top: 0;
+}
+
+/* Animations */
+@keyframes prx-slideUp {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes prx-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes prx-pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+@keyframes prx-float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes prx-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Skeletons */
+.prx-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--gg-surface-2) 25%,
+    var(--gg-border) 50%,
+    var(--gg-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: prx-shimmer 1.5s infinite linear;
+  border-radius: var(--gg-radius-sm);
+}
+
+.prx-skeleton-title {
+  height: 24px;
+  width: 40%;
+  margin-bottom: 16px;
+}
+.prx-skeleton-text {
+  height: 16px;
+  width: 80%;
+  margin-bottom: 8px;
+}
+.prx-skeleton-text-short {
+  height: 16px;
+  width: 60%;
+  margin-bottom: 8px;
+}
+.prx-skeleton-metric {
+  height: 36px;
+  width: 50%;
+  margin-bottom: 8px;
+}
+
+/* Search Backdrop & Modal */
+.prx-search-backdrop {
+  animation: prx-fadeIn 0.15s ease;
+}
+.prx-search-modal {
+  animation: prx-slideUp 0.15s ease;
+}
+
+/* Metric Card Transitions */
+.prx-metric-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.prx-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.dark-theme .prx-metric-card:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+/* Filter Panel Layout */
+.prx-filter-panel {
+  animation: prx-fadeIn 0.2s ease;
+}
+
+/* ============================================================
+   RESPONSIVE: Task 9 — Mobile Experience
+   ============================================================ */
+
+/* Desktop-only elements */
+.gg-desktop-only {
+  display: inline-flex;
+}
+
+/* Mobile-only elements */
+.gg-mobile-only {
+  display: none;
+}
+
+/* Full width button helper on mobile */
+.gg-mobile-full-width-btn {
+  width: auto;
+}
+
+/* ── Tablet & Below (≤768px) ─────────────────────────── */
+@media (max-width: 768px) {
+  .gg-desktop-only {
+    display: none !important;
+  }
+  .gg-mobile-only {
+    display: inline-flex !important;
+  }
+  .gg-mobile-full-width-btn {
+    width: 100%;
+  }
+  .gg-mobile-full-width-btn button,
+  .gg-mobile-full-width-btn .Polaris-Button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Stack stat grids to single column */
+  .gg-stat-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Fix the search modal width */
+  .prx-search-modal {
+    width: 95vw !important;
+    top: 5% !important;
+  }
+
+  /* Reduce card padding on mobile */
+  .Polaris-Box--padding-400,
+  .Polaris-Box--padding-500 {
+    padding: 12px !important;
+  }
+
+  /* Stack action to-do cards vertically */
+  .Polaris-Grid {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Wizard step cards compact */
+  .gg-wizard-step {
+    padding: 12px !important;
+  }
+
+  /* Metric value font-size reduction */
+  .gg-stat-value,
+  .gg-stat-value-green,
+  .gg-stat-value-red,
+  .gg-stat-value-neutral {
+    font-size: 22px !important;
+  }
+
+  /* Chart container overflow */
+  .gg-mini-chart {
+    overflow-x: auto;
+  }
+
+  /* Sticky mobile save button */
+  .prx-mobile-save-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 16px;
+    background: var(--gg-surface-1);
+    border-top: 1px solid var(--gg-border);
+    z-index: 100;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Table responsiveness */
+  .Polaris-DataTable__ScrollContainer {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Small Mobile (≤480px) ───────────────────────────── */
+@media (max-width: 480px) {
+  /* Reduce page title sizes */
+  .Polaris-Header-Title__TitleWrapper .Polaris-Header-Title {
+    font-size: 18px !important;
+  }
+
+  /* Section header compact */
+  .gg-section-label {
+    font-size: 10px !important;
+  }
+
+  /* Larger touch targets */
+  button,
+  .Polaris-Button {
+    min-height: 40px;
+  }
+
+  /* Full-bleed cards on tiny screens */
+  .Polaris-Card {
+    border-radius: 0 !important;
+    margin-left: -12px;
+    margin-right: -12px;
+  }
+}
+
+/* ── Large Desktop (≥1200px) ─────────────────────────── */
+@media (min-width: 1200px) {
+  .gg-stat-grid {
+    gap: 20px !important;
+  }
+
+  .prx-metric-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  }
+}
