@@ -1067,7 +1067,7 @@ export default function DashboardRoute() {
     return () => clearInterval(interval);
   }, [autoRefresh, revalidator]);
 
-  const handleSyncOrders = async () => {
+  const handleSyncOrders = useCallback(async () => {
     setSyncing(true);
     setSyncMessage(null);
     try {
@@ -1086,9 +1086,9 @@ export default function DashboardRoute() {
     } finally {
       setSyncing(false);
     }
-  };
+  }, [revalidator]);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = useCallback(() => {
     const headers = "Product Name,Units Sold,Revenue,Estimated Profit,Margin\n";
     const rows = data.topProducts
       .map((p) => `"${p.name.replace(/"/g, '""')}",${p.volume},${p.revenue},${p.profit},${p.margin}%`)
@@ -1100,7 +1100,7 @@ export default function DashboardRoute() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, [data.topProducts, data.shop]);
 
   const isCogsSetup = data.configuredCogsCount > 0;
   const isSynced = data.orderCount > 0;
@@ -1136,21 +1136,21 @@ export default function DashboardRoute() {
   const completedSteps = wizardSteps.filter(s => s.status === "complete").length;
   const wizardProgress = (completedSteps / wizardSteps.length) * 100;
 
-  let accuracyScore = 30;
-  if (data.configuredCogsCount > 0) accuracyScore += 30;
-  if (!data.hasZeroLogisticsDefaults) {
-    accuracyScore += 40;
-  } else {
-    accuracyScore += 20;
-  }
+  const accuracyScore = useMemo(() => {
+    let score = 30;
+    if (data.configuredCogsCount > 0) score += 30;
+    if (!data.hasZeroLogisticsDefaults) score += 40;
+    else score += 20;
+    return score;
+  }, [data.configuredCogsCount, data.hasZeroLogisticsDefaults]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: "store-profitability", content: "⚡ Store Profitability", panelID: "tab-0" },
     { id: "profit-leaks", content: "💸 Profit Leaks", panelID: "tab-1" },
     { id: "risk-intelligence", content: "🛡️ Risk Intelligence", panelID: "tab-2" },
-  ];
+  ], []);
 
-  const productRows = data.topProducts.map((p) => [
+  const productRows = useMemo(() => data.topProducts.map((p) => [
     <BlockStack gap="050" key={p.name}>
       <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, color: p.isToxic ? "var(--gg-accent-red)" : "var(--gg-text-primary)" }}>
         {p.name}
@@ -1166,10 +1166,12 @@ export default function DashboardRoute() {
       {p.rtoRate}% RTO
     </span>,
     <Badge key={`${p.name}-marg`} tone={p.margin > 30 ? "success" : p.margin > 15 ? "warning" : "critical"}>{`${p.margin}%`}</Badge>,
-  ]);
+  ]), [data.topProducts]);
 
-  const productsWithQueries = new Set(data.searchQueries.map((sq: any) => sq.productName.toLowerCase()));
-  const missingOpportunities = data.products.filter(p => !productsWithQueries.has(p.title.toLowerCase()));
+  const missingOpportunities = useMemo(() => {
+    const productsWithQueries = new Set(data.searchQueries.map((sq: any) => sq.productName.toLowerCase()));
+    return data.products.filter(p => !productsWithQueries.has(p.title.toLowerCase()));
+  }, [data.searchQueries, data.products]);
 
   return (
     <Page
