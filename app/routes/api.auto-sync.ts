@@ -60,7 +60,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             let whatsappDigestResult = { sent: false };
             if (today.getDay() === 1) {
               const digestRes = await WhatsAppService.sendWeeklyDigest(session.shop);
-              whatsappDigestResult = { sent: true, ...digestRes };
+              whatsappDigestResult = { sent: digestRes.success, ...digestRes };
             }
 
             results[session.shop] = {

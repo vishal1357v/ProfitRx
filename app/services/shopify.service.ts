@@ -285,8 +285,15 @@ export class ShopifyService {
 
     // ⚡ Cache hit check (TTL of 15 minutes = 15 * 60 * 1000 ms)
     if (shop) {
+      // Periodic cleanup to prevent memory leak on long-running node servers
+      for (const [key, value] of ShopifyService.productsCache.entries()) {
+        if (Date.now() - value.timestamp >= 15 * 60 * 1000) {
+          ShopifyService.productsCache.delete(key);
+        }
+      }
+
       const cached = ShopifyService.productsCache.get(shop);
-      if (cached && Date.now() - cached.timestamp < 15 * 60 * 1000) {
+      if (cached) {
         console.log(`[ShopifyService] Returning cached products for ${shop}`);
         return cached.data;
       }
@@ -426,6 +433,8 @@ export class ShopifyService {
       const productId = p.id;
       const cogsFromMetafield = p.cogsFromMetafield;
 
+      let firstVariantUpserted = false;
+
       for (const variant of p.variants) {
         const variantId = variant.id;
         const shopifyNativeCost = variant.shopifyNativeCost ?? cogsFromMetafield;
@@ -463,27 +472,30 @@ export class ShopifyService {
           });
 
           // Fallback legacy ProductCOGS update (using first variant or the one with cost)
-          await (prisma as any).productCOGS.upsert({
-            where: { shop_productId: { shop, productId } },
-            update: {
-              variantId,
-              cost: effectiveCost,
-              shopifyNative: shopifyNativeCost,
-              source,
-              cogs: effectiveCost,
-              lastSyncedAt: new Date(),
-            },
-            create: {
-              shop,
-              productId,
-              variantId,
-              cost: effectiveCost,
-              shopifyNative: shopifyNativeCost,
-              source,
-              cogs: effectiveCost,
-              lastSyncedAt: new Date(),
-            }
-          });
+          if (!firstVariantUpserted) {
+            await (prisma as any).productCOGS.upsert({
+              where: { shop_productId: { shop, productId } },
+              update: {
+                variantId,
+                cost: effectiveCost,
+                shopifyNative: shopifyNativeCost,
+                source,
+                cogs: effectiveCost,
+                lastSyncedAt: new Date(),
+              },
+              create: {
+                shop,
+                productId,
+                variantId,
+                cost: effectiveCost,
+                shopifyNative: shopifyNativeCost,
+                source,
+                cogs: effectiveCost,
+                lastSyncedAt: new Date(),
+              }
+            });
+            firstVariantUpserted = true;
+          }
 
           synced++;
         } else {
@@ -983,13 +995,21 @@ export class ShopifyService {
       pincodeMap[pin].codOrders += g._count.id;
     }
 
+    const storeSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const forwardShipping = storeSettings?.defaultForwardShipping ?? 60;
+    const returnShipping = storeSettings?.defaultReturnShipping ?? 70;
+    const packaging = storeSettings?.defaultPackaging ?? 10;
+    const codHandling = storeSettings?.defaultCODHandling ?? 50;
+    const estimatedRtoLossPerOrder = forwardShipping + returnShipping + packaging + codHandling;
+
     for (const g of rtoOrdersGrouped) {
       const pin = g.pincode || "UNKNOWN";
       if (!pincodeMap[pin]) {
         pincodeMap[pin] = { totalOrders: 0, codOrders: 0, rtoCount: 0, totalLoss: 0, successfulDeliveries: 0, revenue: 0 };
       }
       pincodeMap[pin].rtoCount += g._count.id;
-      pincodeMap[pin].totalLoss += g._sum.totalPrice || 0;
+      // Use estimated logistics loss instead of full order revenue
+      pincodeMap[pin].totalLoss += (g._count.id * estimatedRtoLossPerOrder);
     }
 
     for (const event of rtoEvents) {

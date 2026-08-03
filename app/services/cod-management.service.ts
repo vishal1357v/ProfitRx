@@ -220,8 +220,13 @@ export class CODManagementService {
       return { success: true, record, otpSent: false, bypassed: true, provider: "bypass" };
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const hashedOtp = hashOTP(otp, orderId);
+
+    const dispatchRes = await WhatsAppService.sendOTP(phone, otp, shop, orderId);
+    if (!dispatchRes.success) {
+      return { success: false, message: "OTP delivery is unavailable. Configure a WhatsApp provider before enabling verification.", provider: dispatchRes.provider };
+    }
 
     const record = await (prisma as any).cODOrder.upsert({
       where: { orderId },
@@ -246,10 +251,7 @@ export class CODManagementService {
       },
     });
 
-    // Dispatch live SMS/WhatsApp message for Medium/High/Critical risk
-    const dispatchRes = await WhatsAppService.sendOTP(phone, otp, shop, orderId);
-
-    console.log(`[CODManagementService] Generated and dispatched OTP to ***${phone.slice(-4)} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
+    console.log(`[CODManagementService] Dispatched OTP to ***${phone.slice(-4)} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
     return { success: true, record, otpSent: true, provider: dispatchRes.provider };
   }
 

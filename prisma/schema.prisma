@@ -79,6 +79,8 @@ model Order {
   riskReasons       Json?
   riskFlags         Json?
   merchantRecommendation String?
+  lineItems         OrderLineItem[]
+  refunds           OrderRefund[]
 
   @@index([shop, createdAt])
   @@index([shop, pincode])
@@ -89,6 +91,76 @@ model Order {
 
 // ============================================
 // ============================================
+model OrderLineItem {
+  id                  String   @id @default(cuid())
+  shop                String
+  orderId             String
+  shopifyLineItemId   String
+  productId           String?
+  variantId           String?
+  sku                 String?
+  title               String
+  variantTitle        String?
+  quantity            Int
+  unitPrice           Float
+  originalUnitPrice   Float
+  discountAmount      Float    @default(0)
+  taxAmount           Float    @default(0)
+  refundedQuantity    Int      @default(0)
+  refundedAmount      Float    @default(0)
+  cogsPerUnitAtOrder  Float?
+  totalCOGSAtOrder    Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, shopifyLineItemId])
+  @@index([shop, orderId])
+  @@index([shop, productId])
+  @@index([shop, variantId])
+  @@map("order_line_items")
+}
+
+model OrderRefund {
+  id                   String           @id @default(cuid())
+  shop                 String
+  orderId              String
+  shopifyRefundId      String
+  createdAt            DateTime
+  totalRefundAmount    Float            @default(0)
+  shippingRefundAmount Float            @default(0)
+  taxRefundAmount      Float            @default(0)
+  currency             String           @default("INR")
+  updatedAt            DateTime         @updatedAt
+  order                Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  lineItems            RefundLineItem[]
+
+  @@unique([shop, shopifyRefundId])
+  @@index([shop, orderId])
+  @@map("order_refunds")
+}
+
+model RefundLineItem {
+  id                String      @id @default(cuid())
+  shop              String
+  refundId          String
+  orderId           String
+  shopifyLineItemId String?
+  quantity          Int
+  refundAmount      Float       @default(0)
+  taxRefundAmount   Float       @default(0)
+  restocked         Boolean?
+  cogsRecovered     Float?
+  recoveryStatus    String      @default("UNKNOWN")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  refund            OrderRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+
+  @@unique([refundId, shopifyLineItemId])
+  @@index([shop, orderId])
+  @@map("refund_line_items")
+}
+
 // PRODUCT COGS - Cost of Goods Sold per product
 // ============================================
 model ProductCOGS {
@@ -167,6 +239,7 @@ model RTOEvent {
 
   @@index([shop, createdAt])
   @@index([orderId])
+  @@unique([shop, orderId, eventType])
   @@map("rto_events")
 }
 

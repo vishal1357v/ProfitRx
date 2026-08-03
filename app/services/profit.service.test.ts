@@ -134,4 +134,17 @@ describe("ProfitService — Trust the Math Suite", () => {
     expect(result.profit).toEqual(-140);
     expect(result.fees).toEqual(140);
   });
+
+  it("6) Treats the Shopify RTO-Initiated fulfillment status as an RTO financial event", () => {
+    const result = ProfitService.calculateOrderProfit({
+      totalPrice: 1500,
+      isCOD: true,
+      fulfillmentStatus: "RTO-Initiated",
+      totalTax: 270,
+      shippingPrice: 0,
+    }, 600, defaultSettings);
+
+    expect(result.profit).toEqual(-140);
+    expect(result.fees).toEqual(140);
+  });
 });

@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { decryptToken, encryptToken } from "./token-encryption.server";
 
 export interface PlatformConnection {
   platform: "meta" | "google" | "tiktok";
@@ -62,9 +63,9 @@ export class AdSpendService {
     const updated = await (prisma as any).adSpend.upsert({
       where: { shop_platform: { shop, platform: cleanPlatform } },
       update: {
-        accessToken,
-        refreshToken: refreshToken || null,
-        accountId: accountId || `acc_${cleanPlatform}_${Date.now().toString().substring(7)}`,
+        accessToken: encryptToken(accessToken),
+        refreshToken: refreshToken ? encryptToken(refreshToken) : null,
+        accountId: accountId || null,
         isConnected: true,
         tokenExpiresAt: tokenExpiresAt || null,
         lastSyncedAt: new Date(),
@@ -72,9 +73,9 @@ export class AdSpendService {
       create: {
         shop,
         platform: cleanPlatform,
-        accessToken,
-        refreshToken: refreshToken || null,
-        accountId: accountId || `acc_${cleanPlatform}_${Date.now().toString().substring(7)}`,
+        accessToken: encryptToken(accessToken),
+        refreshToken: refreshToken ? encryptToken(refreshToken) : null,
+        accountId: accountId || null,
         isConnected: true,
         tokenExpiresAt: tokenExpiresAt || null,
         lastSyncedAt: new Date(),
@@ -119,9 +120,10 @@ export class AdSpendService {
     }
 
     // Check token expiration and refresh if necessary
-    let activeToken = conn.accessToken || "";
+    let activeToken = decryptToken(conn.accessToken) || "";
+    const refreshToken = decryptToken(conn.refreshToken) || "";
     const now = new Date();
-    if (conn.refreshToken && conn.tokenExpiresAt && new Date(conn.tokenExpiresAt).getTime() <= now.getTime() + 60000) {
+    if (refreshToken && conn.tokenExpiresAt && new Date(conn.tokenExpiresAt).getTime() <= now.getTime() + 60000) {
       try {
         console.log(`[AdSpendService] Refreshing access token for ${cleanPlatform} on store ${shop}`);
         let newAccessToken = "";
@@ -134,7 +136,7 @@ export class AdSpendService {
             body: new URLSearchParams({
               client_id: process.env.GOOGLE_CLIENT_ID || "",
               client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-              refresh_token: conn.refreshToken,
+              refresh_token: refreshToken,
               grant_type: "refresh_token",
             }),
           });
@@ -152,7 +154,7 @@ export class AdSpendService {
             body: JSON.stringify({
               app_id: process.env.TIKTOK_APP_ID || "",
               secret: process.env.TIKTOK_APP_SECRET || "",
-              refresh_token: conn.refreshToken,
+              refresh_token: refreshToken,
             }),
           });
           const data = await response.json();
@@ -166,7 +168,7 @@ export class AdSpendService {
           await (prisma as any).adSpend.update({
             where: { shop_platform: { shop, platform: cleanPlatform } },
             data: {
-              accessToken: newAccessToken,
+              accessToken: encryptToken(newAccessToken),
               tokenExpiresAt: newExpiresAt,
               updatedAt: new Date(),
             },

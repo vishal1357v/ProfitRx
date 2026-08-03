@@ -57,6 +57,11 @@ function isCodOrder(order: { isCOD?: boolean; gateway?: string | null }): boolea
   return COD_KEYWORDS.some((kw) => lower.includes(kw));
 }
 
+function isRtoStatus(status?: string | null): boolean {
+  const normalized = status?.trim().toLowerCase() || "";
+  return normalized === "rto" || normalized.startsWith("rto-") || normalized.includes("return-to-origin") || normalized.includes("returned-to-sender");
+}
+
 export class ProfitService {
   /**
    * Determine Shopify transaction surcharge rate based on merchant's Shopify plan.
@@ -137,7 +142,7 @@ export class ProfitService {
     cogs: number,
     settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string; shippingSlabs?: any[] | null }
   ): { profit: number; fees: number; margin: number; shippingProfit: number; shippingLoss: number } {
-    const isRto = order.fulfillmentStatus === "RTO";
+    const isRto = isRtoStatus(order.fulfillmentStatus);
     const totalPrice = isRto ? 0 : roundMoney(order.totalPrice);
     const totalTax = isRto ? 0 : roundMoney(order.totalTax);
     const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? roundMoney(order.cogsAtTimeOfOrder) : roundMoney(cogs));
@@ -175,16 +180,17 @@ export class ProfitService {
     let gatewayFee = 0;
     let codFee = 0;
 
-    if (!isRto) {
-      if (isCod) {
-        gatewayFee = 0; // Strictly 0 gateway fee for COD orders
-        codFee = codHandling;
-      } else {
-        const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
-        const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
-        const rawGatewayFee = (totalPrice * razorpayRate) + (totalPrice * shopifySurchargeRate) + gatewayFixed;
-        gatewayFee = roundMoney(rawGatewayFee * 1.18); // Apply 18% GST to payment gateway fees
-      }
+    if (isCod) {
+      gatewayFee = 0; // Strictly 0 gateway fee for COD orders
+      codFee = isRto ? 0 : codHandling; // COD fee is only charged on successful delivery
+    } else {
+      // Prepaid orders always incur gateway fees, even if they are returned/RTO
+      // We must use the original order price, not the zeroed out RTO price
+      const basePrice = (order.totalPrice !== undefined && order.totalPrice !== null && !isNaN(order.totalPrice)) ? roundMoney(order.totalPrice) : 0;
+      const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
+      const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
+      const rawGatewayFee = (basePrice * razorpayRate) + (basePrice * shopifySurchargeRate) + gatewayFixed;
+      gatewayFee = roundMoney(rawGatewayFee * 1.18); // Apply 18% GST to payment gateway fees
     }
 
     const returnShipping = isRto ? returnShip : 0;
@@ -448,7 +454,7 @@ export class ProfitService {
         const effectiveCogs = (o as any).cogsAtTimeOfOrder !== null && (o as any).cogsAtTimeOfOrder !== undefined ? (o as any).cogsAtTimeOfOrder : c;
         const { profit, fees, margin, shippingProfit, shippingLoss } = this.calculateOrderProfit(o, effectiveCogs, settings);
 
-        const isRto = o.fulfillmentStatus === "RTO";
+        const isRto = isRtoStatus(o.fulfillmentStatus);
         const finalRevenue = isRto ? 0 : totalPrice;
         const finalCogs = isRto ? 0 : roundMoney(effectiveCogs);
 

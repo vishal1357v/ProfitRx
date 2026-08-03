@@ -82,9 +82,8 @@ export class WhatsAppService {
       }
     }
 
-    // Fallback: Simulation mode for local dev / preview
-    console.log(`[WhatsAppService] Simulated WhatsApp message to +${formattedPhone}:\n${message}`);
-    return { success: true, provider: "simulation" };
+    console.warn("[WhatsAppService] No Meta WhatsApp or Twilio credentials are configured; message was not sent.");
+    return { success: false, provider: "unconfigured" };
   }
 
   /**
@@ -128,11 +127,12 @@ export class WhatsAppService {
       defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
       defaultCODHandling: settings?.defaultCODHandling ?? 40,
       defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
+      defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
     };
 
     for (const o of targetOrders) {
       totalRevenue += o.totalPrice;
-      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * 0.4);
+      const c = cogsDict[o.productId || ""] ?? (o.totalPrice * (evalSettings.defaultCOGSPct / 100));
       const { fees } = ProfitService.calculateOrderProfit(o, c, evalSettings);
       totalCogs += c;
       totalFees += fees;
@@ -151,9 +151,7 @@ export class WhatsAppService {
       orderBy: { rtoRate: "desc" },
       take: 2,
     });
-    const pincodeListStr = highRtoPincodes.length > 0
-      ? highRtoPincodes.map((p) => p.pincode).join(", ")
-      : "110053, 110078";
+    const pincodeListStr = highRtoPincodes.map((p) => p.pincode).join(", ");
 
     // Action 2: Top Product
     const firstOrder = targetOrders[0];

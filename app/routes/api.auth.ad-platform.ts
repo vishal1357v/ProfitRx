@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import { AdSpendService } from "../services/ad-spend.service";
+import { createAdOAuthState, verifyAdOAuthState } from "../utils/ad-oauth-state.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -11,9 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // 1. Handle OAuth Redirect Callback from platforms (Unauthenticated)
   if (code && stateParam) {
     try {
-      const { shop: callbackShop, platform: callbackPlatform, host: callbackHost } = JSON.parse(
-        Buffer.from(stateParam, "base64").toString("utf-8")
-      );
+      const { shop: callbackShop, platform: callbackPlatform, host: callbackHost } = verifyAdOAuthState(stateParam);
 
       const redirectUri = `${process.env.SHOPIFY_APP_URL || `https://${url.host}`}/api/auth/ad-platform`;
 
@@ -22,14 +21,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       let tokenExpiresAt = null;
 
       if (callbackPlatform === "meta") {
-        if (process.env.META_CLIENT_ID && process.env.META_CLIENT_SECRET) {
-          const exchangeUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${process.env.META_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${process.env.META_CLIENT_SECRET}&code=${code}`;
+        const metaClientId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
+        const metaClientSecret = process.env.META_CLIENT_SECRET || process.env.META_APP_SECRET;
+        if (metaClientId && metaClientSecret) {
+          const exchangeUrl = `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${metaClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${metaClientSecret}&code=${code}`;
           const response = await fetch(exchangeUrl);
           const data = await response.json();
           if (data.access_token) {
             accessToken = data.access_token;
             // Exchange for a long-lived page/system token
-            const longLivedUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.META_CLIENT_ID}&client_secret=${process.env.META_CLIENT_SECRET}&fb_exchange_token=${accessToken}`;
+            const longLivedUrl = `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${metaClientId}&client_secret=${metaClientSecret}&fb_exchange_token=${accessToken}`;
             const llResp = await fetch(longLivedUrl);
             const llData = await llResp.json();
             accessToken = llData.access_token || accessToken;
@@ -78,10 +79,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }
 
-      // If token exchange failed or credentials were empty, fallback to deterministic mock token for dev convenience
       if (!accessToken) {
-        console.warn(`[OAuth Callback Fallback] Missing credentials or token exchange failed for ${callbackPlatform}. Creating mock credentials.`);
-        accessToken = `token_${callbackPlatform}_${Date.now()}`;
+        return Response.json({ error: `Unable to connect ${callbackPlatform}: the OAuth exchange did not return an access token.` }, { status: 502 });
       }
 
       await AdSpendService.connectAdPlatform({
@@ -89,7 +88,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         platform: callbackPlatform,
         accessToken,
         refreshToken,
-        accountId: `act_${callbackPlatform}_${Math.floor(10000000 + Math.random() * 90000000)}`,
         tokenExpiresAt,
       });
 
@@ -120,40 +118,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const redirectUri = `${process.env.SHOPIFY_APP_URL || `https://${url.host}`}/api/auth/ad-platform`;
 
   const clientKeysExist = {
-    meta: !!process.env.META_CLIENT_ID,
+    meta: !!(process.env.META_CLIENT_ID || process.env.META_APP_ID),
     google: !!process.env.GOOGLE_CLIENT_ID,
     tiktok: !!process.env.TIKTOK_APP_ID,
   };
 
   const hasKeys = clientKeysExist[platform as keyof typeof clientKeysExist];
   if (hasKeys) {
-    const stateObj = { shop: session.shop, platform, host };
-    const state = Buffer.from(JSON.stringify(stateObj)).toString("base64");
+    const state = createAdOAuthState({ shop: session.shop, platform: platform as "meta" | "google" | "tiktok", host });
 
     let redirectUrl = "";
     if (platform === "meta") {
-      redirectUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${process.env.META_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=ads_read,read_insights`;
+      const metaClientId = process.env.META_CLIENT_ID || process.env.META_APP_ID;
+      redirectUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${metaClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=ads_read,read_insights`;
     } else if (platform === "google") {
       redirectUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&prompt=consent&state=${state}`;
     } else if (platform === "tiktok") {
       redirectUrl = `https://business-api.tiktok.com/portal/auth?app_id=${process.env.TIKTOK_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
     }
     return redirect(redirectUrl);
-  } else {
-    // Fallback single-click mock connection flow if credentials aren't configured
-    console.warn(`[Ad Platform Connection Fallback] Missing credentials for ${platform}. Initiating mock connection fallback.`);
-    const mockToken = `token_${platform}_${Date.now()}`;
-    const mockAccountId = `act_${platform}_${Math.floor(10000000 + Math.random() * 90000000)}`;
-
-    await AdSpendService.connectAdPlatform({
-      shop: session.shop,
-      platform,
-      accessToken: mockToken,
-      accountId: mockAccountId,
-    });
-
-    return redirect(`/app/roas?shop=${session.shop}&host=${host}&connected=${platform}`);
   }
+
+  return Response.json({ error: `${platform} OAuth is not configured for this deployment.` }, { status: 503 });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -172,9 +158,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "connect") {
-    // Return connection flow trigger to client
-    const isMock = !process.env.META_CLIENT_ID && !process.env.GOOGLE_CLIENT_ID && !process.env.TIKTOK_APP_ID;
-    return Response.json({ success: true, platform, isMock });
+    const isConfigured = platform === "meta"
+      ? Boolean(process.env.META_CLIENT_ID || process.env.META_APP_ID)
+      : platform === "google"
+        ? Boolean(process.env.GOOGLE_CLIENT_ID)
+        : Boolean(process.env.TIKTOK_APP_ID);
+    return Response.json({ success: isConfigured, platform, isConfigured });
   }
 
   return Response.json({ error: "Invalid action intent" }, { status: 400 });
