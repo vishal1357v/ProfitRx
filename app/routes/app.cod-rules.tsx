@@ -62,6 +62,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const codBlockingEnabled = formData.get("codBlockingEnabled") === "true";
     const otpVerificationEnabled = formData.get("otpVerificationEnabled") === "true";
     const partialPaymentEnabled = formData.get("partialPaymentEnabled") === "true";
+    
+    // Integration with new Application Layer Pipeline
+    const limit = parseFloat(formData.get("codLimit") as string) || 15000;
+    const { SettingsApplicationService } = await import("../application/settings/settings.application");
+    const { ExecutionContextFactory } = await import("../infrastructure/context/execution.context");
+    const context = ExecutionContextFactory.create(shop);
+    await SettingsApplicationService.updateCodLimit(context, limit);
     const partialPaymentAmount = parseFloat(formData.get("partialPaymentAmount") as string) || 50;
     const codFeeEnabled = formData.get("codFeeEnabled") === "true";
     const codFeeAmount = parseFloat(formData.get("codFeeAmount") as string) || 30;
