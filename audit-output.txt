@@ -1,0 +1,28 @@
+=== Extractor Sizes ===
+types.ts: 229 lines
+feature-confidence.calculator.ts: 104 lines
+order-feature.service.ts: 217 lines
+customer-feature.extractor.ts: 209 lines
+pincode-feature.extractor.ts: 191 lines
+merchant-feature.extractor.ts: 110 lines
+financial-feature.extractor.ts: 145 lines
+
+=== Feature Output ===
+[OrderFeatureService] Extracted features for order 6948188946506 (Confidence: 25.0%)
+{
+  "features": {
+    "orderId": "6948188946506",
+    "shop": "greek-god-wvwt8ptt.myshopify.com",
+    "orderDate": "2026-06-30T13:51:13.000Z",
+    "grossOrderValue": 243,
+    "netOrderValue": 243,
+    "subtotal": 243,
+    "shippingCharged": 0,
+    "tax": 0,
+    "discountAmount": 0,
+    "discountPercentage": 0,
+    "itemCount": null,
+    "totalQuantity": null,
+    "totalWeight": null,
+    "isCOD": true,
+    "chan... (truncated)

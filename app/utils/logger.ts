@@ -9,3 +9,7 @@ export function logDev(...args: any[]): void {
 export function logInfo(...args: any[]): void {
   console.log(...args);
 }
+
+export function logError(...args: any[]): void {
+  console.error(...args);
+}
