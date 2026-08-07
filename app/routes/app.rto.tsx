@@ -328,18 +328,24 @@ export default function RtoRoute() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
-  const rows = filteredEvents.map((event: any) => [
-    `#${event.orderNumber}`,
-    <Badge key={event.id} tone={event.eventType === "RTO" ? "critical" : "warning"}>
-      {event.eventType}
-    </Badge>,
-    `₹${event.amount.toLocaleString()}`,
-    <Badge key={`${event.id}-status`} tone={event.status === "RESOLVED" ? "success" : event.status === "CONFIRMED" ? "attention" : "info"}>
-      {event.status}
-    </Badge>,
-    event.reason || "N/A",
-    event.createdAt,
-  ]);
+  const rows = filteredEvents.map((event: any) => {
+    // If orderId is a raw ID, use it directly, if it's a gid, we encode it.
+    const orderParam = encodeURIComponent(event.orderId);
+    return [
+      <a key={`link-${event.id}`} href={`/app/orders/${orderParam}`} style={{ fontWeight: 'bold', color: 'var(--p-color-text-link)', textDecoration: 'none' }}>
+        #{event.orderNumber}
+      </a>,
+      <Badge key={event.id} tone={event.eventType === "RTO" ? "critical" : "warning"}>
+        {event.eventType}
+      </Badge>,
+      `₹${event.amount.toLocaleString()}`,
+      <Badge key={`${event.id}-status`} tone={event.status === "RESOLVED" ? "success" : event.status === "CONFIRMED" ? "attention" : "info"}>
+        {event.status}
+      </Badge>,
+      event.reason || "N/A",
+      event.createdAt,
+    ];
+  });
 
   const productRows = topProducts.map((p: any) => [
     p.title,

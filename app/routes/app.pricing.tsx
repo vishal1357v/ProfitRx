@@ -88,6 +88,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     status: "PENDING",
   });
 
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Pricing] Development Bypass Active - Skipping Shopify Billing API");
+    const trialEndsAt = new Date();
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+    await SubscriptionSyncService.upsertSubscriptionRecord({
+      shop: session.shop,
+      plan: dbPlan,
+      status: "TRIALING",
+      trialEndsAt,
+    });
+    return redirect(`/app/dashboard?shop=${session.shop}&host=${host}&plan_updated=true`);
+  }
+
   try {
     return await (billing.request as any)({
       plan: plan,

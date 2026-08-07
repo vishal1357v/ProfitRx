@@ -236,6 +236,7 @@ export default function App() {
         <a href="/app/dashboard" rel="home">Dashboard</a>
         <a href="/app/cogs">COGS Catalog</a>
         <a href="/app/cod-rules">COD Risk Shield</a>
+        <a href="/app/models">Model Center</a>
         <a href="/app/cod-dashboard">COD Analytics</a>
         <a href="/app/rto">RTO Analytics</a>
         <a href="/app/rto-heatmap">Pincode Heatmap</a>
