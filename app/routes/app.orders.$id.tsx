@@ -1,15 +1,15 @@
 import { LoaderFunctionArgs, redirect } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import { useLoaderData, useNavigate, isRouteErrorResponse, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers = (headersArgs: any) => boundary.headers(headersArgs);
 
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Badge,
-  Divider, Box, Grid, ProgressBar, Icon,
+  Divider, Box, Grid, ProgressBar, Icon, EmptyState
 } from "@shopify/polaris";
 import {
-  InfoIcon, LockIcon, DeliveryIcon, AlertBubbleIcon, CheckIcon
+  InfoIcon, LockIcon, DeliveryIcon, AlertBubbleIcon, CheckIcon, AlertCircleIcon
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -254,6 +254,36 @@ export default function OrderIntelligenceRoute() {
           </Card>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const navigate = useNavigate();
+
+  if (isRouteErrorResponse(error) && error.status === 404) {
+    return (
+      <Page title="Order Not Found">
+        <EmptyState
+          heading="We couldn't find this order"
+          action={{ content: 'Back to Orders', onAction: () => navigate('/app/rto') }}
+          image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+        >
+          <p>The order you are looking for does not exist in the database or has been deleted.</p>
+        </EmptyState>
+      </Page>
+    );
+  }
+
+  return (
+    <Page title="Error Loading Order">
+      <Card>
+        <BlockStack gap="400">
+          <Text variant="headingMd" as="h2" tone="critical">Something went wrong</Text>
+          <Text as="p">{(error as any)?.message || "An unexpected error occurred while loading this order."}</Text>
+        </BlockStack>
+      </Card>
     </Page>
   );
 }
