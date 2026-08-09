@@ -10,7 +10,16 @@ export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
     if (data.riskScore === undefined) throw new Error("Missing risk score");
     
     // Pass mock config since we moved persistence out
-    const config = { averageCogsPercentage: 40, forwardShippingCost: 100, reverseShippingCost: 100, otpCost: 2 };
+    const config = { 
+      averageCogsPercentage: 40, 
+      forwardShippingCost: 100, 
+      reverseShippingCost: 100, 
+      otpCost: 2,
+      inventoryRecoveryRate: 0.9,
+      refundsShippingOnRTO: false,
+      chargesCodFeeOnRTO: false,
+      includesAdCost: false
+    };
     
     const featureResult = { features: data.features || {} } as any;
     const riskResult = { probability: data.riskScore / 100 } as any;
