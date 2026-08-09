@@ -111,7 +111,7 @@ export default function OrderIntelligenceRoute() {
                       </Text>
                     </BlockStack>
                   </Grid.Cell>
-                  <Grid.Cell columnSpan={{ xs: 12, sm: 6, md: 6, lg: 4 }}>
+                  <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
                     <BlockStack gap="100">
                       <Text variant="headingSm" as="h3" tone="subdued">Engine Decision</Text>
                       <Box padding="200" background="bg-surface-secondary" borderRadius="200">
@@ -207,13 +207,13 @@ export default function OrderIntelligenceRoute() {
                       <Box key={record.id} padding="300" background="bg-surface-secondary" borderRadius="100">
                         <InlineStack align="space-between">
                           <BlockStack gap="100">
-                            <Text variant="bodyMd" fontWeight="bold">Model Feedback Logged</Text>
-                            <Text variant="bodySm" tone="subdued">{new Date(record.createdAt).toLocaleString()}</Text>
+                            <Text as="span" variant="bodyMd" fontWeight="bold">Model Feedback Logged</Text>
+                            <Text as="span" variant="bodySm" tone="subdued">{new Date(record.createdAt).toLocaleString()}</Text>
                           </BlockStack>
                           <BlockStack gap="100" align="end">
-                            <Text variant="bodySm">Predicted RTO: {(record.predictedRto * 100).toFixed(1)}%</Text>
+                            <Text as="span" variant="bodySm">Predicted RTO: {(record.predictedRto * 100).toFixed(1)}%</Text>
                             <Badge tone={record.actualRto ? "critical" : "success"}>
-                              Actual: {record.actualRto ? "RTO" : "Delivered"}
+                              {`Actual: ${record.actualRto ? "RTO" : "Delivered"}`}
                             </Badge>
                           </BlockStack>
                         </InlineStack>

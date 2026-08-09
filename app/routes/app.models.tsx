@@ -45,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         accuracy: "N/A",
         expectedImprovement: 0,
         ordersEvaluated: evaluatedOrders,
+        agreement: 0
       }
     ]
   };
