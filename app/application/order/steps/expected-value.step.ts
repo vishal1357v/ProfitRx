@@ -12,7 +12,10 @@ export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
     // Pass mock config since we moved persistence out
     const config = { averageCogsPercentage: 40, forwardShippingCost: 100, reverseShippingCost: 100, otpCost: 2 };
     
-    const evResult = ExpectedValueService.calculate(data.rawOrder, data.riskScore, config);
+    const featureResult = { features: data.features || {} } as any;
+    const riskResult = { probability: data.riskScore / 100 } as any;
+    
+    const evResult = ExpectedValueService.calculate(featureResult, riskResult, config);
     return { ...data, expectedValue: evResult.expectedValue };
   }
 }

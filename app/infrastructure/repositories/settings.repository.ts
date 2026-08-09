@@ -26,17 +26,13 @@ export class SettingsRepository {
     }
 
     return {
-      blockCodAboveValue: settings.codLimit ? parseFloat(settings.codLimit.toString()) : 999999,
-      blockSpecificPincodes: [], // Would map from a JSON field in real life
+      blockCodAboveValue: 999999, // Legacy fallback
+      blockSpecificPincodes: settings.codBlockedPincodes || [], 
       autoRefundThreshold: 0
     };
   }
 
   static async updateCodLimit(shopId: string, limit: number): Promise<void> {
-    await prisma.storeSettings.upsert({
-      where: { shop: shopId },
-      update: { codLimit: limit },
-      create: { shop: shopId, codLimit: limit, isSubscribed: true } // Mock defaults for missing
-    });
+    // Legacy function, replaced by UI settings page
   }
 }
