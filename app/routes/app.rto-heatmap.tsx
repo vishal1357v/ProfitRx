@@ -27,11 +27,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  // Sync with Shopify Billing API first to ensure plan is up-to-date
-  const sub = await syncSubscriptionWithShopify(shop, billing);
-  const hasAccess = sub && (sub.status === "ACTIVE" || sub.status === "TRIALING")
-    ? hasFeature(sub.plan, "high_risk_areas")
-    : false;
+  // Enforce billing
+  try {
+    await billing.require({
+      plans: ["GROWTH", "PRO"],
+      isTest: process.env.NODE_ENV !== "production",
+      onFailure: async () => {
+        throw new Response("Plan upgrade required", { status: 402 });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Response && error.status === 402) {
+      throw Response.redirect(`/app/pricing?shop=${shop}`);
+    }
+    throw error;
+  }
+  const hasAccess = true;
 
   // Pincode stats
   const pincodeStats = await ProfitIntelligenceService.getPincodeStats(shop, 30);

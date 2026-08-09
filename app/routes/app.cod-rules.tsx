@@ -22,8 +22,23 @@ import { CODManagementService } from "../services/cod-management.service";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
+
+  try {
+    await billing.require({
+      plans: ["GROWTH", "PRO"],
+      isTest: process.env.NODE_ENV !== "production",
+      onFailure: async () => {
+        throw new Response("Plan upgrade required", { status: 402 });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Response && error.status === 402) {
+      throw Response.redirect(`/app/pricing?shop=${shop}`);
+    }
+    throw error;
+  }
 
   const [codSettings, pincodeStats, storeSettings] = await Promise.all([
     CODManagementService.getCODSettings(shop),

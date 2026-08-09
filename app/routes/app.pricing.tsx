@@ -105,7 +105,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     return await (billing.request as any)({
       plan: plan,
-      isTest: true,
+      isTest: process.env.NODE_ENV !== "production",
       trialDays: 14,
       returnUrl,
     });
@@ -115,17 +115,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw error;
     }
     
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-
-    // Fallback to local DB update for dev mode / non-public distribution apps
+    // Revert the PENDING status since Shopify billing failed to initiate
     await SubscriptionSyncService.upsertSubscriptionRecord({
       shop: session.shop,
-      plan: dbPlan,
-      status: "TRIALING",
-      trialEndsAt,
+      plan: "FREE",
+      status: "ACTIVE",
     });
-    return redirect(`/app/billing?shop=${session.shop}&host=${host}&plan_updated=true`);
+
+    return Response.json({ error: "Failed to initiate Shopify billing. Please try again or contact support." }, { status: 500 });
   }
 };
 

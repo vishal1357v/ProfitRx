@@ -12,30 +12,39 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  // Enforce billing for Models page
+  const { billing, session } = await authenticate.admin(request);
   const shop = session.shop;
+  try {
+    await billing.require({
+      plans: ["PRO"],
+      isTest: process.env.NODE_ENV !== "production",
+      onFailure: async () => {
+        throw new Response("Plan upgrade required", { status: 402 });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Response && error.status === 402) {
+      throw Response.redirect(`/app/pricing?shop=${shop}`);
+    }
+    throw error;
+  }
 
-  // In a fully integrated ML pipeline, we would fetch ModelRegistry entries
-  // For now, we simulate the Shadow Mode data as specified in 10F
+  // Fetch actual evaluated orders count
+  const evaluatedOrders = await prisma.order.count({
+    where: { shop, riskScore: { not: null } }
+  });
+
   return {
     shop,
     models: [
       {
         id: "Rule-Engine-v1",
-        name: "Legacy Rule Engine",
+        name: "ProfitRx Rule Engine",
         status: "PRODUCTION",
-        accuracy: 82,
+        accuracy: "N/A",
         expectedImprovement: 0,
-        ordersEvaluated: 14502,
-      },
-      {
-        id: "Risk-v13-XGBoost",
-        name: "Risk-v13 (ML Shadow)",
-        status: "SHADOW",
-        accuracy: 96,
-        expectedImprovement: 27, // +₹27 per order
-        ordersEvaluated: 4102,
-        agreement: 96, // 96% agreement with production
+        ordersEvaluated: evaluatedOrders,
       }
     ]
   };

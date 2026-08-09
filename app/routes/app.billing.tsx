@@ -29,12 +29,22 @@ import {
 import { authenticate } from "../shopify.server";
 import { getSubscription } from "../services/feature-access.service";
 import { SubscriptionSyncService } from "../services/subscription-sync.service";
+import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
   const subscription = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+
+  const [orders, settings] = await Promise.all([
+    prisma.order.findMany({ where: { shop: session.shop }, select: { isCOD: true, fulfillmentStatus: true } }),
+    prisma.storeSettings.findUnique({ where: { shop: session.shop } })
+  ]);
+
+  const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length;
+  const avgRtoLoss = (settings?.defaultForwardShipping || 60) + (settings?.defaultReturnShipping || 70);
+  const totalRtoSavings = blockedCodCount * avgRtoLoss;
 
   return {
     shop: session.shop,
@@ -44,6 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     orderLimit: subscription.orderLimit,
     ordersUsed: subscription.ordersUsed,
     trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
+    totalRtoSavings,
   };
 };
 
@@ -66,7 +77,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt } = useLoaderData<typeof loader>();
+  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt, totalRtoSavings } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -169,10 +180,10 @@ export default function BillingPage() {
               </BlockStack>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 900, fontSize: 32, color: "var(--gg-accent-green)", letterSpacing: "-0.03em" }}>
-                  ~$280 Saved
+                  ~₹{totalRtoSavings.toLocaleString("en-IN")} Saved
                 </div>
                 <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>
-                  (~₹23,200 recovered)
+                  (Real-time calculation)
                 </div>
               </div>
             </InlineStack>

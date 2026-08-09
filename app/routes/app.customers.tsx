@@ -26,11 +26,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  // Sync with Shopify Billing API first to ensure plan is up-to-date
-  const sub = await syncSubscriptionWithShopify(shop, billing);
-  const hasAccess = sub && (sub.status === "ACTIVE" || sub.status === "TRIALING")
-    ? hasFeature(sub.plan, "ltv_cohort")
-    : false;
+  // Enforce billing
+  try {
+    await billing.require({
+      plans: ["PRO"],
+      isTest: process.env.NODE_ENV !== "production",
+      onFailure: async () => {
+        throw new Response("Plan upgrade required", { status: 402 });
+      }
+    });
+  } catch (error) {
+    if (error instanceof Response && error.status === 402) {
+      throw Response.redirect(`/app/pricing?shop=${shop}`);
+    }
+    throw error;
+  }
+  const hasAccess = true;
 
   const [cohorts, channelQuality, customers] = await Promise.all([
     CustomerIntelligenceService.getLTVCohorts(shop),

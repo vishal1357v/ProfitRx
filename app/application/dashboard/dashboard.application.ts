@@ -136,27 +136,32 @@ export class DashboardApplicationService {
       });
     }
 
-    const cogsMap = await ProfitService.getCOGS(shop);
-    const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
-
-    const adSpendConnections = await prisma.adSpend.findMany({
-      where: { shop },
-    });
+    const [
+      cogsMap,
+      rtoEvents,
+      adSpendConnections,
+      leaks,
+      leakTrend,
+      roasData,
+      rawSettings,
+      productsResponse
+    ] = await Promise.all([
+      ProfitService.getCOGS(shop),
+      prisma.rTOEvent.findMany({ where: { shop } }),
+      prisma.adSpend.findMany({ where: { shop } }),
+      ProfitIntelligenceService.getProfitLeaks(shop),
+      ProfitIntelligenceService.getLeakTrend(shop),
+      ProfitIntelligenceService.getROAS(shop),
+      prisma.storeSettings.findUnique({ where: { shop } }),
+      ShopifyService.getProducts(admin).catch((err) => {
+        console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
+        return [];
+      })
+    ]);
+    
+    const products = productsResponse;
     const adSpendDisconnected = adSpendConnections.some((c: any) => !c.isConnected && c.accessToken != null);
-
-    const leaks = await ProfitIntelligenceService.getProfitLeaks(shop);
-    const leakTrend = await ProfitIntelligenceService.getLeakTrend(shop);
-    const roasData = await ProfitIntelligenceService.getROAS(shop);
-
-    let products: any[] = [];
-    try {
-      products = await ShopifyService.getProducts(admin);
-    } catch (err) {
-      console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
-    }
-    const productMap = new Map(products.map((p) => [p.id, p.title]));
-
-    const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
+    const productMap = new Map(products.map((p: any) => [p.id, p.title]));
     const settings = ProfitService.getSettings(rawSettings);
 
     const revenue = orders.reduce((sum: number, o: any) => sum + (o.fulfillmentStatus === "RTO" ? 0 : o.totalPrice), 0);
@@ -447,7 +452,7 @@ export class DashboardApplicationService {
       ProfitService.getGSTSummary(shop),
     ]);
 
-    const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length || 15;
+    const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length;
     const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
     const totalRtoSavings = blockedCodCount * avgRtoLoss;
     const monthlySubscriptionCost = planName === "Pro" ? 6000 : planName === "Growth" ? 3000 : planName === "Starter" ? 1500 : 0;
@@ -458,9 +463,9 @@ export class DashboardApplicationService {
       netProfit, netMargin: Math.round(netMargin * 10) / 10,
       healthScore, alertsList, orderCount, topProducts: finalTopProducts,
       rtoRate: Math.round(rtoRate * 10) / 10, codRate: Math.round(codRate * 10) / 10,
-      aiChannelMetrics: [], aiReadinessScore: 0,
-      isAttributionActive: false,
-      chartData, searchQueries: [],
+      aiChannelMetrics: [], aiReadinessScore: 85,
+      isAttributionActive: isAttributionActive,
+      chartData, searchQueries: mappedQueries,
       products: products.map((p) => ({ id: p.id, title: p.title })),
       leaks, leakTrend,
       features,

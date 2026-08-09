@@ -27,10 +27,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const decodedId = decodeURIComponent(orderId);
   const searchId = decodedId.includes("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
 
-  const order = await prisma.order.findUnique({
-    where: { id: searchId, shop },
-    include: { lineItems: true },
-  });
+  const [order, settings, executionLogs, learningRecords] = await Promise.all([
+    prisma.order.findUnique({
+      where: { id: searchId, shop },
+      include: { lineItems: true },
+    }),
+    prisma.storeSettings.findUnique({ where: { shop } }),
+    prisma.executionLog.findMany({ where: { orderId: searchId, shop }, orderBy: { createdAt: 'asc' } }),
+    prisma.learningRecord.findMany({ where: { orderId: searchId, shop }, orderBy: { createdAt: 'desc' } })
+  ]);
 
   if (!order) {
     // If not found by gid, try raw id
@@ -41,14 +46,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!fallbackOrder) {
       throw new Response("Order Not Found", { status: 404 });
     }
-    return { order: fallbackOrder, shop };
+    const [fallbackLogs, fallbackLearnings] = await Promise.all([
+      prisma.executionLog.findMany({ where: { orderId: decodedId, shop }, orderBy: { createdAt: 'asc' } }),
+      prisma.learningRecord.findMany({ where: { orderId: decodedId, shop }, orderBy: { createdAt: 'desc' } })
+    ]);
+    return { order: fallbackOrder, shop, settings, executionLogs: fallbackLogs, learningRecords: fallbackLearnings };
   }
 
-  return { order, shop };
+  return { order, shop, settings, executionLogs, learningRecords };
 };
 
 export default function OrderIntelligenceRoute() {
-  const { order, shop } = useLoaderData<typeof loader>();
+  const { order, shop, settings, executionLogs, learningRecords } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
 
   const riskScore = order.riskScore ?? 0;
@@ -58,11 +67,11 @@ export default function OrderIntelligenceRoute() {
 
   const reasons = (order.riskReasons as Array<{ reason: string; impact: number }>) || [];
   
-  // Calculate a fake "Expected Profit" based on RTO risk if not explicitly stored
+  // Calculate Expected Profit based on RTO risk
   // Expected Value = (Profit * (1 - Risk)) - (Loss * Risk)
   const cogs = order.cogsAtTimeOfOrder ?? (order.totalPrice * 0.4);
-  const forwardShipping = 60;
-  const returnShipping = 70;
+  const forwardShipping = settings?.defaultForwardShipping ?? 60;
+  const returnShipping = settings?.defaultReturnShipping ?? 70;
   const profitIfDelivered = order.totalPrice - cogs - forwardShipping;
   const lossIfRto = forwardShipping + returnShipping;
   const pRto = riskScore / 100;
@@ -142,9 +151,9 @@ export default function OrderIntelligenceRoute() {
                 <Text variant="headingMd" as="h2">Decision Timeline</Text>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingLeft: '8px' }}>
                   
-                  {/* Step 1 */}
+                  {/* Always show Order Received */}
                   <div style={{ display: 'flex', gap: '16px' }}>
-                    <div style={{ width: '2px', backgroundColor: 'var(--p-color-border-success)', position: 'relative' }}>
+                    <div style={{ width: '2px', backgroundColor: executionLogs.length > 0 ? 'var(--p-color-border-success)' : 'transparent', position: 'relative' }}>
                       <div style={{ position: 'absolute', left: '-5px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--p-color-bg-surface-success)', border: '2px solid var(--p-color-border-success)' }}></div>
                     </div>
                     <BlockStack gap="050">
@@ -153,42 +162,67 @@ export default function OrderIntelligenceRoute() {
                     </BlockStack>
                   </div>
 
-                  {/* Step 2 */}
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <div style={{ width: '2px', backgroundColor: 'var(--p-color-border-success)', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '-5px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--p-color-bg-surface-success)', border: '2px solid var(--p-color-border-success)' }}></div>
-                    </div>
-                    <BlockStack gap="050">
-                      <Text variant="bodyMd" as="span" fontWeight="bold">Features Extracted</Text>
-                      <Text variant="bodySm" as="span" tone="subdued">Pincode: {order.pincode}, Price: ₹{order.totalPrice}, Gateway: {order.gateway}</Text>
-                    </BlockStack>
-                  </div>
+                  {executionLogs.length === 0 && (
+                    <Box padding="300" background="bg-surface-secondary" borderRadius="100">
+                      <Text as="p" tone="subdued">No execution logs available. This order may have been processed before pipeline tracking was enabled, or it bypassed the intelligence engine.</Text>
+                    </Box>
+                  )}
 
-                  {/* Step 3 */}
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <div style={{ width: '2px', backgroundColor: 'var(--p-color-border-success)', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '-5px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--p-color-bg-surface-success)', border: '2px solid var(--p-color-border-success)' }}></div>
-                    </div>
-                    <BlockStack gap="050">
-                      <Text variant="bodyMd" as="span" fontWeight="bold">Risk & Value Calculated</Text>
-                      <Text variant="bodySm" as="span" tone="subdued">Risk: {riskScore}%, Expected Value: ₹{Math.round(expectedValue)}</Text>
-                    </BlockStack>
-                  </div>
-
-                  {/* Step 4 */}
-                  <div style={{ display: 'flex', gap: '16px' }}>
-                    <div style={{ width: '2px', backgroundColor: 'transparent', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: '-5px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--p-color-bg-surface-info)', border: '2px solid var(--p-color-border-info)' }}></div>
-                    </div>
-                    <BlockStack gap="050">
-                      <Text variant="bodyMd" as="span" fontWeight="bold">Decision Made</Text>
-                      <Text variant="bodySm" as="span" tone="subdued">{order.merchantRecommendation || "No action required."}</Text>
-                    </BlockStack>
-                  </div>
-
+                  {executionLogs.map((log: any, index: number) => {
+                    const isLast = index === executionLogs.length - 1;
+                    const isSuccess = log.status === 'SUCCESS';
+                    const isFailed = log.status === 'FAILED';
+                    const color = isFailed ? 'critical' : isSuccess ? 'success' : 'info';
+                    const bgColor = `var(--p-color-bg-surface-${color === 'critical' ? 'critical' : color === 'success' ? 'success' : 'info'})`;
+                    const borderColor = `var(--p-color-border-${color === 'critical' ? 'critical' : color === 'success' ? 'success' : 'info'})`;
+                    
+                    return (
+                      <div key={log.id} style={{ display: 'flex', gap: '16px' }}>
+                        <div style={{ width: '2px', backgroundColor: isLast ? 'transparent' : borderColor, position: 'relative' }}>
+                          <div style={{ position: 'absolute', left: '-5px', top: '0', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: bgColor, border: `2px solid ${borderColor}` }}></div>
+                        </div>
+                        <BlockStack gap="050">
+                          <Text variant="bodyMd" as="span" fontWeight="bold">
+                            {log.step === "FEATURE_EXTRACTION" ? "Features Extracted" : 
+                             log.step === "RISK_CALCULATION" ? "Risk & Value Calculated" : 
+                             log.step === "DECISION" ? "Decision Made" : 
+                             log.step === "EXECUTION" ? "Action Executed" : log.step}
+                          </Text>
+                          <Text variant="bodySm" as="span" tone="subdued">{new Date(log.createdAt).toLocaleString()}</Text>
+                          {log.message && <Text variant="bodySm" as="p">{log.message}</Text>}
+                        </BlockStack>
+                      </div>
+                    );
+                  })}
                 </div>
               </BlockStack>
             </Card>
+
+            {learningRecords.length > 0 && (
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">Machine Learning Feedback</Text>
+                  <BlockStack gap="200">
+                    {learningRecords.map((record: any) => (
+                      <Box key={record.id} padding="300" background="bg-surface-secondary" borderRadius="100">
+                        <InlineStack align="space-between">
+                          <BlockStack gap="100">
+                            <Text variant="bodyMd" fontWeight="bold">Model Feedback Logged</Text>
+                            <Text variant="bodySm" tone="subdued">{new Date(record.createdAt).toLocaleString()}</Text>
+                          </BlockStack>
+                          <BlockStack gap="100" align="end">
+                            <Text variant="bodySm">Predicted RTO: {(record.predictedRto * 100).toFixed(1)}%</Text>
+                            <Badge tone={record.actualRto ? "critical" : "success"}>
+                              Actual: {record.actualRto ? "RTO" : "Delivered"}
+                            </Badge>
+                          </BlockStack>
+                        </InlineStack>
+                      </Box>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            )}
           </BlockStack>
         </Layout.Section>
 

@@ -81,12 +81,48 @@ model Order {
   merchantRecommendation String?
   lineItems         OrderLineItem[]
   refunds           OrderRefund[]
+  executionLogs     ExecutionLog[]
 
   @@index([shop, createdAt])
   @@index([shop, pincode])
   @@index([shop, isCOD])
   @@index([shop, fulfillmentStatus])
   @@map("orders")
+}
+
+// ============================================
+// EXECUTION LOG - Tracks pipeline execution for orders
+// ============================================
+model ExecutionLog {
+  id          String   @id @default(cuid())
+  shop        String
+  orderId     String
+  step        String   // "FEATURE_EXTRACTION", "RISK_CALCULATION", "DECISION", "EXECUTION"
+  status      String   // "PENDING", "SUCCESS", "FAILED"
+  message     String?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([shop, orderId])
+  @@map("execution_logs")
+}
+
+// ============================================
+// LEARNING RECORD - Tracks ML feedback loop
+// ============================================
+model LearningRecord {
+  id          String   @id @default(cuid())
+  shop        String
+  orderId     String
+  predictedRto Float
+  actualRto    Boolean
+  features    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([shop])
+  @@map("learning_records")
 }
 
 // ============================================
