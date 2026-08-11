@@ -5,6 +5,9 @@ export interface MerchantPolicy {
   blockCodAboveValue: number;
   blockSpecificPincodes: string[];
   autoRefundThreshold: number;
+  requirePrepaidAboveValue: number;
+  autoFlagRepeatOffenders: boolean;
+  autoRequireOtp: boolean;
 }
 
 export class SettingsRepository {
@@ -21,18 +24,41 @@ export class SettingsRepository {
       return {
         blockCodAboveValue: 999999,
         blockSpecificPincodes: [],
-        autoRefundThreshold: 0
+        autoRefundThreshold: 0,
+        requirePrepaidAboveValue: 999999,
+        autoFlagRepeatOffenders: false,
+        autoRequireOtp: false
       };
     }
 
     return {
-      blockCodAboveValue: 999999, // Legacy fallback
-      blockSpecificPincodes: settings.codBlockedPincodes || [], 
-      autoRefundThreshold: 0
+      blockCodAboveValue: settings.rulesRejectCodOver || 999999,
+      blockSpecificPincodes: settings.codBlockedPincodes || settings.rulesDisableCodForPincodes || [], 
+      autoRefundThreshold: 0,
+      requirePrepaidAboveValue: settings.rulesRequirePrepaidAbove || 999999,
+      autoFlagRepeatOffenders: settings.rulesAutoFlagRepeatOffenders,
+      autoRequireOtp: settings.rulesAutoRequireOtp
     };
   }
 
-  static async updateCodLimit(shopId: string, limit: number): Promise<void> {
-    // Legacy function, replaced by UI settings page
+  static async updateCodRules(shopId: string, rules: any): Promise<void> {
+    await prisma.storeSettings.upsert({
+      where: { shop: shopId },
+      update: {
+        rulesRejectCodOver: rules.rulesRejectCodOver,
+        rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
+        rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
+        rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
+        rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
+      },
+      create: {
+        shop: shopId,
+        rulesRejectCodOver: rules.rulesRejectCodOver,
+        rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
+        rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
+        rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
+        rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
+      }
+    });
   }
 }

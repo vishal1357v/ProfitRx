@@ -146,7 +146,7 @@ export const loader = async ({ request }: ActionFunctionArgs) => {
         title: `Risk Order #${o.orderNumber}`,
         subtitle: `${o.riskLevel} risk (score: ${o.riskScore}) · ${o.customerName || "Guest"}`,
         category: "risk",
-        url: `/app/dashboard`,
+        url: `/app/orders/${encodeURIComponent(o.id.replace("gid://shopify/Order/", ""))}`,
         icon: "🛡️",
       });
     }

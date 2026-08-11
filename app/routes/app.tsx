@@ -220,7 +220,8 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const isOperationsActive = ["/app/cogs", "/app/roas", "/app/profit-leaks"].some(
+  const isOperationsActive = location.pathname === "/app/operations";
+  const isToolsActive = ["/app/cogs", "/app/roas", "/app/profit-leaks"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
   const isAnalyticsActive = ["/app/cod-dashboard", "/app/rto", "/app/rto-heatmap", "/app/customers"].some(
@@ -234,9 +235,9 @@ export default function App() {
     <AppProvider apiKey={apiKey} embedded>
       <NavMenu>
         <a href="/app/dashboard" rel="home">Dashboard</a>
+        <a href="/app/operations">Operations</a>
         <a href="/app/cogs">COGS Catalog</a>
         <a href="/app/cod-rules">COD Risk Shield</a>
-        <a href="/app/models">Model Center</a>
         <a href="/app/cod-dashboard">COD Analytics</a>
         <a href="/app/rto">RTO Analytics</a>
         <a href="/app/rto-heatmap">Pincode Heatmap</a>
@@ -388,13 +389,33 @@ export default function App() {
                   </span>
                 </ReactRouterLink>
 
-                {/* Popover Group 1: Operations */}
+                {/* Direct Link: Operations */}
+                <ReactRouterLink
+                  to={`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                  className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
+                  <span>Operations</span>
+                </ReactRouterLink>
+
+                {/* Popover Group 1: Tools */}
                 <Popover
-                  active={activePopover === "operations"}
+                  active={activePopover === "tools"}
                   activator={
                     <button
-                      onClick={() => togglePopover("operations")}
-                      className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
+                      onClick={() => togglePopover("tools")}
+                      className={`gg-nav-link ${isToolsActive ? "active" : ""}`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -411,8 +432,8 @@ export default function App() {
                         transition: "all 0.2s ease",
                       }}
                     >
-                      <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
-                      <span>Operations</span>
+                      <Icon source={SettingsIcon} tone={isToolsActive ? "primary" : "subdued"} />
+                      <span>Tools</span>
                       <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
                     </button>
                   }

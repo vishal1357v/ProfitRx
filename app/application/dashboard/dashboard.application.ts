@@ -162,7 +162,10 @@ export class DashboardApplicationService {
     const products = productsResponse;
     const adSpendDisconnected = adSpendConnections.some((c: any) => !c.isConnected && c.accessToken != null);
     const productMap = new Map(products.map((p: any) => [p.id, p.title]));
-    const settings = ProfitService.getSettings(rawSettings);
+    const settings = await ProfitService.getSettings(rawSettings);
+    if (!rawSettings?.onboardingCompleted) {
+      throw redirect(`/app/onboarding?shop=${encodeURIComponent(session.shop)}&host=${encodeURIComponent(host)}`);
+    }
 
     const revenue = orders.reduce((sum: number, o: any) => sum + (o.fulfillmentStatus === "RTO" ? 0 : o.totalPrice), 0);
     const orderCount = orders.length;
@@ -447,9 +450,20 @@ export class DashboardApplicationService {
     const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
     const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
 
-    const [feeBreakdown, gstSummary] = await Promise.all([
+    const [feeBreakdown, gstSummary, recentDecisions, recentAlerts] = await Promise.all([
       ProfitService.getFeeBreakdown(shop),
       ProfitService.getGSTSummary(shop),
+      prisma.executionLog.findMany({
+        where: { shop },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: { order: { select: { orderNumber: true, riskScore: true, riskLevel: true, customerName: true } } }
+      }),
+      prisma.alert.findMany({
+        where: { shop },
+        orderBy: { createdAt: "desc" },
+        take: 10
+      })
     ]);
 
     const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length;
@@ -497,6 +511,8 @@ export class DashboardApplicationService {
       adSpendDisconnected,
       subStatus,
       trialEndsAt,
+      recentDecisions,
+      recentAlerts,
     };
   } catch (err: any) {
     console.error("[Dashboard Loader Critical Error Caught]:", err);
@@ -535,6 +551,8 @@ export class DashboardApplicationService {
       adSpendDisconnected: false,
       subStatus: "ACTIVE",
       trialEndsAt: null,
+      recentDecisions: [],
+      recentAlerts: [],
     };
   }
 

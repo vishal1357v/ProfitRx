@@ -519,6 +519,8 @@ model StoreSettings {
   rulesRequirePrepaidAbove Float?
   rulesDisableCodForPincodes String[] @default([])
   rulesAutoFlagRepeatOffenders Boolean @default(false)
+  rulesRepeatOffenderThreshold Int     @default(2)
+  rulesRepeatOffenderAction    String  @default("OTP") // "OTP" or "BLOCK"
   rulesAutoRequireOtp    Boolean  @default(false)
   // Phase 4: Onboarding
   onboardingStep         Int      @default(0)

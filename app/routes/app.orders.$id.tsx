@@ -106,9 +106,14 @@ export default function OrderIntelligenceRoute() {
                   <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 4 }}>
                     <BlockStack gap="100">
                       <Text variant="headingSm" as="h3" tone="subdued">Expected Value</Text>
-                      <Text variant="heading3xl" as="p" tone={expectedValue > 0 ? "success" : "critical"}>
-                        ₹{Math.round(expectedValue)}
-                      </Text>
+                      <InlineStack align="start" blockAlign="center" gap="200">
+                        <Text variant="heading3xl" as="p" tone={expectedValue > 0 ? "success" : "critical"}>
+                          ₹{Math.round(expectedValue)}
+                        </Text>
+                        {order.cogsAtTimeOfOrder == null && (
+                          <Badge tone="warning">Uses Est. COGS</Badge>
+                        )}
+                      </InlineStack>
                     </BlockStack>
                   </Grid.Cell>
                   <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
