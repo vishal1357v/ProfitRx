@@ -1,5 +1,5 @@
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
+import { CogsRepository } from "../infrastructure/repositories/cogs.repository";
 import { ShopifyService } from "../services/shopify.service";
 import {
   checkRateLimit,
@@ -68,26 +68,7 @@ export async function action({ request }: { request: Request }) {
 
       // Upsert within database retry wrapper
       const result = await withDbRetry(async () => {
-        return await prisma.productCOGS.upsert({
-          where: {
-            shop_productId: { shop: session.shop, productId },
-          },
-          update: {
-            cost: cogs,
-            manualOverride: cogs,
-            source: "manual_override",
-            cogs: cogs,
-            updatedAt: new Date(),
-          },
-          create: {
-            shop: session.shop,
-            productId: productId,
-            cost: cogs,
-            manualOverride: cogs,
-            source: "manual_override",
-            cogs: cogs,
-          },
-        });
+        return await CogsRepository.upsertManualOverride(session.shop, productId, cogs);
       });
 
       // Also write back to Shopify product metafield

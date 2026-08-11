@@ -2,7 +2,9 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ShopifyService } from "../services/shopify.service";
 import { ProfitService } from "../services/profit.service";
-import prisma from "../db.server";
+import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
+import { OrderRepository } from "../infrastructure/repositories/order.repository";
+import { RtoRepository } from "../infrastructure/repositories/rto.repository";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -23,37 +25,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Fetch store RTO detection pattern and check DB for synced order
     const [storeSettings, syncedOrder] = await Promise.all([
-      prisma.storeSettings.findUnique({ where: { shop } }),
-      prisma.order.findUnique({ where: { id: orderId } })
+      SettingsRepository.getByShop(shop),
+      OrderRepository.findById(shop, orderId),
     ]);
 
     const isRTOEvent = syncedOrder?.fulfillmentStatus === "RTO";
 
     if (isRTOEvent && orderId) {
       // Check if RTOEvent already exists for this order to avoid duplicates
-      const existingRtoEvent = await prisma.rTOEvent.findFirst({
-        where: { shop, orderId, eventType: "RTO" },
-      });
+      const existingRtoEvent = await RtoRepository.findEventByOrderAndType(
+        shop,
+        orderId,
+        "RTO"
+      );
 
       if (!existingRtoEvent) {
         const rtoLossEstimate = ProfitService.calculateRTOLoss(
-          syncedOrder || { isCOD: true, partialDepositCollected: 0 },
-          storeSettings || { defaultForwardShipping: 60, defaultReturnShipping: 70 } as any
+          syncedOrder || ({ isCOD: true, partialDepositCollected: 0 } as any),
+          storeSettings ||
+            ({ defaultForwardShipping: 60, defaultReturnShipping: 70 } as any)
         );
 
-        await prisma.rTOEvent.create({
-          data: {
-            shop,
-            orderId,
-            orderNumber,
-            eventType: "RTO",
-            reason: "Fulfillment shipment status or order tags matched RTO keyword pattern",
-            amount: rtoLossEstimate,
-            status: "CONFIRMED",
-          },
+        await RtoRepository.create({
+          shop,
+          orderId,
+          orderNumber,
+          eventType: "RTO",
+          reason: "Fulfillment shipment status or order tags matched RTO keyword pattern",
+          amount: rtoLossEstimate,
+          status: "CONFIRMED",
         });
 
-        console.log(`[orders/updated webhook] Auto-created RTOEvent for order #${orderNumber} in ${shop}`);
+        console.log(
+          `[orders/updated webhook] Auto-created RTOEvent for order #${orderNumber} in ${shop}`
+        );
 
         // 3. Refresh pincode stats in real-time so heatmap reflects this RTO immediately
         try {

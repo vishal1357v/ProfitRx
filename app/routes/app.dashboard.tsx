@@ -662,7 +662,7 @@ export default function DashboardRoute() {
 
   const missingOpportunities = useMemo(() => {
     const productsWithQueries = new Set(data.searchQueries.map((sq: any) => sq.productName.toLowerCase()));
-    return data.products.filter(p => !productsWithQueries.has(p.title.toLowerCase()));
+    return data.products.filter((p: any) => !productsWithQueries.has(p.title.toLowerCase()));
   }, [data.searchQueries, data.products]);
 
   return (
@@ -822,7 +822,7 @@ export default function DashboardRoute() {
                               <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
                               <Badge tone="success">Decision</Badge>,
                               <span>Order #{d.order?.orderNumber} evaluated. Risk: <Badge tone={d.order?.riskLevel === 'HIGH' ? 'critical' : 'success'}>{d.order?.riskLevel || 'LOW'}</Badge></span>,
-                              <a href={`/app/orders/${encodeURIComponent(d.orderId.replace("gid://shopify/Order/", ""))}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</a>
+                              <a href={`/app/orders/${encodeURIComponent(d.orderId.replace("gid://shopify/Order/", ""))}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</a>
                             ]
                           }))
                         ].sort((a, b) => b.time - a.time).slice(0, 5).map(item => item.row)}

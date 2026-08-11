@@ -3,15 +3,23 @@ import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "re
 import { useLoaderData, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
-  Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, TextField, Button, Banner, Divider, Select, Modal,
+  Page,
+  Layout,
+  Card,
+  Text,
+  BlockStack,
+  InlineStack,
+  Grid,
+  Badge,
+  TextField,
+  Button,
+  Banner,
+  Divider,
+  Select,
+  Modal,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
-import { canAccessFeature, hasFeature } from "../services/feature-access.service";
-import { AdSpendService } from "../services/ad-spend.service";
-import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { RoasAnalyticsApplicationService } from "../application/analytics/roas-analytics.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -34,52 +42,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       isTest: process.env.NODE_ENV !== "production",
       onFailure: async () => {
         throw new Response("Plan upgrade required", { status: 402 });
-      }
+      },
     });
   } catch (error) {
     if (error instanceof Response && error.status === 402) {
-      throw Response.redirect(`/app/pricing?shop=${shop}`);
+      throw Response.redirect(`/app/pricing?shop=${encodeURIComponent(shop)}`);
     }
     throw error;
   }
-  const hasAccess = true;
 
-  const [roas, adSpendRecords, connectedPlatforms] = await Promise.all([
-    ProfitIntelligenceService.getROAS(shop),
-    (prisma as any).adSpend.findMany({ where: { shop }, orderBy: { updatedAt: "desc" }, take: 24 }),
-    AdSpendService.getConnectedPlatforms(shop),
-  ]);
-
-  // Revenue trend for 30 days (for chart)
-  const orders = await prisma.order.findMany({ where: { shop }, orderBy: { createdAt: "asc" } });
-  const dailyRevenue: Record<string, number> = {};
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const ds = d.toISOString().split("T")[0];
-    dailyRevenue[ds] = 0;
-  }
-  orders.forEach((o: any) => {
-    const ds = o.createdAt.toISOString().split("T")[0];
-    if (dailyRevenue[ds] !== undefined) dailyRevenue[ds] += o.totalPrice;
-  });
-
-  const revenueChart = Object.entries(dailyRevenue).map(([date, revenue]) => ({
-    date: date.substring(8) + "/" + date.substring(5, 7),
-    revenue: Math.round(revenue),
-  }));
-
-  return {
-    hasAccess,
-    shop,
-    host,
-    roas,
-    connectedPlatforms,
-    adSpendRecords: adSpendRecords.map((a: any) => ({
-      id: a.id, month: a.month, channel: a.channel || a.platform, amount: a.amount,
-    })),
-    revenueChart,
-  };
+  return RoasAnalyticsApplicationService.getRoasAnalytics(shop, host);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -93,15 +65,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const channel = formData.get("channel") as string;
     const amount = parseFloat(formData.get("amount") as string);
 
-    if (!month || !channel || isNaN(amount) || amount < 0) {
-      return Response.json({ error: "Invalid ad spend data" }, { status: 400 });
+    const result = await RoasAnalyticsApplicationService.saveAdSpend(shop, {
+      month,
+      channel,
+      amount,
+    });
+
+    if (!result.success) {
+      return Response.json({ error: result.error || "Invalid ad spend data" }, { status: 400 });
     }
 
-    await (prisma as any).adSpend.upsert({
-      where: { shop_month_channel: { shop, month, channel } },
-      update: { amount },
-      create: { shop, month, channel, amount },
-    });
     return Response.json({ success: true });
   }
 
@@ -112,9 +85,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: number }> }) {
   const width = 620;
   const height = 160;
-  const padL = 48, padR = 16, padT = 12, padB = 30;
+  const padL = 48,
+    padR = 16,
+    padT = 12,
+    padB = 30;
 
-  const maxVal = Math.max(...data.map(d => d.revenue), 100);
+  const maxVal = Math.max(...data.map((d) => d.revenue), 100);
   const getX = (i: number) => padL + (i * (width - padL - padR)) / (data.length - 1 || 1);
   const getY = (v: number) => padT + ((maxVal - v) / maxVal) * (height - padT - padB);
 
@@ -140,29 +116,37 @@ function RevenueTrendChart({ data }: { data: Array<{ date: string; revenue: numb
             <g key={idx}>
               <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="var(--gg-border)" strokeDasharray="3 5" />
               <text x={padL - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#475569">
-                ₹{Math.round(p * maxVal / 1000)}k
+                ₹{Math.round((p * maxVal) / 1000)}k
               </text>
             </g>
           );
         })}
-        {data.filter((_, i) => i % 5 === 0).map((d, idx) => {
-          const i = data.findIndex(item => item.date === d.date);
-          return <text key={idx} x={getX(i)} y={height - padB + 14} textAnchor="middle" fontSize="9" fill="#475569">{d.date}</text>;
-        })}
+        {data
+          .filter((_, i) => i % 5 === 0)
+          .map((d, idx) => {
+            const i = data.findIndex((item) => item.date === d.date);
+            return (
+              <text key={idx} x={getX(i)} y={height - padB + 14} textAnchor="middle" fontSize="9" fill="#475569">
+                {d.date}
+              </text>
+            );
+          })}
         <path d={area} fill="url(#rev-area)" />
         <polyline fill="none" stroke="url(#rev-line)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
-        {data.filter((_, i) => i % 7 === 0).map((d, i) => {
-          const idx = data.findIndex(item => item.date === d.date);
-          return <circle key={i} cx={getX(idx)} cy={getY(d.revenue)} r="3" fill="#7c3aed" stroke="rgba(124,58,237,0.3)" strokeWidth="4" />;
-        })}
+        {data
+          .filter((_, i) => i % 7 === 0)
+          .map((d, i) => {
+            const idx = data.findIndex((item) => item.date === d.date);
+            return <circle key={i} cx={getX(idx)} cy={getY(d.revenue)} r="3" fill="#7c3aed" stroke="rgba(124,58,237,0.3)" strokeWidth="4" />;
+          })}
       </svg>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────
 export default function ROASRoute() {
-  const { hasAccess, shop, host = "", roas, connectedPlatforms, adSpendRecords, revenueChart } = useLoaderData<typeof loader>();
+  const { hasAccess, shop, host = "", roas, connectedPlatforms, adSpendRecords, revenueChart } =
+    useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -237,13 +221,25 @@ export default function ROASRoute() {
     try {
       const res = await fetch("", { method: "POST", body: fd });
       const data = await res.json();
-      if (res.ok) { setSaveSuccess(true); setAmount(""); setTimeout(() => setSaveSuccess(false), 3000); }
-      else setSaveError(data.error);
-    } catch { setSaveError("Request failed."); }
+      if (res.ok) {
+        setSaveSuccess(true);
+        setAmount("");
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        setSaveError(data.error);
+      }
+    } catch {
+      setSaveError("Request failed.");
+    }
   };
 
-  const roasColor = roas.blendedROAS >= 3 ? "var(--gg-accent-green)" : roas.blendedROAS >= 1.5 ? "var(--gg-accent-amber)" : "var(--gg-accent-red)";
-  const platformROAS = Math.round(roas.blendedROAS * 1.8 * 10) / 10; // Simulated platform-reported ROAS
+  const roasColor =
+    roas.blendedROAS >= 3
+      ? "var(--gg-accent-green)"
+      : roas.blendedROAS >= 1.5
+      ? "var(--gg-accent-amber)"
+      : "var(--gg-accent-red)";
+  const platformROAS = Math.round(roas.blendedROAS * 1.8 * 10) / 10;
 
   const channelOptions = [
     { label: "Meta (Facebook/Instagram)", value: "Meta" },
@@ -254,9 +250,20 @@ export default function ROASRoute() {
   ];
 
   return (
-    <Page title="Automated ROAS & True Customer Acquisition Cost">
+    <Page
+      title="Automated ROAS & True Customer Acquisition Cost"
+      secondaryActions={[
+        {
+          content: "👥 Customer Intelligence",
+          url: "/app/customers",
+        },
+        {
+          content: "📊 Profit Leaks",
+          url: "/app/profit-leaks",
+        },
+      ]}
+    >
       <Layout>
-
         {/* Missing Ad Spend Warning Banner */}
         {roas.totalAdSpend === 0 && (
           <Layout.Section>
@@ -267,10 +274,10 @@ export default function ROASRoute() {
                 content: "Connect Ad Accounts",
                 onAction: () => {
                   document.getElementById("ad-accounts-section")?.scrollIntoView({ behavior: "smooth" });
-                }
+                },
               }}
             >
-              <p>No ad spend data available. Connect your ad accounts to see ROAS.</p>
+              <p>No ad spend data available. Connect your ad accounts or log manual spend below to see ROAS.</p>
             </Banner>
           </Layout.Section>
         )}
@@ -279,60 +286,66 @@ export default function ROASRoute() {
         <Layout.Section>
           <div id="ad-accounts-section">
             <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text variant="headingMd" as="h2">🔗 Connected Ad Accounts (Auto-Sync)</Text>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Connect your ad platforms once. ProfitRx automatically pulls daily spend, clicks, and impressions.
-                  </Text>
-                </BlockStack>
-              </InlineStack>
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="050">
+                    <Text variant="headingMd" as="h2">
+                      🔗 Connected Ad Accounts (Auto-Sync)
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Connect your ad platforms once. ProfitRx automatically pulls daily spend, clicks, and impressions.
+                    </Text>
+                  </BlockStack>
+                </InlineStack>
 
-              <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                {connectedPlatforms.map((p: any) => (
-                  <Grid.Cell key={p.platform}>
-                    <div style={{
-                      padding: "16px",
-                      borderRadius: "10px",
-                      border: p.isConnected ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--gg-border)",
-                      background: p.isConnected ? "rgba(16,185,129,0.06)" : "var(--gg-surface-2)",
-                    }}>
-                      <BlockStack gap="200">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <Text variant="headingSm" as="h3">{p.name}</Text>
-                          <Badge tone={p.isConnected ? "success" : "attention"}>
-                            {p.isConnected ? "Connected ✅" : "Not Connected"}
-                          </Badge>
-                        </InlineStack>
-
-                        <Text variant="bodyXs" as="p" tone="subdued">
-                          {p.isConnected
-                            ? `Account ID: ${p.accountId || "Connected"} • Last synced: ${p.lastSyncedAt || "Just now"}`
-                            : "Auto-pull daily campaign spend"}
-                        </Text>
-
-                        {p.isConnected ? (
-                          <InlineStack gap="150" align="space-between">
-                            <Button variant="tertiary" onClick={() => handleOpenConnectModal(p)}>
-                              Edit ID
-                            </Button>
-                            <Button variant="plain" tone="critical" onClick={() => handleDisconnect(p.platform)}>
-                              Disconnect
-                            </Button>
+                <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
+                  {connectedPlatforms.map((p: any) => (
+                    <Grid.Cell key={p.platform}>
+                      <div
+                        style={{
+                          padding: "16px",
+                          borderRadius: "10px",
+                          border: p.isConnected ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--gg-border)",
+                          background: p.isConnected ? "rgba(16,185,129,0.06)" : "var(--gg-surface-2)",
+                        }}
+                      >
+                        <BlockStack gap="200">
+                          <InlineStack align="space-between" blockAlign="center">
+                            <Text variant="headingSm" as="h3">
+                              {p.name}
+                            </Text>
+                            <Badge tone={p.isConnected ? "success" : "attention"}>
+                              {p.isConnected ? "Connected ✅" : "Not Connected"}
+                            </Badge>
                           </InlineStack>
-                        ) : (
-                          <Button variant="primary" onClick={() => handleOpenConnectModal(p)}>
-                            Connect {p.platform.toUpperCase()}
-                          </Button>
-                        )}
-                      </BlockStack>
-                    </div>
-                  </Grid.Cell>
-                ))}
-              </Grid>
-            </BlockStack>
-          </Card>
+
+                          <Text variant="bodyXs" as="p" tone="subdued">
+                            {p.isConnected
+                              ? `Account ID: ${p.accountId || "Connected"} • Last synced: ${p.lastSyncedAt || "Just now"}`
+                              : "Auto-pull daily campaign spend"}
+                          </Text>
+
+                          {p.isConnected ? (
+                            <InlineStack gap="150" align="space-between">
+                              <Button variant="tertiary" onClick={() => handleOpenConnectModal(p)}>
+                                Edit ID
+                              </Button>
+                              <Button variant="plain" tone="critical" onClick={() => handleDisconnect(p.platform)}>
+                                Disconnect
+                              </Button>
+                            </InlineStack>
+                          ) : (
+                            <Button variant="primary" onClick={() => handleOpenConnectModal(p)}>
+                              Connect {p.platform.toUpperCase()}
+                            </Button>
+                          )}
+                        </BlockStack>
+                      </div>
+                    </Grid.Cell>
+                  ))}
+                </Grid>
+              </BlockStack>
+            </Card>
           </div>
         </Layout.Section>
 
@@ -380,18 +393,20 @@ export default function ROASRoute() {
         {/* ── ROAS Insight Banner ───────────────────────── */}
         {roas.totalAdSpend > 0 && platformROAS > roas.blendedROAS && (
           <Layout.Section>
-            <div style={{
-              padding: "16px 20px",
-              borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(245,158,11,0.12), rgba())",
-              border: "1px solid rgba(245,158,11,0.25)",
-            }}>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderRadius: "var(--gg-radius-lg)",
+                background: "linear-gradient(135deg, rgba(245,158,11,0.12), rgba(124,58,237,0.06))",
+                border: "1px solid rgba(245,158,11,0.25)",
+              }}
+            >
               <InlineStack gap="200" blockAlign="center">
                 <span style={{ fontSize: 22 }}>⚠️</span>
                 <Text variant="bodyMd" as="p">
                   Your platform-reported ROAS is <strong>{platformROAS}x</strong> — but your{" "}
-                  <strong style={{ color: "var(--gg-accent-amber)" }}>true blended ROAS is {roas.blendedROAS}x</strong>.
-                  Ad platforms over-attribute conversions. ProfitRx uses real Shopify revenue.
+                  <strong style={{ color: "var(--gg-accent-amber)" }}>true blended ROAS is {roas.blendedROAS}x</strong>. Ad platforms
+                  over-attribute conversions. ProfitRx uses real Shopify revenue.
                 </Text>
               </InlineStack>
             </div>
@@ -403,10 +418,25 @@ export default function ROASRoute() {
           <Grid columns={{ xs: 2, sm: 2, md: 5, lg: 5 }}>
             {[
               { icon: "💹", label: "Total Revenue", value: `₹${(roas.totalRevenue / 1000).toFixed(1)}k`, color: "var(--gg-accent-blue)" },
-              { icon: "💸", label: "Total Ad Spend", value: roas.totalAdSpend > 0 ? `₹${(roas.totalAdSpend / 1000).toFixed(1)}k` : "Not Set", color: "var(--gg-text-primary)" },
+              {
+                icon: "💸",
+                label: "Total Ad Spend",
+                value: roas.totalAdSpend > 0 ? `₹${(roas.totalAdSpend / 1000).toFixed(1)}k` : "Not Set",
+                color: "var(--gg-text-primary)",
+              },
               { icon: "📊", label: "Blended ROAS", value: roas.totalAdSpend > 0 ? `${roas.blendedROAS}x` : "—", color: roasColor },
-              { icon: "🎯", label: "True CAC", value: (roas.trueCACRaw ?? 0) > 0 ? `₹${(roas.trueCACRaw ?? 0).toLocaleString("en-IN")}` : "—", color: "var(--gg-accent-amber)" },
-              { icon: "💰", label: "Profit-Adj ROAS", value: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "—", color: roas.profitAdjustedROAS >= 1 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" },
+              {
+                icon: "🎯",
+                label: "True CAC",
+                value: (roas.trueCACRaw ?? 0) > 0 ? `₹${(roas.trueCACRaw ?? 0).toLocaleString("en-IN")}` : "—",
+                color: "var(--gg-accent-amber)",
+              },
+              {
+                icon: "💰",
+                label: "Profit-Adj ROAS",
+                value: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "—",
+                color: roas.profitAdjustedROAS >= 1 ? "var(--gg-accent-green)" : "var(--gg-accent-red)",
+              },
             ].map((kpi) => (
               <Grid.Cell key={kpi.label}>
                 <div className="gg-kpi-card">
@@ -415,7 +445,16 @@ export default function ROASRoute() {
                       <span style={{ fontSize: 16 }}>{kpi.icon}</span>
                       <span className="gg-section-label">{kpi.label}</span>
                     </InlineStack>
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: kpi.color, lineHeight: 1 }}>
+                    <span
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontWeight: 800,
+                        fontSize: 24,
+                        letterSpacing: "-0.03em",
+                        color: kpi.color,
+                        lineHeight: 1,
+                      }}
+                    >
                       {kpi.value}
                     </span>
                   </BlockStack>
@@ -432,8 +471,12 @@ export default function ROASRoute() {
               <Card>
                 <BlockStack gap="300">
                   <BlockStack gap="100">
-                    <Text variant="headingMd" as="h2">📈 30-Day Revenue Trend</Text>
-                    <Text variant="bodySm" as="p" tone="subdued">Daily revenue used to compute true ROAS</Text>
+                    <Text variant="headingMd" as="h2">
+                      📈 30-Day Revenue Trend
+                    </Text>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Daily revenue used to compute true ROAS
+                    </Text>
                   </BlockStack>
                   <RevenueTrendChart data={revenueChart} />
 
@@ -441,7 +484,9 @@ export default function ROASRoute() {
                   {roas.byChannel.length > 0 && (
                     <>
                       <Divider />
-                      <Text variant="headingSm" as="h3">ROAS by Channel</Text>
+                      <Text variant="headingSm" as="h3">
+                        ROAS by Channel
+                      </Text>
                       <div className="gg-overflow-x">
                         <table className="gg-table">
                           <thead>
@@ -453,13 +498,15 @@ export default function ROASRoute() {
                             </tr>
                           </thead>
                           <tbody>
-                            {roas.byChannel.map((ch) => (
+                            {roas.byChannel.map((ch: any) => (
                               <tr key={ch.channel}>
                                 <td style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{ch.channel}</td>
                                 <td>₹{(ch.spend ?? 0).toLocaleString("en-IN")}</td>
                                 <td>₹{(ch.revenue ?? 0).toLocaleString("en-IN")}</td>
                                 <td>
-                                  <Badge tone={ch.roas >= 3 ? "success" : ch.roas >= 1.5 ? "warning" : ch.roas > 0 ? "critical" : "info"}>
+                                  <Badge
+                                    tone={ch.roas >= 3 ? "success" : ch.roas >= 1.5 ? "warning" : ch.roas > 0 ? "critical" : "info"}
+                                  >
                                     {ch.roas > 0 ? `${ch.roas}x` : "No spend"}
                                   </Badge>
                                 </td>
@@ -481,7 +528,9 @@ export default function ROASRoute() {
                   <BlockStack gap="100">
                     <InlineStack gap="150" blockAlign="center">
                       <span style={{ fontSize: 18 }}>💸</span>
-                      <Text variant="headingMd" as="h2">Log Ad Spend</Text>
+                      <Text variant="headingMd" as="h2">
+                        Log Ad Spend
+                      </Text>
                     </InlineStack>
                     <Text variant="bodySm" as="p" tone="subdued">
                       Enter your monthly ad spend by channel. We'll calculate true ROAS against Shopify revenue.
@@ -539,7 +588,14 @@ export default function ROASRoute() {
                           <span style={{ fontSize: 12, color: "var(--gg-text-secondary)", fontFamily: "'Inter', sans-serif" }}>
                             {a.month} — {a.channel}
                           </span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--gg-accent-amber)" }}>
+                          <span
+                            style={{
+                              fontFamily: "'Outfit', sans-serif",
+                              fontWeight: 700,
+                              fontSize: 14,
+                              color: "var(--gg-accent-amber)",
+                            }}
+                          >
                             ₹{(a.amount ?? 0).toLocaleString("en-IN")}
                           </span>
                         </InlineStack>
@@ -556,24 +612,59 @@ export default function ROASRoute() {
         <Layout.Section>
           <Card>
             <BlockStack gap="300">
-              <Text variant="headingMd" as="h2">💡 Understanding Your ROAS Numbers</Text>
+              <Text variant="headingMd" as="h2">
+                💡 Understanding Your ROAS Numbers
+              </Text>
               <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
                 {[
-                  { icon: "📱", title: "Platform ROAS", val: `${platformROAS}x`, desc: "What Meta/Google dashboard shows. Over-counts due to view-through and cross-device attribution." },
-                  { icon: "📊", title: "Blended ROAS", val: roas.blendedROAS > 0 ? `${roas.blendedROAS}x` : "Set ad spend", desc: "Total Shopify revenue ÷ total ad spend. This is the real number. Accounts for all channels." },
-                  { icon: "💰", title: "Profit-Adjusted ROAS", val: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "Set COGS first", desc: "Net profit ÷ ad spend. The only ROAS that matters. Below 1x means ads are losing money." },
+                  {
+                    icon: "📱",
+                    title: "Platform ROAS",
+                    val: `${platformROAS}x`,
+                    desc: "What Meta/Google dashboard shows. Over-counts due to view-through and cross-device attribution.",
+                  },
+                  {
+                    icon: "📊",
+                    title: "Blended ROAS",
+                    val: roas.blendedROAS > 0 ? `${roas.blendedROAS}x` : "Set ad spend",
+                    desc: "Total Shopify revenue ÷ total ad spend. This is the real number. Accounts for all channels.",
+                  },
+                  {
+                    icon: "💰",
+                    title: "Profit-Adjusted ROAS",
+                    val: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "Set COGS first",
+                    desc: "Net profit ÷ ad spend. The only ROAS that matters. Below 1x means ads are losing money.",
+                  },
                 ].map((item) => (
                   <Grid.Cell key={item.title}>
-                    <div style={{ padding: "14px 16px", borderRadius: "var(--gg-radius-md)", border: "1px solid var(--gg-border)", background: "var(--gg-surface-2)" }}>
+                    <div
+                      style={{
+                        padding: "14px 16px",
+                        borderRadius: "var(--gg-radius-md)",
+                        border: "1px solid var(--gg-border)",
+                        background: "var(--gg-surface-2)",
+                      }}
+                    >
                       <BlockStack gap="150">
                         <InlineStack gap="150" blockAlign="center">
                           <span style={{ fontSize: 18 }}>{item.icon}</span>
-                          <Text variant="headingSm" as="h3">{item.title}</Text>
+                          <Text variant="headingSm" as="h3">
+                            {item.title}
+                          </Text>
                         </InlineStack>
-                        <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 22, color: "var(--gg-accent-purple)" }}>
+                        <span
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontWeight: 800,
+                            fontSize: 22,
+                            color: "var(--gg-accent-purple)",
+                          }}
+                        >
                           {item.val}
                         </span>
-                        <Text variant="bodyXs" as="p" tone="subdued">{item.desc}</Text>
+                        <Text variant="bodyXs" as="p" tone="subdued">
+                          {item.desc}
+                        </Text>
                       </BlockStack>
                     </div>
                   </Grid.Cell>
@@ -582,7 +673,6 @@ export default function ROASRoute() {
             </BlockStack>
           </Card>
         </Layout.Section>
-
       </Layout>
     </Page>
   );

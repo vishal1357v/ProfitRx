@@ -8,8 +8,20 @@ export class RiskStep implements PipelineStep<OrderPipelineData> {
 
   async execute(context: ExecutionContext, data: OrderPipelineData): Promise<OrderPipelineData> {
     if (!data.features) throw new Error("Missing features");
-    const featureResult = { features: data.features } as any;
+    const featureResult = {
+      features: data.features,
+      metadata: data.metadata || {
+        orderId: data.features.orderId,
+        shop: data.features.shop,
+        dataConfidence: 0.95,
+        executionTimeMs: 0,
+      },
+    } as any;
     const riskResult = RTORiskService.evaluate(featureResult);
-    return { ...data, riskScore: riskResult.probability * 100 };
+    return {
+      ...data,
+      riskScore: riskResult.probability * 100,
+      confidence: riskResult.confidence,
+    };
   }
 }

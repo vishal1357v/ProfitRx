@@ -3,14 +3,22 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
-  Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, DataTable, Divider, Banner, TextField, Button,
+  Page,
+  Layout,
+  Card,
+  Text,
+  BlockStack,
+  InlineStack,
+  Grid,
+  Badge,
+  DataTable,
+  Divider,
+  Banner,
+  TextField,
+  Button,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
-import { CustomerIntelligenceService } from "../services/customer-intelligence.service";
-import { canAccessFeature, hasFeature } from "../services/feature-access.service";
-import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { CustomerAnalyticsApplicationService } from "../application/analytics/customer-analytics.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -33,23 +41,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       isTest: process.env.NODE_ENV !== "production",
       onFailure: async () => {
         throw new Response("Plan upgrade required", { status: 402 });
-      }
+      },
     });
   } catch (error) {
     if (error instanceof Response && error.status === 402) {
-      throw Response.redirect(`/app/pricing?shop=${shop}`);
+      throw Response.redirect(`/app/pricing?shop=${encodeURIComponent(shop)}`);
     }
     throw error;
   }
-  const hasAccess = true;
 
-  const [cohorts, channelQuality, customers] = await Promise.all([
-    CustomerIntelligenceService.getLTVCohorts(shop),
-    ProfitIntelligenceService.getChannelQualityScores(shop),
-    CustomerIntelligenceService.getCustomerDirectory(shop),
-  ]);
-
-  return { hasAccess, shop, host, cohorts, channelQuality, customers };
+  return CustomerAnalyticsApplicationService.getCustomerAnalytics(shop, host);
 };
 
 // ── Retention Curve Chart ─────────────────────────────────
@@ -60,7 +61,10 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
 
   const width = 580;
   const height = 200;
-  const padL = 42, padR = 16, padT = 16, padB = 36;
+  const padL = 42,
+    padR = 16,
+    padT = 16,
+    padB = 36;
 
   const getX = (i: number) => padL + (i * (width - padL - padR)) / (reversed.length - 1 || 1);
   const getY = (v: number) => padT + ((100 - v) / 100) * (height - padT - padB);
@@ -73,12 +77,12 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
   const area90 = `M ${reversed.map((d, i) => `${getX(i)},${getY(d.repeat90)}`).join(" L ")} L ${getX(reversed.length - 1)},${height - padB} L ${getX(0)},${height - padB} Z`;
 
   return (
-    <div style={{ width: "100" + "%", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width={"100" + "%"} height={height}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
         <defs>
           <linearGradient id="r30-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset={0.0} stopColor="rgb(16, 185, 129)" stopOpacity="0.25" />
-            <stop offset={1.0} stopColor="rgb(16, 185, 129)" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="rgb(16, 185, 129)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="rgb(16, 185, 129)" stopOpacity="0.02" />
           </linearGradient>
           <linearGradient id="r90-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.2" />
@@ -91,7 +95,9 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
           return (
             <g key={idx}>
               <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 5" />
-              <text x={padL - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#475569">{v}%</text>
+              <text x={padL - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#475569">
+                {v}%
+              </text>
             </g>
           );
         })}
@@ -119,7 +125,7 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
 
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
-          { color: "top-rated0b981", label: "30-Day Repeat Rate", dash: false },
+          { color: "rgb(16, 185, 129)", label: "30-Day Repeat Rate", dash: false },
           { color: "#2563eb", label: "60-Day Repeat Rate", dash: true },
           { color: "#7c3aed", label: "90-Day Repeat Rate", dash: false },
         ].map((l) => (
@@ -135,28 +141,31 @@ function RetentionChart({ data }: { data: CohortItem[] }) {
 
 // ── Quality Score Bar ─────────────────────────────────────
 function QualityBar({ score }: { score: number }) {
-  const color = score >= 70 ? "top-rated0b981" : score >= 40 ? "#f59e0b" : "#ef4444";
+  const color = score >= 70 ? "rgb(16, 185, 129)" : score >= 40 ? "#f59e0b" : "#ef4444";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ flex: 1, height: 8, borderRadius: "100px", background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-        <div style={{ width: `${score}%`, height: "high", background: color, borderRadius: "100px", transition: "width 1s ease" }} />
+        <div style={{ width: `${score}%`, height: "100%", background: color, borderRadius: "100px", transition: "width 1s ease" }} />
       </div>
-      <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color, width: 32, textAlign: "right" }}>{score}</span>
+      <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color, width: 32, textAlign: "right" }}>
+        {score}
+      </span>
     </div>
   );
 }
 
 const CHANNEL_META: Record<string, { icon: string; color: string }> = {
-  ChatGPT:  { icon: "🤖", color: "top-rated0b981" },
-  Gemini:   { icon: "✨", color: "#3b82f6" },
-  Copilot:  { icon: "🔷", color: "#f59e0b" },
-  Website:  { icon: "🌐", color: "#64748b" },
+  ChatGPT: { icon: "🤖", color: "rgb(16, 185, 129)" },
+  Gemini: { icon: "✨", color: "#3b82f6" },
+  Copilot: { icon: "🔷", color: "#f59e0b" },
+  Website: { icon: "🌐", color: "#64748b" },
   Perplexity: { icon: "🔍", color: "#a855f7" },
-  Claude:   { icon: "🟠", color: "#f97316" },
+  Claude: { icon: "🟠", color: "#f97316" },
 };
 
 export default function CustomersRoute() {
-  const { hasAccess, shop = "", host = "", cohorts = [], channelQuality = [], customers = [] } = useLoaderData<typeof loader>();
+  const { hasAccess, shop = "", host = "", cohorts = [], channelQuality = [], customers = [] } =
+    useLoaderData<typeof loader>();
   const [searchQuery, setSearchQuery] = useState("");
 
   if (!hasAccess) {
@@ -178,59 +187,95 @@ export default function CustomersRoute() {
     );
   }
 
-  const filteredCustomers = customers.filter((c: any) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCustomers = customers.filter(
+    (c: any) =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Find top channel for the insight callout
   const bestChannel = channelQuality[0];
-  const websiteChannel = channelQuality.find(c => c.channel === "Website");
-  const qualityMultiplier = bestChannel && websiteChannel && websiteChannel.ltv > 0 && bestChannel.channel !== "Website"
-    ? Math.round((bestChannel.ltv / websiteChannel.ltv) * 10) / 10
-    : null;
+  const websiteChannel = channelQuality.find((c: any) => c.channel === "Website");
+  const qualityMultiplier =
+    bestChannel && websiteChannel && websiteChannel.ltv > 0 && bestChannel.channel !== "Website"
+      ? Math.round((bestChannel.ltv / websiteChannel.ltv) * 10) / 10
+      : null;
 
   const cohortRows = cohorts.map((c: any) => [
-    <span key={`${c.cohortMonth}-month`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-primary)" }}>{c.cohortMonth}</span>,
-    <span key={`${c.cohortMonth}-cust`} style={{ fontFamily: "'Outfit', sans-serif" }}>{c.customers}</span>,
-    <span key={`${c.cohortMonth}-rev`} style={{ fontFamily: "'Outfit', sans-serif" }}>₹{c.avgRevenue.toLocaleString("en-IN")}</span>,
-    <Badge key={`${c.cohortMonth}-30`} tone={c.repeat30 >= 25 ? "success" : c.repeat30 >= 10 ? "attention" : "critical"}>{`${c.repeat30}%`}</Badge>,
-    <Badge key={`${c.cohortMonth}-60`} tone={c.repeat60 >= 20 ? "success" : c.repeat60 >= 8 ? "attention" : "critical"}>{`${c.repeat60}%`}</Badge>,
-    <Badge key={`${c.cohortMonth}-90`} tone={c.repeat90 >= 15 ? "success" : c.repeat90 >= 5 ? "attention" : "critical"}>{`${c.repeat90}%`}</Badge>,
+    <span key={`${c.cohortMonth}-month`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-primary)" }}>
+      {c.cohortMonth}
+    </span>,
+    <span key={`${c.cohortMonth}-cust`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+      {c.customers}
+    </span>,
+    <span key={`${c.cohortMonth}-rev`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+      ₹{c.avgRevenue.toLocaleString("en-IN")}
+    </span>,
+    <Badge key={`${c.cohortMonth}-30`} tone={c.repeat30 >= 25 ? "success" : c.repeat30 >= 10 ? "attention" : "critical"}>
+      {`${c.repeat30}%`}
+    </Badge>,
+    <Badge key={`${c.cohortMonth}-60`} tone={c.repeat60 >= 20 ? "success" : c.repeat60 >= 8 ? "attention" : "critical"}>
+      {`${c.repeat60}%`}
+    </Badge>,
+    <Badge key={`${c.cohortMonth}-90`} tone={c.repeat90 >= 15 ? "success" : c.repeat90 >= 5 ? "attention" : "critical"}>
+      {`${c.repeat90}%`}
+    </Badge>,
   ]);
 
   const customerRows = filteredCustomers.map((c: any) => [
-    <span key={`${c.id}-name`} style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{c.name}</span>,
-    <span key={`${c.id}-email`} style={{ color: "var(--gg-text-muted)", fontSize: 13 }}>{c.email}</span>,
+    <span key={`${c.id}-name`} style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>
+      {c.name}
+    </span>,
+    <span key={`${c.id}-email`} style={{ color: "var(--gg-text-muted)", fontSize: 13 }}>
+      {c.email}
+    </span>,
     <span key={`${c.id}-cohort`}>{c.cohortMonth}</span>,
-    <Badge key={`${c.id}-ch`} tone="info">{c.channelSource}</Badge>,
-    <span key={`${c.id}-orders`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>{c.orderCount}</span>,
-    <span key={`${c.id}-aov`} style={{ fontFamily: "'Outfit', sans-serif" }}>₹{c.aov.toLocaleString("en-IN")}</span>,
+    <Badge key={`${c.id}-ch`} tone="info">
+      {c.channelSource}
+    </Badge>,
+    <span key={`${c.id}-orders`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>
+      {c.orderCount}
+    </span>,
+    <span key={`${c.id}-aov`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+      ₹{c.aov.toLocaleString("en-IN")}
+    </span>,
     <span key={`${c.id}-ltv`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, color: "var(--gg-accent-green)" }}>
       ₹{c.ltv.toLocaleString("en-IN")}
     </span>,
   ]);
 
   return (
-    <Page title="Customer Intelligence — LTV & Cohort Retention">
+    <Page
+      title="Customer Intelligence — LTV & Cohort Retention"
+      secondaryActions={[
+        {
+          content: "📈 Marketing ROAS",
+          url: "/app/roas",
+        },
+        {
+          content: "🎯 RTO Analytics",
+          url: "/app/rto",
+        },
+      ]}
+    >
       <Layout>
-
         {/* ── AI Quality Score insight ──────────────────── */}
         {qualityMultiplier && qualityMultiplier > 1.2 && (
           <Layout.Section>
-            <div style={{
-              padding: "16px 20px",
-              borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08))",
-              border: "1px solid rgba(124,58,237,0.2)",
-            }}>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderRadius: "var(--gg-radius-lg)",
+                background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08))",
+                border: "1px solid rgba(124,58,237,0.2)",
+              }}
+            >
               <InlineStack gap="200" blockAlign="center">
                 <span style={{ fontSize: 22 }}>{CHANNEL_META[bestChannel.channel]?.icon || "🏆"}</span>
                 <Text variant="bodyMd" as="p">
                   <strong>{bestChannel.channel}</strong> customers are worth{" "}
-                  <strong style={{ color: "var(--gg-accent-purple)" }}>{qualityMultiplier}x more</strong> than Website customers —
-                  LTV ₹{bestChannel.ltv.toLocaleString("en-IN")} vs ₹{websiteChannel!.ltv.toLocaleString("en-IN")}.
-                  Invest more in {bestChannel.channel} traffic.
+                  <strong style={{ color: "var(--gg-accent-purple)" }}>{qualityMultiplier}x more</strong> than Website customers — LTV ₹
+                  {bestChannel.ltv.toLocaleString("en-IN")} vs ₹{websiteChannel!.ltv.toLocaleString("en-IN")}. Invest more in{" "}
+                  {bestChannel.channel} traffic.
                 </Text>
               </InlineStack>
             </div>
@@ -242,38 +287,53 @@ export default function CustomersRoute() {
           <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">🏆 AI Customer Quality Scores</Text>
+                <Text variant="headingMd" as="h2">
+                  🏆 AI Customer Quality Scores
+                </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
                   Which AI channel brings the most valuable customers? Ranked by LTV, AOV, and repeat rate.
                 </Text>
               </BlockStack>
 
               <Grid columns={{ xs: 1, sm: 2, md: 4, lg: 4 }}>
-                {channelQuality.slice(0, 4).map((ch, idx) => {
+                {channelQuality.slice(0, 4).map((ch: any, idx: number) => {
                   const meta = CHANNEL_META[ch.channel] || CHANNEL_META.Website;
                   return (
                     <Grid.Cell key={ch.channel}>
-                      <div style={{
-                        padding: "16px",
-                        borderRadius: "var(--gg-radius-lg)",
-                        border: "1px solid var(--gg-border)",
-                        borderTop: `3px solid ${meta.color}`,
-                        background: "var(--gg-surface-2)",
-                        position: "relative",
-                      }}>
+                      <div
+                        style={{
+                          padding: "16px",
+                          borderRadius: "var(--gg-radius-lg)",
+                          border: "1px solid var(--gg-border)",
+                          borderTop: `3px solid ${meta.color}`,
+                          background: "var(--gg-surface-2)",
+                          position: "relative",
+                        }}
+                      >
                         {idx === 0 && (
-                          <div style={{
-                            position: "absolute", top: -1, right: 12,
-                            background: "linear-gradient(135deg, #7c3aed, #2563eb)",
-                            borderRadius: "0 0 8px 8px",
-                            padding: "2px 8px",
-                            fontSize: 10, fontWeight: 700, color: "white", fontFamily: "'Inter', sans-serif",
-                          }}>TOP</div>
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: -1,
+                              right: 12,
+                              background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+                              borderRadius: "0 0 8px 8px",
+                              padding: "2px 8px",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: "white",
+                              fontFamily: "'Inter', sans-serif",
+                            }}
+                          >
+                            TOP
+                          </div>
                         )}
                         <BlockStack gap="200">
                           <InlineStack gap="150" blockAlign="center">
                             <span style={{ fontSize: 20 }}>{meta.icon}</span>
-                            <Text variant="headingSm" as="h3">{ch.channel}</Text>
+                            <Text variant="headingSm" as="h3">
+                              {ch.channel}
+                            </Text>
                           </InlineStack>
                           <Divider />
                           <BlockStack gap="150">
@@ -283,11 +343,15 @@ export default function CustomersRoute() {
                             <QualityBar score={ch.qualityScore} />
                             <InlineStack align="space-between">
                               <span style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>LTV</span>
-                              <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: meta.color }}>₹{ch.ltv.toLocaleString("en-IN")}</span>
+                              <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: meta.color }}>
+                                ₹{ch.ltv.toLocaleString("en-IN")}
+                              </span>
                             </InlineStack>
                             <InlineStack align="space-between">
                               <span style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>AOV</span>
-                              <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14 }}>₹{ch.aov.toLocaleString("en-IN")}</span>
+                              <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14 }}>
+                                ₹{ch.aov.toLocaleString("en-IN")}
+                              </span>
                             </InlineStack>
                             <InlineStack align="space-between">
                               <span style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>Repeat</span>
@@ -314,17 +378,13 @@ export default function CustomersRoute() {
             <BlockStack gap="300">
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="100">
-                  <Text variant="headingMd" as="h2">🔁 LTV Cohort Retention Curve</Text>
+                  <Text variant="headingMd" as="h2">
+                    🔁 LTV Cohort Retention Curve
+                  </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
                     What % of each month's new customers came back to buy again within 30/60/90 days
                   </Text>
                 </BlockStack>
-                {cohorts.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div className="gg-pulse" />
-                    <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
-                  </div>
-                )}
               </InlineStack>
 
               {cohorts.length === 0 ? (
@@ -343,7 +403,9 @@ export default function CustomersRoute() {
           <Card>
             <BlockStack gap="300">
               <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">📊 Cohort Analysis Table</Text>
+                <Text variant="headingMd" as="h2">
+                  📊 Cohort Analysis Table
+                </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
                   Monthly customer cohorts — acquisition, revenue, and repeat purchase rates
                 </Text>
@@ -368,7 +430,9 @@ export default function CustomersRoute() {
             <BlockStack gap="400">
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="100">
-                  <Text variant="headingMd" as="h2">👤 Customer LTV Directory</Text>
+                  <Text variant="headingMd" as="h2">
+                    👤 Customer LTV Directory
+                  </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
                     Individual customer lifetime value, order counts, and acquisition channel attribution.
                   </Text>
@@ -385,9 +449,7 @@ export default function CustomersRoute() {
               />
 
               {customerRows.length === 0 ? (
-                <Banner tone="info">
-                  No customer profiles match your search filter.
-                </Banner>
+                <Banner tone="info">No customer profiles match your search filter.</Banner>
               ) : (
                 <DataTable
                   columnContentTypes={["text", "text", "text", "text", "numeric", "numeric", "numeric"]}
@@ -398,7 +460,6 @@ export default function CustomersRoute() {
             </BlockStack>
           </Card>
         </Layout.Section>
-
       </Layout>
     </Page>
   );

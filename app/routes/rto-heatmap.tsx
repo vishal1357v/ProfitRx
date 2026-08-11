@@ -1,1 +1,1 @@
-export { default, loader, headers } from "./app.rto-heatmap";
+export { default, loader, action, headers } from "./app.rto-heatmap";

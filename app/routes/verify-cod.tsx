@@ -1,10 +1,7 @@
 import { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useSubmit, useNavigation } from "react-router";
-import prisma from "../db.server";
-import { CODManagementService } from "../services/cod-management.service";
-import { ShopifyService } from "../services/shopify.service";
-import * as crypto from "crypto";
+import { CodVerificationApplicationService } from "../application/operations/cod-verification.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -16,39 +13,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return { error: "Invalid verification link. Missing shop, order details, or security token." };
   }
 
-  const secret = process.env.SHOPIFY_API_SECRET;
-  if (!secret) {
-    return { error: "System configuration error. Please contact store support." };
-  }
-
-  const expectedToken = crypto.createHmac("sha256", secret).update(`${shop}:${orderId}`).digest("hex");
-  if (token !== expectedToken) {
-    return { error: "Invalid security token. This link is tampered or expired." };
-  }
-
-  const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-
-  const [codOrder, orderRecord] = await Promise.all([
-    prisma.cODOrder.findUnique({ where: { orderId: cleanOrderId } }),
-    prisma.order.findFirst({
-      where: { shop, OR: [{ id: cleanOrderId }, { id: `gid://shopify/Order/${cleanOrderId}` }] }
-    })
-  ]);
-
-  if (!codOrder || codOrder.shop !== shop) {
-    return { error: "No Cash on Delivery verification record found for this order. It may have already been verified or processed." };
+  const result = await CodVerificationApplicationService.getVerificationDetails(shop, orderId, token);
+  if (!result.success) {
+    return { error: result.error || "Unable to load verification details." };
   }
 
   return {
-    shop,
-    orderId: cleanOrderId,
-    orderNumber: orderRecord?.orderNumber || "N/A",
-    totalPrice: orderRecord?.totalPrice || 0,
-    customerName: orderRecord?.customerName || "Valued Customer",
-    status: codOrder.status,
-    verified: codOrder.otpVerified,
-    phone: codOrder.phone ? `******${codOrder.phone.slice(-4)}` : "your registered number",
-    token,
+    shop: result.shop,
+    orderId: result.orderId,
+    orderNumber: result.orderNumber,
+    totalPrice: result.totalPrice,
+    customerName: result.customerName,
+    status: result.status,
+    verified: result.verified,
+    phone: result.phone,
+    token: result.token,
   };
 };
 
@@ -64,13 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Missing required parameters" }, { status: 400 });
     }
 
-    const secret = process.env.SHOPIFY_API_SECRET;
-    if (!secret) {
-      return Response.json({ error: "System configuration error." }, { status: 500 });
-    }
-
-    const expectedToken = crypto.createHmac("sha256", secret).update(`${shop}:${orderId}`).digest("hex");
-    if (token !== expectedToken) {
+    if (!CodVerificationApplicationService.validateToken(shop, orderId, token)) {
       return Response.json({ error: "Unauthorized request signature" }, { status: 401 });
     }
 
@@ -79,40 +52,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!otp || otp.length !== 6) {
         return Response.json({ success: false, message: "Please enter a valid 6-digit OTP." });
       }
-      const res = await CODManagementService.verifyOTP(shop, orderId, otp);
+      const res = await CodVerificationApplicationService.verifyCustomerOtp(shop, orderId, otp);
       return Response.json(res);
     }
 
     if (intent === "resend_otp") {
-      const codOrder = await prisma.cODOrder.findUnique({ where: { orderId } });
-      if (!codOrder || codOrder.shop !== shop) {
-        return Response.json({ success: false, message: "Order verification record not found." });
-      }
-      const res = await CODManagementService.createCODOrderVerification(shop, orderId, codOrder.phone);
+      const res = await CodVerificationApplicationService.resendCustomerOtp(shop, orderId);
       return Response.json(res);
     }
 
     if (intent === "cancel_order") {
-      const codOrder = await prisma.cODOrder.findUnique({ where: { orderId } });
-      if (!codOrder || codOrder.shop !== shop) {
-        return Response.json({ success: false, message: "Order verification record not found." });
-      }
-
-      if (codOrder.otpVerified) {
-        return Response.json({ success: false, message: "Verified orders cannot be cancelled online. Please contact store support." });
-      }
-
-      if (codOrder.status === "CANCELLED" || codOrder.status === "CANCELED") {
-        return Response.json({ success: false, message: "Order is already cancelled." });
-      }
-
-      const res = await ShopifyService.cancelOrder(shop, orderId);
-      if (res.success) {
-        await prisma.cODOrder.update({
-          where: { orderId },
-          data: { status: "CANCELLED" },
-        });
-      }
+      const res = await CodVerificationApplicationService.cancelCustomerOrder(shop, orderId);
       return Response.json(res);
     }
 

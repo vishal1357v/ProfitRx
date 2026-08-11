@@ -1,66 +1,57 @@
-import prisma from "../../db.server";
+import { OrderRepository } from "../../infrastructure/repositories/order.repository";
+import { CodOrderRepository } from "../../infrastructure/repositories/cod-order.repository";
+import { ExecutionLogRepository } from "../../infrastructure/repositories/execution-log.repository";
+
+export interface OperationsDataDTO {
+  orders: any[];
+  codVerifications: any[];
+  executionLogs: any[];
+}
 
 export class OperationsApplicationService {
-  static async getOperationsData(shop: string) {
-    // 1. Fetch Orders (recent 50)
-    const orders = await prisma.order.findMany({
-      where: { shop },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      select: {
-        id: true,
-        orderNumber: true,
-        totalPrice: true,
-        isCOD: true,
-        gateway: true,
-        financialStatus: true,
-        fulfillmentStatus: true,
-        customerName: true,
-        riskScore: true,
-        riskLevel: true,
-        merchantRecommendation: true,
-        createdAt: true,
-      }
-    });
+  /**
+   * Aggregates recent orders, COD verifications, and AI execution logs with tenant isolation.
+   */
+  static async getOperationsData(shop: string): Promise<OperationsDataDTO> {
+    // 1. Fetch Orders (recent 50) via OrderRepository
+    const recentOrders = await OrderRepository.findByShop(shop, 50);
 
-    // 2. Fetch COD Verifications (recent 50)
-    const codVerifications = await prisma.cODOrder.findMany({
-      where: { shop },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
+    // 2. Fetch COD Verifications (recent 50) via CodOrderRepository
+    const codVerifications = await CodOrderRepository.findByShop(shop, { limit: 50 });
 
-    // We need to link CODOrders to Orders to get the orderNumber if possible.
-    const orderIds = codVerifications.map(c => c.orderId);
-    const relatedOrders = await prisma.order.findMany({
-      where: { shop, id: { in: orderIds } },
-      select: { id: true, orderNumber: true }
-    });
-    
-    const verificationMap = codVerifications.map(cod => {
-      const related = relatedOrders.find(o => o.id === cod.orderId || o.id === `gid://shopify/Order/${cod.orderId}`);
+    // Link COD orders to orders for order number display
+    const verificationMap = codVerifications.map((cod) => {
+      const cleanCodOrderId = cod.orderId.replace("gid://shopify/Order/", "");
+      const related = recentOrders.find(
+        (o) =>
+          o.id === cod.orderId ||
+          o.id === `gid://shopify/Order/${cod.orderId}` ||
+          o.id.replace("gid://shopify/Order/", "") === cleanCodOrderId
+      );
       return {
         ...cod,
         orderNumber: related ? related.orderNumber : null,
       };
     });
 
-    // 3. Fetch Execution Logs (recent 50)
-    const executionLogs = await prisma.executionLog.findMany({
-      where: { shop },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-      include: {
-        order: {
-          select: {
-            orderNumber: true,
-          }
-        }
-      }
-    });
+    // 3. Fetch Execution Logs (recent 50) via ExecutionLogRepository
+    const executionLogs = await ExecutionLogRepository.findByShop(shop, 50);
 
     return {
-      orders,
+      orders: recentOrders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        totalPrice: o.totalPrice,
+        isCOD: o.isCOD,
+        gateway: o.gateway,
+        financialStatus: o.financialStatus,
+        fulfillmentStatus: o.fulfillmentStatus,
+        customerName: o.customerName,
+        riskScore: o.riskScore,
+        riskLevel: o.riskLevel,
+        merchantRecommendation: o.merchantRecommendation,
+        createdAt: o.createdAt,
+      })),
       codVerifications: verificationMap,
       executionLogs,
     };

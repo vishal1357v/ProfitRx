@@ -662,7 +662,7 @@ export default function DashboardRoute() {
 
   const missingOpportunities = useMemo(() => {
     const productsWithQueries = new Set(data.searchQueries.map((sq: any) => sq.productName.toLowerCase()));
-    return data.products.filter(p => !productsWithQueries.has(p.title.toLowerCase()));
+    return data.products.filter((p: any) => !productsWithQueries.has(p.title.toLowerCase()));
   }, [data.searchQueries, data.products]);
 
   return (

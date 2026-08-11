@@ -6,6 +6,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
   Badge, Button, TextField, Select, DataTable, Banner, Divider,
@@ -13,13 +14,11 @@ import {
 } from "@shopify/polaris";
 import {
   ShieldCheckMarkIcon,
-  ChatIcon,
   AlertTriangleIcon,
   LockIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { CODManagementService } from "../services/cod-management.service";
-import prisma from "../db.server";
+import { CodRulesApplicationService } from "../application/protection/cod-rules.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
@@ -35,36 +34,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   } catch (error) {
     if (error instanceof Response && error.status === 402) {
-      throw Response.redirect(`/app/pricing?shop=${shop}`);
+      throw Response.redirect(`/app/pricing?shop=${encodeURIComponent(shop)}`);
     }
     throw error;
   }
 
-  const [codSettings, pincodeStats, storeSettings] = await Promise.all([
-    CODManagementService.getCODSettings(shop),
-    prisma.pincodeStats.findMany({
-      where: { shop },
-      orderBy: { rtoRate: "desc" },
-      take: 50,
-    }),
-    prisma.storeSettings.findUnique({
-      where: { shop },
-    }),
-  ]);
-
-  const isShopifyPlus = storeSettings?.shopifyPlanName?.toLowerCase().includes("plus") || false;
-
-  return {
-    shop,
-    codSettings,
-    storeSettings,
-    isShopifyPlus,
-    pincodeStats: pincodeStats.map((p) => ({
-      ...p,
-      rtoRate: Math.round(p.rtoRate),
-      totalLoss: Math.round(p.totalLoss),
-    })),
-  };
+  return CodRulesApplicationService.getCodRulesData(shop);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -79,38 +54,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const rulesAutoFlagRepeatOffenders = formData.get("rulesAutoFlagRepeatOffenders") === "true";
     const rulesAutoRequireOtp = formData.get("rulesAutoRequireOtp") === "true";
 
-    const { SettingsApplicationService } = await import("../application/settings/settings.application");
-    const { ExecutionContextFactory } = await import("../infrastructure/context/execution.context");
-    const context = ExecutionContextFactory.create(shop);
-
-    await SettingsApplicationService.updateMerchantRules(context, {
+    const result = await CodRulesApplicationService.saveMerchantRules(shop, {
       rulesRejectCodOver,
       rulesRequirePrepaidAbove,
       rulesAutoFlagRepeatOffenders,
-      rulesAutoRequireOtp
+      rulesAutoRequireOtp,
     });
 
-    return Response.json({ success: true, message: "Advanced Merchant Rules saved successfully!" });
+    return Response.json(result);
   }
 
   if (intent === "toggle_pincode") {
     const pincode = formData.get("pincode") as string;
-    const res = await CODManagementService.togglePincodeBlock(shop, pincode);
-    return Response.json({ success: true, blocked: res.blocked });
+    const res = await CodRulesApplicationService.togglePincode(shop, pincode);
+    return Response.json(res);
   }
 
   if (intent === "bulk_import_pincodes") {
     const rawInput = formData.get("pincodesText") as string;
-    const parsed = rawInput.split(/[\n,\s]+/).filter(Boolean);
-    const updated = await CODManagementService.bulkUpdateBlockedPincodes(shop, parsed);
-    return Response.json({ success: true, count: updated.length });
+    const res = await CodRulesApplicationService.bulkImportPincodes(shop, rawInput);
+    return Response.json(res);
   }
 
   return Response.json({ error: "Invalid intent" }, { status: 400 });
 };
 
 export default function CODRulesRoute() {
-  const { codSettings, storeSettings, pincodeStats, isShopifyPlus } = useLoaderData<typeof loader>();
+  const { codSettings, storeSettings, pincodeStats } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";

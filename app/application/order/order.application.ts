@@ -15,7 +15,7 @@ export class OrderApplicationService {
    */
   static async processOrder(context: ExecutionContext, rawOrder: any): Promise<void> {
     const pipeline = new Pipeline<OrderPipelineData>();
-    
+
     pipeline.addStep(new FeatureStep());
     pipeline.addStep(new RiskStep());
     pipeline.addStep(new ExpectedValueStep());
@@ -32,10 +32,10 @@ export class OrderApplicationService {
           context,
           payload: {
             action: result.finalDecision,
-            confidence: 0.95, // Mocked 
+            confidence: result.confidence ?? 0.85,
             expectedValue: result.expectedValue || 0,
-            riskScore: result.riskScore || 0
-          }
+            riskScore: result.riskScore || 0,
+          },
         });
 
         await EventBus.publish({
@@ -44,8 +44,8 @@ export class OrderApplicationService {
           payload: {
             action: result.finalDecision,
             success: result.executionStatus === "SUCCESS",
-            provider: "SYSTEM"
-          }
+            provider: "SYSTEM",
+          },
         });
       }
     } catch (error) {

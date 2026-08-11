@@ -17,16 +17,11 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
+import { HealthApplicationService } from "../application/health/health.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const shop = session.shop;
-
-  const healthStatus = await ProfitIntelligenceService.getProfitHealthStatus(shop);
-  const qualityScores = await ProfitIntelligenceService.getChannelQualityScores(shop);
-
-  return { healthStatus, qualityScores };
+  return HealthApplicationService.getHealthData(session.shop);
 };
 
 export default function ProfitHealthRoute() {

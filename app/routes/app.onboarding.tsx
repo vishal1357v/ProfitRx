@@ -7,7 +7,7 @@ import {
   TextField, Banner, Box, Divider, Badge,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
+import { OnboardingApplicationService } from "../application/onboarding/onboarding.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -29,73 +29,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+  const email = (session as any).email || "";
 
-  let settings = await prisma.storeSettings.findUnique({ where: { shop } });
-  if (!settings) {
-    settings = await prisma.storeSettings.create({
-      data: {
-        shop,
-        defaultCOGSPct: 40,
-        defaultForwardShipping: 60,
-        defaultReturnShipping: 70,
-        defaultCODHandling: 40,
-        defaultPackaging: 10,
-        defaultGatewayFeePct: 2,
-        rtoDetectionPattern: "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
-        rtoThreshold: 10,
-        marginThreshold: 15,
-        alertEmail: (session as any).email || "",
-      },
-    });
-  }
+  const state = await OnboardingApplicationService.getOnboardingState(shop, host, email);
 
   // If already completed, redirect to dashboard
-  if (settings.onboardingCompleted) {
+  if (state.onboardingCompleted) {
     throw redirect(`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
   }
 
-  const orderCount = await prisma.order.count({ where: { shop } });
-  const cogsCount = await prisma.productCOGS.count({ where: { shop } });
-
-  // Estimate profit preview
-  let previewRevenue = 0;
-  let previewProfit = 0;
-  if (orderCount > 0) {
-    const orders = await prisma.order.findMany({
-      where: { shop },
-      take: 50,
-      orderBy: { createdAt: "desc" },
-      select: { totalPrice: true, totalTax: true, shippingPrice: true },
-    });
-    previewRevenue = orders.reduce((sum, o) => sum + o.totalPrice, 0);
-    const avgCogsPct = settings.defaultCOGSPct / 100;
-    previewProfit = orders.reduce((sum, o) => {
-      const cogs = o.totalPrice * avgCogsPct;
-      const fees = o.totalTax + o.shippingPrice + settings!.defaultPackaging;
-      return sum + (o.totalPrice - cogs - fees);
-    }, 0);
-  }
-
-  return {
-    shop,
-    host,
-    currentStep: settings.onboardingStep || 0,
-    orderCount,
-    cogsCount,
-    settings: {
-      defaultCOGSPct: settings.defaultCOGSPct,
-      defaultForwardShipping: settings.defaultForwardShipping,
-      defaultReturnShipping: settings.defaultReturnShipping,
-      defaultCODHandling: settings.defaultCODHandling,
-      defaultPackaging: settings.defaultPackaging,
-      defaultGatewayFeePct: settings.defaultGatewayFeePct,
-      gstin: settings.gstin || "",
-      gstRate: settings.gstRate,
-      isGstRegistered: settings.isGstRegistered,
-    },
-    previewRevenue,
-    previewProfit,
-  };
+  return state;
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -106,11 +49,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "save_step") {
     const step = parseInt(formData.get("step") as string, 10) || 0;
-    await prisma.storeSettings.upsert({
-      where: { shop },
-      update: { onboardingStep: step },
-      create: { shop, onboardingStep: step },
-    });
+    await OnboardingApplicationService.saveStep(shop, step);
     return Response.json({ success: true });
   }
 
@@ -121,30 +60,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const defaultPackaging = parseFloat(formData.get("defaultPackaging") as string) || 10;
     const defaultGatewayFeePct = parseFloat(formData.get("defaultGatewayFeePct") as string) || 2;
 
-    await prisma.storeSettings.update({
-      where: { shop },
-      data: { defaultForwardShipping, defaultReturnShipping, defaultCODHandling, defaultPackaging, defaultGatewayFeePct },
+    await OnboardingApplicationService.saveExpenses(shop, {
+      defaultForwardShipping,
+      defaultReturnShipping,
+      defaultCODHandling,
+      defaultPackaging,
+      defaultGatewayFeePct,
     });
     return Response.json({ success: true });
   }
 
   if (intent === "save_taxes") {
-    const gstin = formData.get("gstin") as string || "";
+    const gstin = (formData.get("gstin") as string) || "";
     const gstRate = parseFloat(formData.get("gstRate") as string) || 18;
     const isGstRegistered = formData.get("isGstRegistered") === "true";
 
-    await prisma.storeSettings.update({
-      where: { shop },
-      data: { gstin, gstRate, isGstRegistered },
+    await OnboardingApplicationService.saveTaxes(shop, {
+      gstin,
+      gstRate,
+      isGstRegistered,
     });
     return Response.json({ success: true });
   }
 
   if (intent === "complete") {
-    await prisma.storeSettings.update({
-      where: { shop },
-      data: { onboardingCompleted: true, onboardingStep: STEPS.length - 1 },
-    });
+    await OnboardingApplicationService.completeOnboarding(shop);
     const url = new URL(request.url);
     const host = url.searchParams.get("host") || "";
     return redirect(`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);

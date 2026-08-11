@@ -19,29 +19,30 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { SubscriptionSyncService } from "../services/subscription-sync.service";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
-  
-  const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing, forceSync);
-  
+  const isChangingPlan = url.searchParams.get("change_plan") === "true";
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  // Redirect to dashboard if they already have an active subscription (and aren't trying to change plans)
-  const isChangingPlan = url.searchParams.get("change_plan") === "true";
-  if (!isChangingPlan && sub && sub.plan !== "FREE" && (sub.status === "ACTIVE" || sub.status === "TRIALING")) {
+  const result = await BillingApplicationService.getPricingData(session.shop, billing, {
+    forceSync,
+    isChangingPlan,
+    host,
+  });
+
+  if (result.shouldRedirect) {
     return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
   }
 
-  const currentPlan = sub.plan === "PRO" ? "Pro" : sub.plan === "GROWTH" ? "Growth" : sub.plan === "STARTER" ? "Starter" : "Free";
-  return { currentPlan, shop: session.shop, host };
+  return { currentPlan: result.currentPlan, shop: session.shop, host };
 };
 
 type BillingPlan = "STARTER" | "GROWTH" | "PRO";
@@ -55,7 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync_subscription") {
     try {
-      const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing, true);
+      const sub = await BillingApplicationService.syncSubscription(session.shop, billing, true);
       if (sub && sub.plan !== "FREE" && (sub.status === "ACTIVE" || sub.status === "TRIALING")) {
         return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
       }
@@ -82,7 +83,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Pre-persist the selected plan as PENDING so the DB records merchant intent
   // before Shopify redirect. If the post-payment sync fails (race condition),
   // the sync service can respect this PENDING state instead of reverting to FREE.
-  await SubscriptionSyncService.upsertSubscriptionRecord({
+  await BillingApplicationService.upsertSubscriptionRecord({
     shop: session.shop,
     plan: dbPlan,
     status: "PENDING",
@@ -93,7 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
-    await SubscriptionSyncService.upsertSubscriptionRecord({
+    await BillingApplicationService.upsertSubscriptionRecord({
       shop: session.shop,
       plan: dbPlan,
       status: "TRIALING",
@@ -116,7 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     
     // Revert the PENDING status since Shopify billing failed to initiate
-    await SubscriptionSyncService.upsertSubscriptionRecord({
+    await BillingApplicationService.upsertSubscriptionRecord({
       shop: session.shop,
       plan: "FREE",
       status: "ACTIVE",

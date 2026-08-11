@@ -1,11 +1,10 @@
 import { ExecutionContext } from "../../infrastructure/context/execution.context";
+import prisma from "../../db.server";
 
 export interface PipelineStep<TContext = any> {
   name: string;
   execute(context: ExecutionContext, pipelineData: TContext): Promise<TContext>;
 }
-
-import prisma from "../../db.server";
 
 export class Pipeline<TContext = any> {
   private steps: PipelineStep<TContext>[] = [];
@@ -16,31 +15,55 @@ export class Pipeline<TContext = any> {
 
   async execute(executionContext: ExecutionContext, initialData: TContext): Promise<TContext> {
     let currentData = initialData;
+
+    // Resolve matching Order ID to respect foreign key constraint
+    let targetOrderId = executionContext.orderId;
+    if (targetOrderId) {
+      const rawId = targetOrderId.replace("gid://shopify/Order/", "");
+      const gid = targetOrderId.startsWith("gid://") ? targetOrderId : `gid://shopify/Order/${targetOrderId}`;
+      const matchedOrder = await prisma.order.findFirst({
+        where: {
+          shop: executionContext.shopId,
+          id: { in: [targetOrderId, rawId, gid] },
+        },
+        select: { id: true },
+      });
+      if (matchedOrder) {
+        targetOrderId = matchedOrder.id;
+      }
+    }
+
     for (const step of this.steps) {
       try {
         currentData = await step.execute(executionContext, currentData);
-        if (executionContext.orderId) {
+        if (targetOrderId) {
           // Fire and forget logging
-          prisma.executionLog.create({
-            data: {
-              shop: executionContext.shopId,
-              orderId: executionContext.orderId.includes("gid://") ? executionContext.orderId : `gid://shopify/Order/${executionContext.orderId}`,
-              step: step.name,
-              status: "SUCCESS",
-            }
-          }).catch((err) => console.error("ExecutionLog error:", err.message));
+          prisma.executionLog
+            .create({
+              data: {
+                shop: executionContext.shopId,
+                orderId: targetOrderId,
+                step: step.name,
+                status: "SUCCESS",
+              },
+            })
+            .catch((err) => {
+              // Ignore orphaned log if order not yet committed
+            });
         }
       } catch (err: any) {
-        if (executionContext.orderId) {
-          prisma.executionLog.create({
-            data: {
-              shop: executionContext.shopId,
-              orderId: executionContext.orderId.includes("gid://") ? executionContext.orderId : `gid://shopify/Order/${executionContext.orderId}`,
-              step: step.name,
-              status: "FAILED",
-              message: err.message
-            }
-          }).catch(console.error);
+        if (targetOrderId) {
+          prisma.executionLog
+            .create({
+              data: {
+                shop: executionContext.shopId,
+                orderId: targetOrderId,
+                step: step.name,
+                status: "FAILED",
+                message: err.message,
+              },
+            })
+            .catch(() => {});
         }
         throw err;
       }

@@ -2,6 +2,10 @@ import { redirect } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../../shopify.server";
 import prisma from "../../db.server";
+import { OrderRepository } from "../../infrastructure/repositories/order.repository";
+import { RtoRepository } from "../../infrastructure/repositories/rto.repository";
+import { AdSpendRepository } from "../../infrastructure/repositories/ad-spend.repository";
+import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { ProfitService } from "../../services/profit.service";
 import { ShopifyService } from "../../services/shopify.service";
 import { ProfitIntelligenceService } from "../../services/profit-intelligence.service";
@@ -93,48 +97,7 @@ export class DashboardApplicationService {
     const normalizedPlan = normalizePlanName(subscription.plan);
     const features: string[] = PLAN_FEATURES[normalizedPlan] || [];
 
-    let orders = await prisma.order.findMany({
-      where: { shop },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const isDemoData = process.env.NODE_ENV === "development" && orders.length === 0;
-    if (isDemoData) {
-      // Seed mockup memory orders for new user preview
-      const today = new Date();
-      orders = Array.from({ length: 15 }).map((_, index) => {
-        const date = new Date();
-        date.setDate(today.getDate() - index);
-        const isCOD = index % 2 === 0;
-        const total = isCOD ? 1500 + (index * 150) : 1200 + (index * 100);
-        return {
-          id: `demo_${index}`,
-          shop,
-          orderNumber: 1000 + index,
-          totalPrice: total,
-          subtotalPrice: total * 0.85,
-          totalTax: total * 0.18,
-          shippingPrice: 100,
-          discountAmount: index * 50,
-          isCOD,
-          createdAt: date,
-          processedAt: date,
-          financialStatus: isCOD ? "pending" : "paid",
-          fulfillmentStatus: index === 3 || index === 7 ? "RTO" : "fulfilled",
-          productId: "demo_prod",
-          gateway: isCOD ? "cash_on_delivery" : "razorpay",
-          channelType: index % 3 === 0 ? "AI_CHAT" : "WEBSITE",
-          channelAttribution: index % 3 === 0 ? "ChatGPT" : "Website",
-          customerId: `demo_cust_${index % 5}`,
-          customerName: `Demo Customer ${index}`,
-          customerEmail: `demo_${index}@example.com`,
-          pincode: index === 3 ? "400001" : index === 7 ? "110001" : "560001",
-          city: index === 3 ? "Mumbai" : index === 7 ? "Delhi" : "Bengaluru",
-          province: index === 3 ? "Maharashtra" : index === 7 ? "Delhi" : "Karnataka",
-          cogsAtTimeOfOrder: total * 0.4,
-        } as any;
-      });
-    }
+    let orders = await OrderRepository.findByShop(shop);
 
     const [
       cogsMap,
@@ -147,12 +110,12 @@ export class DashboardApplicationService {
       productsResponse
     ] = await Promise.all([
       ProfitService.getCOGS(shop),
-      prisma.rTOEvent.findMany({ where: { shop } }),
-      prisma.adSpend.findMany({ where: { shop } }),
+      RtoRepository.findByShop(shop),
+      AdSpendRepository.findByShop(shop),
       ProfitIntelligenceService.getProfitLeaks(shop),
       ProfitIntelligenceService.getLeakTrend(shop),
       ProfitIntelligenceService.getROAS(shop),
-      prisma.storeSettings.findUnique({ where: { shop } }),
+      SettingsRepository.getByShop(shop),
       ShopifyService.getProducts(admin).catch((err) => {
         console.error("[dashboard.tsx ShopifyService.getProducts FAILED]:", err);
         return [];
@@ -407,7 +370,9 @@ export class DashboardApplicationService {
         const totalPrice = Number(o.totalPrice) || 0;
         const totalTax = Number(o.totalTax) || 0;
         const shippingPrice = Number(o.shippingPrice) || 0;
-        const c = (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ?? (totalPrice * 0.4);
+        const c =
+          (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ??
+          ((totalPrice * settings.defaultCOGSPct) / 100);
         const f = totalTax + shippingPrice;
         const p = totalPrice - c - f;
         dailyStats[dateStr].revenue += totalPrice;
@@ -480,7 +445,7 @@ export class DashboardApplicationService {
       aiChannelMetrics: [], aiReadinessScore: 85,
       isAttributionActive: isAttributionActive,
       chartData, searchQueries: mappedQueries,
-      products: products.map((p) => ({ id: p.id, title: p.title })),
+      products: products.map((p: any) => ({ id: p.id, title: p.title })),
       leaks, leakTrend,
       features,
       prepaidCount, prepaidRevenue, codRevenue,
@@ -507,7 +472,7 @@ export class DashboardApplicationService {
       netRoiSavings,
       blockedCodCount,
       settings,
-      isDemoData,
+      isDemoData: false,
       adSpendDisconnected,
       subStatus,
       trialEndsAt,

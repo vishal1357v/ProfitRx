@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import * as crypto from "crypto";
 import { CODManagementService } from "../services/cod-management.service";
-import prisma from "../db.server";
+import { CodOrderRepository } from "../infrastructure/repositories/cod-order.repository";
 import { getCorsHeaders } from "../utils/security.server";
 
 function corsResponse(request: Request, data: any, status = 200) {
@@ -15,7 +15,10 @@ function verifyToken(shop: string, orderId: string, token?: string): boolean {
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret || !token) return false;
   try {
-    const expectedToken = crypto.createHmac("sha256", secret).update(`${shop}:${orderId}`).digest("hex");
+    const expectedToken = crypto
+      .createHmac("sha256", secret)
+      .update(`${shop}:${orderId}`)
+      .digest("hex");
     return token === expectedToken;
   } catch {
     return false;
@@ -38,11 +41,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (orderId) {
     const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-    const record = await prisma.cODOrder.findUnique({
-      where: { orderId: cleanOrderId }
-    });
-    if (!record || record.shop !== shop) {
-      return corsResponse(request, { status: "NOT_FOUND", verified: false, required: false });
+    const record = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
+    if (!record) {
+      return corsResponse(request, {
+        status: "NOT_FOUND",
+        verified: false,
+        required: false,
+      });
     }
     return corsResponse(request, {
       status: record.status,
@@ -98,7 +103,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return corsResponse(request, { error: "Invalid security token" }, 401);
       }
 
-      const res = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
+      const res = await CODManagementService.createCODOrderVerification(
+        shop,
+        cleanOrderId,
+        phone
+      );
       return corsResponse(request, res);
     }
 

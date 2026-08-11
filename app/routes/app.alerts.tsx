@@ -22,60 +22,13 @@ import {
   Divider,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-
-import { AlertService } from "../services/alerts.service";
+import { AlertsApplicationService } from "../application/health/alerts.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const email = (session as any).email || "";
 
-  let settings = await prisma.storeSettings.findUnique({
-    where: { shop: session.shop },
-  });
-  if (!settings) {
-    settings = await prisma.storeSettings.create({
-      data: {
-        shop: session.shop,
-        defaultCOGSPct: 40,
-        defaultForwardShipping: 60,
-        defaultReturnShipping: 70,
-        defaultCODHandling: 40,
-        defaultPackaging: 10,
-        defaultGatewayFeePct: 2,
-        rtoDetectionPattern: "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
-        rtoThreshold: 10,
-        marginThreshold: 15,
-        alertEmail: (session as any).email || "",
-      },
-    });
-  }
-
-  // Auto-evaluate current store conditions against thresholds
-  await AlertService.evaluateStoreAlerts(session.shop);
-
-  const activeAlerts = await prisma.alert.findMany({
-    where: { shop: session.shop, isRead: false },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const resolvedAlerts = await prisma.alert.findMany({
-    where: { shop: session.shop, isRead: true },
-    orderBy: { createdAt: "desc" },
-    take: 15,
-  });
-
-  return {
-    settings,
-    activeAlerts: activeAlerts.map((a: any) => ({
-      ...a,
-      createdAt: a.createdAt.toISOString().split("T")[0],
-    })),
-    resolvedAlerts: resolvedAlerts.map((a: any) => ({
-      ...a,
-      createdAt: a.createdAt.toISOString().split("T")[0],
-      readAt: a.readAt ? a.readAt.toISOString().split("T")[0] : null,
-    })),
-  };
+  return AlertsApplicationService.getAlertsData(session.shop, email);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -85,7 +38,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "resolve_alert") {
     const alertId = formData.get("alertId") as string;
-    await AlertService.resolveAlert(session.shop, alertId);
+    await AlertsApplicationService.resolveAlert(session.shop, alertId);
     return Response.json({ success: true });
   }
 
@@ -97,21 +50,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const rtoThreshold = parseFloat(rtoThresholdStr);
     const marginThreshold = parseFloat(marginThresholdStr);
 
-    if (isNaN(rtoThreshold) || rtoThreshold < 0 || rtoThreshold > 100) {
-      return Response.json({ error: "RTO threshold must be a number between 0 and 100" }, { status: 400 });
-    }
-    if (isNaN(marginThreshold) || marginThreshold < -100 || marginThreshold > 100) {
-      return Response.json({ error: "Margin threshold must be a valid percentage number" }, { status: 400 });
-    }
-
-    await prisma.storeSettings.upsert({
-      where: { shop: session.shop },
-      update: { alertEmail, rtoThreshold, marginThreshold },
-      create: { shop: session.shop, alertEmail, rtoThreshold, marginThreshold, defaultCOGSPct: 40 },
+    const result = await AlertsApplicationService.updateAlertSettings(session.shop, {
+      alertEmail,
+      rtoThreshold,
+      marginThreshold,
     });
 
-    // Re-evaluate alerts with new settings thresholds
-    await AlertService.evaluateStoreAlerts(session.shop);
+    if (!result.success) {
+      return Response.json({ error: result.error }, { status: 400 });
+    }
 
     return Response.json({ success: true });
   }

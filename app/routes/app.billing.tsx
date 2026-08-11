@@ -27,35 +27,14 @@ import {
   FinanceIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { getSubscription } from "../services/feature-access.service";
-import { SubscriptionSyncService } from "../services/subscription-sync.service";
-import prisma from "../db.server";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
-  const subscription = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
 
-  const [orders, settings] = await Promise.all([
-    prisma.order.findMany({ where: { shop: session.shop }, select: { isCOD: true, fulfillmentStatus: true } }),
-    prisma.storeSettings.findUnique({ where: { shop: session.shop } })
-  ]);
-
-  const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length;
-  const avgRtoLoss = (settings?.defaultForwardShipping || 60) + (settings?.defaultReturnShipping || 70);
-  const totalRtoSavings = blockedCodCount * avgRtoLoss;
-
-  return {
-    shop: session.shop,
-    host,
-    plan: subscription.plan,
-    status: subscription.status,
-    orderLimit: subscription.orderLimit,
-    ordersUsed: subscription.ordersUsed,
-    trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
-    totalRtoSavings,
-  };
+  return BillingApplicationService.getBillingData(session.shop, billing, host);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -64,12 +43,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent") as string;
 
   if (intent === "sync_subscription") {
-    const subscription = await SubscriptionSyncService.syncSubscriptionWithShopify(session.shop, billing);
+    const subscription = await BillingApplicationService.syncSubscription(session.shop, billing);
     return { success: true, message: `Subscription synced successfully. Current plan: ${subscription.plan}` };
   }
 
   if (intent === "cancel_subscription") {
-    await SubscriptionSyncService.cancelSubscription(session.shop, billing);
+    await BillingApplicationService.cancelSubscription(session.shop, billing);
     return { success: true, message: "Subscription cancelled successfully." };
   }
 

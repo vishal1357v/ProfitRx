@@ -15,9 +15,24 @@ function withTransformedTokens(
 
 /**
  * Keeps token handling compatible with Shopify's session storage while
- * persisting encrypted OAuth credentials in PostgreSQL.
+ * persisting encrypted OAuth credentials in PostgreSQL with resilient connection retries.
  */
 export class EncryptedPrismaSessionStorage<T extends PrismaClient> extends PrismaSessionStorage<T> {
+  constructor(
+    prisma: T,
+    options?: {
+      tableName?: string;
+      connectionRetries?: number;
+      connectionRetryIntervalMs?: number;
+    }
+  ) {
+    super(prisma, {
+      connectionRetries: options?.connectionRetries ?? 8,
+      connectionRetryIntervalMs: options?.connectionRetryIntervalMs ?? 2500,
+      ...options,
+    });
+  }
+
   override async storeSession(session: Session): Promise<boolean> {
     return super.storeSession(
       withTransformedTokens(session, (token) => (token ? encryptToken(token) : undefined)),

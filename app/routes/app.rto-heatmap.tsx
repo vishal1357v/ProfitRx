@@ -4,14 +4,10 @@ import { useLoaderData, useSubmit, useNavigation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
-  Badge, ProgressBar, Divider, DataTable, Button, Banner,
+  Badge, Divider, DataTable, Button, Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
-import { ProfitService } from "../services/profit.service";
-import { canAccessFeature, hasFeature } from "../services/feature-access.service";
-import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { PincodeApplicationService } from "../application/protection/pincode.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -38,109 +34,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   } catch (error) {
     if (error instanceof Response && error.status === 402) {
-      throw Response.redirect(`/app/pricing?shop=${shop}`);
+      throw Response.redirect(`/app/pricing?shop=${encodeURIComponent(shop)}`);
     }
     throw error;
   }
-  const hasAccess = true;
 
-  // Pincode stats
-  const pincodeStats = await ProfitIntelligenceService.getPincodeStats(shop, 30);
-
-  // All orders for COD/prepaid split
-  const orders = await prisma.order.findMany({ where: { shop } });
-  const isCOD = (o: any) => o.isCOD || (o.gateway && (o.gateway.toLowerCase().includes("cod") || o.gateway.toLowerCase().includes("cash") || o.gateway.toLowerCase().includes("manual")));
-
-  const codOrders = orders.filter(isCOD);
-  const prepaidOrders = orders.filter((o: any) => !isCOD(o));
-
-  const codRevenue = codOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-  const prepaidRevenue = prepaidOrders.reduce((s: number, o: any) => s + o.totalPrice, 0);
-
-  // Fetch COGS and settings for profit calculation
-  const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
-  const settings = ProfitService.getSettings(rawSettings);
-  const cogsMap = await ProfitService.getCOGS(shop);
-  const calcProfit = (orderList: typeof orders) =>
-    orderList.reduce((s: number, o: any) => {
-      const c = cogsMap[o.productId || ""] ?? o.totalPrice * 0.4;
-      const { profit } = ProfitService.calculateOrderProfit(o, c, settings);
-      return s + profit;
-    }, 0);
-
-  const codProfit = calcProfit(codOrders);
-  const prepaidProfit = calcProfit(prepaidOrders);
-  const codMargin = codRevenue > 0 ? (codProfit / codRevenue) * 100 : 0;
-  const prepaidMargin = prepaidRevenue > 0 ? (prepaidProfit / prepaidRevenue) * 100 : 0;
-
-  // RTO events (manual events + auto-detected fulfillment status orders)
-  const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
-  const manualRtoIds = rtoEvents.filter((e: any) => e.eventType === "RTO").map((e: any) => e.orderId);
-  const autoRtoIds = orders.filter((o: any) => o.fulfillmentStatus === "RTO").map((o: any) => o.id);
-  const uniqueRtoIds = new Set([...manualRtoIds, ...autoRtoIds]);
-  let codRtoCount = 0;
-  for (const o of codOrders) {
-    if (uniqueRtoIds.has(o.id)) codRtoCount++;
-  }
-  const codRtoRate = codOrders.length > 0 ? (codRtoCount / codOrders.length) * 100 : 0;
-
-  const codAOV = codOrders.length > 0 ? codRevenue / codOrders.length : 0;
-  const prepaidAOV = prepaidOrders.length > 0 ? prepaidRevenue / prepaidOrders.length : 0;
-
-  // COD risk for pending COD orders (top 10 high-value)
-  const pendingCOD = codOrders
-    .filter((o: any) => o.fulfillmentStatus?.toLowerCase() === "unfulfilled" || o.fulfillmentStatus?.toLowerCase() === "in progress")
-    .sort((a: any, b: any) => b.totalPrice - a.totalPrice)
-    .slice(0, 10);
-
-  const pendingCODWithRisk = await Promise.all(pendingCOD.map(async (o: any) => {
-    const risk = await ProfitIntelligenceService.getCODRiskScore(shop, o.pincode, o.totalPrice, o.customerId);
-    return {
-      id: o.id,
-      orderNumber: o.orderNumber,
-      value: o.totalPrice,
-      pincode: o.pincode || "N/A",
-      city: o.city || "N/A",
-      riskScore: risk.score,
-      riskLevel: risk.level,
-      topReason: risk.reasons[0] || "Unknown",
-    };
-  }));
-
-  return {
-    hasAccess,
-    pincodeStats: pincodeStats.map((p: any) => ({
-      pincode: p.pincode,
-      city: p.city,
-      province: p.province,
-      totalOrders: p.totalOrders,
-      codOrders: p.codOrders,
-      rtoCount: p.rtoCount,
-      totalLoss: p.totalLoss,
-      rtoRate: Math.round(p.rtoRate * 10) / 10,
-      riskLevel: p.riskLevel,
-    })),
-    codStats: {
-      orders: codOrders.length,
-      revenue: Math.round(codRevenue),
-      profit: Math.round(codProfit),
-      margin: Math.round(codMargin * 10) / 10,
-      rtoRate: Math.round(codRtoRate * 10) / 10,
-      aov: Math.round(codAOV),
-    },
-    prepaidStats: {
-      orders: prepaidOrders.length,
-      revenue: Math.round(prepaidRevenue),
-      profit: Math.round(prepaidProfit),
-      margin: Math.round(prepaidMargin * 10) / 10,
-      rtoRate: 0,
-      aov: Math.round(prepaidAOV),
-    },
-    pendingCODWithRisk,
-    totalOrders: orders.length,
-    shop,
-    host,
-  };
+  return PincodeApplicationService.getPincodeHeatmapData(shop, host);
 };
 
 const RISK_COLORS = {
@@ -150,28 +49,6 @@ const RISK_COLORS = {
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)", label: "🔴 Critical" },
 };
 
-function StatCard({ icon, label, value, sub, color }: {
-  icon: string; label: string; value: string; sub?: string; color?: string;
-}) {
-  return (
-    <div className="gg-kpi-card">
-      <BlockStack gap="150">
-        <InlineStack gap="150" blockAlign="center">
-          <span style={{ fontSize: 18 }}>{icon}</span>
-          <span className="gg-section-label">{label}</span>
-        </InlineStack>
-        <span style={{
-          fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 26,
-          letterSpacing: "-0.03em", color: color || "var(--gg-text-primary)", lineHeight: 1,
-        }}>
-          {value}
-        </span>
-        {sub && <span className="gg-text-xs gg-text-muted gg-font-body">{sub}</span>}
-      </BlockStack>
-    </div>
-  );
-}
-
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -180,16 +57,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "bulk_block_high_risk") {
     const pincodes = JSON.parse(formData.get("pincodes") as string) as string[];
-    const { CODManagementService } = await import("../services/cod-management.service");
-    const updated = await CODManagementService.bulkUpdateBlockedPincodes(shop, pincodes);
-    return Response.json({ success: true, count: updated.length });
+    const result = await PincodeApplicationService.bulkBlockHighRisk(shop, pincodes);
+    return Response.json(result);
   }
 
   return Response.json({ error: "Invalid intent" }, { status: 400 });
 };
 
 export default function RTOHeatmapRoute() {
-  const { hasAccess, shop, host, pincodeStats = [], codStats, prepaidStats, pendingCODWithRisk = [], totalOrders = 0 } = useLoaderData<typeof loader>();
+  const { hasAccess, shop, host, pincodeStats = [], codStats, prepaidStats, pendingCODWithRisk = [] } = useLoaderData<typeof loader>();
   const [blockedNotice, setBlockedNotice] = useState<string | null>(null);
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -236,13 +112,13 @@ export default function RTOHeatmapRoute() {
   const riskRows = pendingCODWithRisk.map((o: any) => {
     const risk = RISK_COLORS[o.riskLevel as keyof typeof RISK_COLORS] || RISK_COLORS.LOW;
     return [
-      <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>#{o.orderNumber}</span>,
-      <span>₹{o.value.toLocaleString("en-IN")}</span>,
-      <span>{o.pincode} {o.city !== "N/A" ? `— ${o.city}` : ""}</span>,
-      <Badge tone={o.riskLevel === "CRITICAL" ? "critical" : o.riskLevel === "HIGH" ? "warning" : o.riskLevel === "MEDIUM" ? "attention" : "success"}>
+      <span key={`order-${o.id}`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>#{o.orderNumber}</span>,
+      <span key={`val-${o.id}`}>₹{o.value.toLocaleString("en-IN")}</span>,
+      <span key={`pin-${o.id}`}>{o.pincode} {o.city !== "N/A" ? `— ${o.city}` : ""}</span>,
+      <Badge key={`badge-${o.id}`} tone={o.riskLevel === "CRITICAL" ? "critical" : o.riskLevel === "HIGH" ? "warning" : o.riskLevel === "MEDIUM" ? "attention" : "success"}>
         {risk.label}
       </Badge>,
-      <span style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>{o.topReason}</span>,
+      <span key={`reason-${o.id}`} style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>{o.topReason}</span>,
     ];
   });
 
@@ -252,7 +128,7 @@ export default function RTOHeatmapRoute() {
       secondaryActions={[
         {
           content: "📋 Manage RTO Events",
-          url: `/app/rto?shop=${shop}&host=${host}`,
+          url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         }
       ]}
     >
@@ -468,7 +344,7 @@ export default function RTOHeatmapRoute() {
                                 {p.rtoRate}% RTO
                               </div>
                               <div style={{ height: 6, borderRadius: "100px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                                <div style={{ width: `${barPct}%`, height: "high", background: risk.color, borderRadius: "100px", transition: "width 0.8s ease" }} />
+                                <div style={{ width: `${barPct}%`, height: "100%", background: risk.color, borderRadius: "100px", transition: "width 0.8s ease" }} />
                               </div>
                             </div>
                             <Badge tone={p.riskLevel === "CRITICAL" ? "critical" : p.riskLevel === "HIGH" ? "warning" : p.riskLevel === "MEDIUM" ? "attention" : "success"}>

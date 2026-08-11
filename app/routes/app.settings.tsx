@@ -19,36 +19,14 @@ import {
   NotificationIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { ProfitService } from "../services/profit.service";
+import { SettingsApplicationService } from "../application/settings/settings.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const email = (session as any).email || "";
 
-  let rawSettings = await prisma.storeSettings.findUnique({
-    where: { shop },
-  });
-  if (!rawSettings) {
-    rawSettings = await prisma.storeSettings.create({
-      data: {
-        shop,
-        defaultCOGSPct: 40,
-        defaultForwardShipping: 60,
-        defaultReturnShipping: 70,
-        defaultCODHandling: 40,
-        defaultPackaging: 10,
-        defaultGatewayFeePct: 2,
-        rtoDetectionPattern: "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender",
-        rtoThreshold: 10,
-        marginThreshold: 15,
-        alertEmail: (session as any).email || "",
-      },
-    });
-  }
-
-  const settings = ProfitService.getSettings(rawSettings);
-  return { shop, settings };
+  return SettingsApplicationService.getSettingsData(shop, email);
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -87,61 +65,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    if (whatsappEnabled && whatsappPhone) {
-      const phoneNumber = parsePhoneNumberFromString(whatsappPhone);
-      if (!phoneNumber || !phoneNumber.isValid()) {
-        return Response.json({ success: false, error: "Invalid WhatsApp phone number format. Please include country code (e.g. +919876543210)." }, { status: 400 });
-      }
-    }
-
-    await prisma.storeSettings.upsert({
-      where: { shop },
-      update: {
-        defaultForwardShipping,
-        defaultReturnShipping,
-        defaultCODHandling,
-        defaultPackaging,
-        defaultGatewayFeePct,
-        gatewayFixedFee,
-        rtoDetectionPattern,
-        alertEmail,
-        rtoThreshold,
-        marginThreshold,
-        gstin,
-        isGstRegistered,
-        gstRate,
-        whatsappPhone,
-        whatsappEnabled,
-        otpVerificationEnabled: whatsappEnabled,
-        shippingSlabs,
-      } as any,
-      create: {
-        shop,
-        defaultCOGSPct: 40,
-        defaultForwardShipping,
-        defaultReturnShipping,
-        defaultCODHandling,
-        defaultPackaging,
-        defaultGatewayFeePct,
-        gatewayFixedFee,
-        rtoDetectionPattern,
-        alertEmail,
-        rtoThreshold,
-        marginThreshold,
-        gstin,
-        isGstRegistered,
-        gstRate,
-        whatsappPhone,
-        whatsappEnabled,
-        otpVerificationEnabled: whatsappEnabled,
-        shippingSlabs,
-      } as any,
+    const result = await SettingsApplicationService.saveSettings(shop, {
+      defaultForwardShipping,
+      defaultReturnShipping,
+      defaultCODHandling,
+      defaultPackaging,
+      defaultGatewayFeePct,
+      gatewayFixedFee,
+      rtoDetectionPattern,
+      alertEmail,
+      rtoThreshold,
+      marginThreshold,
+      gstin,
+      isGstRegistered,
+      gstRate,
+      whatsappPhone,
+      whatsappEnabled,
+      shippingSlabs,
     });
+
+    if (!result.success) {
+      return Response.json({ success: false, error: result.error }, { status: 400 });
+    }
 
     return Response.json({ success: true });
   }
 
-  return Response.json({ success: false });
+  return Response.json({ error: "Invalid intent" }, { status: 400 });
 };
 
 export default function SettingsRoute() {

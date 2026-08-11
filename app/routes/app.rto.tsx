@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useNavigation, useSubmit } from "react-router";
+import { Form, useLoaderData, useNavigation, useSubmit, useSearchParams, Link } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
 import {
   Page,
   Layout,
@@ -21,171 +22,53 @@ import {
   DataTable,
   Badge,
   Divider,
+  Pagination,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
-import { ShopifyService } from "../services/shopify.service";
-
-// Helper to determine if gateway is COD
-const isCodGateway = (gateway: string | null) => {
-  if (!gateway) return false;
-  const lower = gateway.toLowerCase();
-  return lower.includes("cod") || lower.includes("cash") || lower.includes("manual");
-};
+import { RtoAnalyticsApplicationService } from "../application/analytics/rto-analytics.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
+  const shop = session.shop;
 
-  // Fetch all orders
-  const orders = await prisma.order.findMany({
-    where: { shop: session.shop },
-    orderBy: { createdAt: "desc" },
+  const url = new URL(request.url);
+  const page = parseInt(url.searchParams.get("page") || "1", 10);
+  const pageSize = parseInt(url.searchParams.get("pageSize") || "25", 10);
+  const search = url.searchParams.get("search") || undefined;
+  const status = url.searchParams.get("status") || undefined;
+  const eventType = url.searchParams.get("eventType") || undefined;
+
+  return RtoAnalyticsApplicationService.getRtoAnalytics(shop, admin, {
+    page,
+    pageSize,
+    search,
+    status,
+    eventType,
   });
-
-  // Fetch all RTO events
-  const rtoEvents = await prisma.rTOEvent.findMany({
-    where: { shop: session.shop },
-    orderBy: { createdAt: "desc" },
-  });
-
-  // Fetch products to map titles
-  let products: any[] = [];
-  try {
-    products = await ShopifyService.getProducts(admin);
-  } catch (err) {
-    console.error("Failed to fetch products:", err);
-  }
-  const productMap = new Map(products.map((p) => [p.id, p.title]));
-
-  // Calculate Stats
-  const codOrders = orders.filter((o: any) => isCodGateway(o.gateway));
-  const prepaidOrders = orders.filter((o: any) => !isCodGateway(o.gateway));
-
-  const codCount = codOrders.length;
-  const prepaidCount = prepaidOrders.length;
-  const totalCount = orders.length || 1;
-
-  const codPercent = ((codCount / totalCount) * 100).toFixed(1);
-  const prepaidPercent = ((prepaidCount / totalCount) * 100).toFixed(1);
-
-  // RTO Loss and rates
-  const totalLoss = rtoEvents.reduce((acc: number, curr: any) => acc + curr.amount, 0);
-  const rtoCount = rtoEvents.filter((e: any) => e.eventType === "RTO").length;
-  const rtoRate = codCount > 0 ? ((rtoCount / codCount) * 100).toFixed(1) : "0.0";
-
-  // Group RTO losses by product
-  const productLossMap = new Map<string, { title: string; amount: number; count: number }>();
-  for (const event of rtoEvents) {
-    const order = orders.find((o: any) => o.id === event.orderId);
-    const productId = order?.productId;
-    if (productId) {
-      const title = productMap.get(productId) || `Product ID: ${productId}`;
-      const existing = productLossMap.get(productId) || { title, amount: 0, count: 0 };
-      existing.amount += event.amount;
-      existing.count += 1;
-      productLossMap.set(productId, existing);
-    }
-  }
-
-  const topProducts = Array.from(productLossMap.entries())
-    .map(([id, data]) => ({ id, ...data }))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 5);
-
-  // Generate 30 days history data for RTO trend chart
-  const dailyRto: Record<string, { date: string; count: number; loss: number }> = {};
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
-    dailyRto[dateStr] = { date: dateStr.substring(8) + "/" + dateStr.substring(5, 7), count: 0, loss: 0 };
-  }
-
-  rtoEvents.forEach((e: any) => {
-    const dateStr = e.createdAt.toISOString().split("T")[0];
-    if (dailyRto[dateStr]) {
-      dailyRto[dateStr].count += 1;
-      dailyRto[dateStr].loss += e.amount;
-    }
-  });
-
-  return {
-    orders: orders.map((o: any) => ({ orderNumber: o.orderNumber, totalPrice: o.totalPrice })),
-    rtoEvents: rtoEvents.map((e: any) => ({
-      ...e,
-      createdAt: e.createdAt.toISOString().split("T")[0],
-    })),
-    stats: {
-      totalLoss,
-      rtoRate,
-      codCount,
-      prepaidCount,
-      codPercent,
-      prepaidPercent,
-    },
-    topProducts,
-    chartData: Object.values(dailyRto),
-  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const shop = session.shop;
   const formData = await request.formData();
-  
-  const orderNumberStr = formData.get("orderNumber") as string;
-  const amountStr = formData.get("amount") as string;
-  const eventType = formData.get("eventType") as string;
-  const status = formData.get("status") as string;
+
+  const orderNumber = parseInt(formData.get("orderNumber") as string, 10);
+  const amount = parseFloat(formData.get("amount") as string);
+  const eventType = (formData.get("eventType") as string) || "RTO";
+  const status = (formData.get("status") as string) || "CONFIRMED";
   const reason = formData.get("reason") as string;
 
-  const orderNumber = parseInt(orderNumberStr, 10);
-  const amount = parseFloat(amountStr);
-
-  if (isNaN(orderNumber)) {
-    return Response.json({ error: "Invalid order number" }, { status: 400 });
-  }
-  if (isNaN(amount) || amount < 0) {
-    return Response.json({ error: "Invalid amount" }, { status: 400 });
-  }
-
-  // Find linked order in database
-  const order = await prisma.order.findFirst({
-    where: { shop: session.shop, orderNumber },
+  const result = await RtoAnalyticsApplicationService.logRtoEvent(shop, {
+    orderNumber,
+    amount,
+    eventType,
+    status,
+    reason,
   });
 
-  if (!order) {
-    return Response.json({ error: `Order #${orderNumber} not found. Please sync orders first.` }, { status: 400 });
+  if (!result.success) {
+    return Response.json({ error: result.error || "Failed to log event" }, { status: 400 });
   }
-
-  // Validate RTO event amount bounds (amount <= order total price)
-  if (amount > order.totalPrice) {
-    return Response.json(
-      { error: `RTO loss amount (₹${amount}) cannot exceed the order's total price (₹${order.totalPrice}).` },
-      { status: 400 }
-    );
-  }
-
-  // Check if event already logged for this order
-  const existingEvent = await prisma.rTOEvent.findFirst({
-    where: { shop: session.shop, orderId: order.id, eventType },
-  });
-
-  if (existingEvent) {
-    return Response.json({ error: `An event of type "${eventType}" has already been logged for Order #${orderNumber}.` }, { status: 400 });
-  }
-
-  // Save RTO Event
-  await prisma.rTOEvent.create({
-    data: {
-      shop: session.shop,
-      orderId: order.id,
-      orderNumber,
-      eventType,
-      amount,
-      status,
-      reason: reason || null,
-    },
-  });
 
   return Response.json({ success: true });
 };
@@ -197,15 +80,15 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
   const height = 180;
   const padding = 45;
 
-  const maxLoss = Math.max(...data.map(d => d.loss), 500);
-  const getX = (index: number) => padding + (index * (width - 2 * padding)) / (data.length - 1);
+  const maxLoss = Math.max(...data.map((d) => d.loss), 500);
+  const getX = (index: number) => padding + (index * (width - 2 * padding)) / Math.max(1, data.length - 1);
   const getY = (val: number) => height - padding - (val * (height - 2 * padding)) / maxLoss;
 
   const points = data.map((d, i) => `${getX(i)},${getY(d.loss)}`).join(" ");
 
   return (
-    <div style={{ width: "high", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((p, idx) => {
           const val = p * maxLoss;
@@ -222,7 +105,7 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
 
         {/* X labels */}
         {data.filter((_, idx) => idx % 5 === 0).map((d, idx) => {
-          const index = data.findIndex(item => item.date === d.date);
+          const index = data.findIndex((item) => item.date === d.date);
           return (
             <text key={idx} x={getX(index)} y={height - 5} textAnchor="middle" fontSize="9" fill="#64748b">
               {d.date}
@@ -235,7 +118,7 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
 
         {/* Dots */}
         {data.filter((_, idx) => idx % 5 === 0).map((d, idx) => {
-          const index = data.findIndex(item => item.date === d.date);
+          const index = data.findIndex((item) => item.date === d.date);
           return (
             <circle key={idx} cx={getX(index)} cy={getY(d.loss)} r="4" fill="#ef4444" stroke="#fff" strokeWidth="1.5" />
           );
@@ -246,8 +129,9 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
 }
 
 export default function RtoRoute() {
-  const { orders, rtoEvents, stats, topProducts, chartData } = useLoaderData<typeof loader>();
-  const submit = useSubmit();
+  const { orders, rtoEvents, pagination, stats, topProducts, chartData, hasOrders, hasRtoEvents } =
+    useLoaderData<typeof loader>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -260,10 +144,25 @@ export default function RtoRoute() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState(false);
 
-  // Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [typeFilter, setTypeFilter] = useState("ALL");
+  // Filter States synced with URL SearchParams
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "ALL");
+  const [typeFilter, setTypeFilter] = useState(searchParams.get("eventType") || "ALL");
+
+  const applyFilters = (newSearch: string, newStatus: string, newType: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (newSearch) params.set("search", newSearch);
+    else params.delete("search");
+
+    if (newStatus !== "ALL") params.set("status", newStatus);
+    else params.delete("status");
+
+    if (newType !== "ALL") params.set("eventType", newType);
+    else params.delete("eventType");
+
+    params.set("page", "1");
+    setSearchParams(params);
+  };
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -307,7 +206,6 @@ export default function RtoRoute() {
         setOrderNumber("");
         setAmount("");
         setReason("");
-        // Reload parameters via router redirect refresh
         window.location.reload();
       } else {
         setActionError(data.error || "Failed to log event");
@@ -317,29 +215,24 @@ export default function RtoRoute() {
     }
   };
 
-  // Filter local events
-  const filteredEvents = rtoEvents.filter((event: any) => {
-    const matchesSearch =
-      event.orderNumber.toString().includes(searchQuery) ||
-      (event.reason || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || event.status === statusFilter;
-    const matchesType = typeFilter === "ALL" || event.eventType === typeFilter;
-
-    return matchesSearch && matchesStatus && matchesType;
-  });
-
-  const rows = filteredEvents.map((event: any) => {
-    // If orderId is a raw ID, use it directly, if it's a gid, we encode it.
+  const rows = rtoEvents.map((event: any) => {
     const orderParam = encodeURIComponent(event.orderId);
     return [
-      <a key={`link-${event.id}`} href={`/app/orders/${orderParam}`} style={{ fontWeight: 'bold', color: 'var(--p-color-text-link)', textDecoration: 'none' }}>
+      <a
+        key={`link-${event.id}`}
+        href={`/app/orders/${orderParam}`}
+        style={{ fontWeight: "bold", color: "var(--p-color-text-link)", textDecoration: "none" }}
+      >
         #{event.orderNumber}
       </a>,
       <Badge key={event.id} tone={event.eventType === "RTO" ? "critical" : "warning"}>
         {event.eventType}
       </Badge>,
-      `₹${event.amount.toLocaleString()}`,
-      <Badge key={`${event.id}-status`} tone={event.status === "RESOLVED" ? "success" : event.status === "CONFIRMED" ? "attention" : "info"}>
+      `₹${event.amount.toLocaleString("en-IN")}`,
+      <Badge
+        key={`${event.id}-status`}
+        tone={event.status === "RESOLVED" ? "success" : event.status === "CONFIRMED" ? "attention" : "info"}
+      >
         {event.status}
       </Badge>,
       event.reason || "N/A",
@@ -350,22 +243,39 @@ export default function RtoRoute() {
   const productRows = topProducts.map((p: any) => [
     p.title,
     `${p.count} events`,
-    `₹${p.amount.toLocaleString()}`,
+    `₹${p.amount.toLocaleString("en-IN")}`,
   ]);
 
   return (
-    <Page title="COD & Return to Origin (RTO) Tracking">
+    <Page
+      title="COD & Return to Origin (RTO) Analytics"
+      secondaryActions={[
+        {
+          content: "🔍 View Profit Leaks",
+          url: "/app/profit-leaks",
+        },
+        {
+          content: "🗺️ Pincode Heatmap",
+          url: "/app/rto-heatmap",
+        },
+      ]}
+    >
       <Layout>
         {/* Info banners */}
         <Layout.Section>
           {actionSuccess && (
-            <Banner tone="success">
+            <Banner tone="success" onDismiss={() => setActionSuccess(false)}>
               RTO / COD failure event logged successfully!
             </Banner>
           )}
           {actionError && (
-            <Banner tone="critical" title="Logging failed">
+            <Banner tone="critical" title="Logging failed" onDismiss={() => setActionError(null)}>
               {actionError}
+            </Banner>
+          )}
+          {!hasOrders && (
+            <Banner tone="info" title="No order data synced yet">
+              <p>Sync your Shopify orders from the Dashboard to start analyzing RTO risk and loss segments.</p>
             </Banner>
           )}
         </Layout.Section>
@@ -376,14 +286,19 @@ export default function RtoRoute() {
             <Grid.Cell>
               <Card>
                 <BlockStack gap="100">
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Total RTO & COD Losses
-                  </Text>
+                  <InlineStack align="space-between">
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Total RTO & COD Losses
+                    </Text>
+                    <Button variant="plain" url="/app/profit-leaks">
+                      Profit Leaks →
+                    </Button>
+                  </InlineStack>
                   <Text variant="heading2xl" as="p" tone="critical">
-                    ₹{stats.totalLoss.toLocaleString()}
+                    ₹{stats.totalLoss.toLocaleString("en-IN")}
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Total overhead shipping/handling waste
+                    Direct shipping waste & fulfillment loss
                   </Text>
                 </BlockStack>
               </Card>
@@ -403,7 +318,7 @@ export default function RtoRoute() {
                     {stats.rtoRate}%
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Percentage of COD orders failed
+                    Percentage of COD orders rejected / returned
                   </Text>
                 </BlockStack>
               </Card>
@@ -510,7 +425,7 @@ export default function RtoRoute() {
           </Card>
         </Layout.Section>
 
-        {/* Event History with Search Filters and Product Breakdown */}
+        {/* Event History with Search Filters, Product Breakdown, and Pagination */}
         <Layout.Section>
           <BlockStack gap="500">
             {/* Top Products */}
@@ -527,33 +442,44 @@ export default function RtoRoute() {
                   />
                 ) : (
                   <Text variant="bodyMd" as="p" tone="subdued">
-                    No products with RTO losses recorded yet.
+                    {hasRtoEvents ? "No products with RTO losses recorded yet." : "No RTO events recorded for your store yet."}
                   </Text>
                 )}
               </BlockStack>
             </Card>
 
-            {/* History logs with dynamic search/filters */}
+            {/* History logs with dynamic search/filters & pagination */}
             <Card>
               <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">
-                  Filterable RTO & COD Event History ({filteredEvents.length})
-                </Text>
-                
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="headingMd" as="h2">
+                    Filterable RTO & COD Event History ({pagination.total})
+                  </Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Click order # to view Order Intelligence detail
+                  </Text>
+                </InlineStack>
+
                 {/* Filters Row */}
                 <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
                   <TextField
                     label="Search by Order # or comments"
                     value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search..."
+                    onChange={(val) => {
+                      setSearchQuery(val);
+                      applyFilters(val, statusFilter, typeFilter);
+                    }}
+                    placeholder="Search order # or reason..."
                     autoComplete="off"
                     labelHidden
                   />
                   <Select
                     label="Filter by Event Type"
                     value={typeFilter}
-                    onChange={setTypeFilter}
+                    onChange={(val) => {
+                      setTypeFilter(val);
+                      applyFilters(searchQuery, statusFilter, val);
+                    }}
                     options={[
                       { label: "All Event Types", value: "ALL" },
                       { label: "RTO", value: "RTO" },
@@ -565,7 +491,10 @@ export default function RtoRoute() {
                   <Select
                     label="Filter by Status"
                     value={statusFilter}
-                    onChange={setStatusFilter}
+                    onChange={(val) => {
+                      setStatusFilter(val);
+                      applyFilters(searchQuery, val, typeFilter);
+                    }}
                     options={[
                       { label: "All Statuses", value: "ALL" },
                       { label: "Confirmed", value: "CONFIRMED" },
@@ -578,16 +507,36 @@ export default function RtoRoute() {
 
                 <Divider />
 
-                {filteredEvents.length > 0 ? (
+                {rows.length > 0 ? (
                   <DataTable
                     columnContentTypes={["text", "text", "text", "text", "text", "text"]}
-                    headings={["Order", "Type", "Loss Amount", "Status", "Reason / Comments", "Date"]}
+                    headings={["Order (Click to View Detail)", "Type", "Loss Amount", "Status", "Reason / Comments", "Date"]}
                     rows={rows}
                   />
                 ) : (
                   <Text variant="bodyMd" as="p" tone="subdued">
                     No events matching filter constraints.
                   </Text>
+                )}
+
+                {pagination.totalPages > 1 && (
+                  <InlineStack align="center">
+                    <Pagination
+                      hasPrevious={pagination.page > 1}
+                      onPrevious={() => {
+                        const params = new URLSearchParams(searchParams);
+                        params.set("page", (pagination.page - 1).toString());
+                        setSearchParams(params);
+                      }}
+                      hasNext={pagination.page < pagination.totalPages}
+                      onNext={() => {
+                        const params = new URLSearchParams(searchParams);
+                        params.set("page", (pagination.page + 1).toString());
+                        setSearchParams(params);
+                      }}
+                      label={`Page ${pagination.page} of ${pagination.totalPages}`}
+                    />
+                  </InlineStack>
                 )}
               </BlockStack>
             </Card>

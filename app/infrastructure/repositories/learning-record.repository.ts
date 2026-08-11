@@ -22,11 +22,15 @@ export class LearningRecordRepository {
     }
   }
 
-  static async getRecordsForModelTraining(shopId: string, startDate: Date, endDate: Date): Promise<any[]> {
+  static async findByOrderId(shopId: string, orderId: string): Promise<any[]> {
+    const decodedId = decodeURIComponent(orderId);
+    const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
+    const rawId = decodedId.replace("gid://shopify/Order/", "");
+
     return prisma.learningRecord.findMany({
       where: {
         shop: shopId,
-        createdAt: { gte: startDate, lte: endDate }
+        orderId: { in: [gid, rawId, decodedId] }
       },
       orderBy: { createdAt: 'desc' }
     });
