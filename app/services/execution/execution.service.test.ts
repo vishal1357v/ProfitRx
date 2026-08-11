@@ -9,6 +9,9 @@ import { OtpExecutor } from "./executors/otp.executor";
 import { ExecutorRegistry } from "./registry/executor.registry";
 import { DecisionResult } from "../decision-engine/types";
 
+import { MockWhatsappProvider } from "./providers/whatsapp/mock.whatsapp-provider";
+import { WhatsappExecutor } from "./executors/whatsapp.executor";
+
 describe("ExecutionService", () => {
   let idempotencyStore: MemoryIdempotencyStore;
   let executionLogger: MemoryExecutionLogger;
@@ -46,9 +49,9 @@ describe("ExecutionService", () => {
     ExecutionEventBus.clearListeners();
     ExecutionEventBus.subscribe(e => emittedEvents.push(e));
 
-    // Reset registry manually just in case
-    // We already use the real registry which holds a MockOtpProvider.
-    // If we want to intercept, we can manipulate the mock provider directly
+    // Register mock providers for isolated unit testing
+    ExecutorRegistry.register("OTP_VERIFY", new OtpExecutor(new MockOtpProvider()));
+    ExecutorRegistry.register("WHATSAPP_VERIFY", new WhatsappExecutor(new MockWhatsappProvider()));
   });
 
   it("1. Standard OTP execution success emits OTP_SENT event", async () => {

@@ -1,24 +1,48 @@
 import { ExecutionContext, ExecutionResult } from "../types";
 import { ActionExecutor } from "./executor.interface";
+import { ShopifyService } from "../../shopify.service";
 
 export class PrepaidExecutor implements ActionExecutor {
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
     const startTime = performance.now();
+    let providerLatencyMs = 0;
 
-    // Requires converting order to Draft Order and emailing invoice
-    return {
-      success: true,
-      action: "PREPAID_ONLY",
-      status: "ADVISORY_ONLY", 
-      provider: "ShopifyIntegration",
-      retryable: false,
-      timestamp: new Date(),
-      message: "Prepaid conversion recommended. Automation not yet configured in Shopify.",
-      metrics: {
-        executionTimeMs: performance.now() - startTime,
-        retryCount: 0,
-        providerLatencyMs: 0
-      }
-    };
+    try {
+      const providerStart = performance.now();
+      const tagResult = await ShopifyService.tagOrder(context.shop, context.orderId, "ProfitRx-Prepaid-Required");
+      providerLatencyMs = performance.now() - providerStart;
+
+      return {
+        success: true,
+        action: "PREPAID_ONLY",
+        status: "ADVISORY_ONLY",
+        provider: "ShopifyAdminGraphQL",
+        retryable: false,
+        timestamp: new Date(),
+        message: tagResult.success
+          ? "Order tagged as ProfitRx-Prepaid-Required on Shopify Admin."
+          : "Prepaid conversion recommended. Automation advisory recorded.",
+        metrics: {
+          executionTimeMs: performance.now() - startTime,
+          retryCount: 0,
+          providerLatencyMs,
+        },
+      };
+    } catch (err: any) {
+      return {
+        success: true,
+        action: "PREPAID_ONLY",
+        status: "ADVISORY_ONLY",
+        provider: "ShopifyAdminGraphQL",
+        retryable: false,
+        timestamp: new Date(),
+        message: "Prepaid conversion recommended. Automation advisory recorded.",
+        metrics: {
+          executionTimeMs: performance.now() - startTime,
+          retryCount: 0,
+          providerLatencyMs: performance.now() - startTime,
+        },
+      };
+    }
   }
 }
