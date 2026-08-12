@@ -565,9 +565,15 @@ export default function DashboardRoute() {
     try {
       const res = await fetch("/api/sync-orders", { method: "POST" });
       const resData = await res.json();
-      if (res.ok) {
+      if (res.ok && resData.success) {
         setSyncSuccess(true);
-        setSyncMessage(`✅ Synced ${resData.count} orders successfully!`);
+        if (resData.message) {
+          setSyncMessage(resData.message);
+        } else if (resData.ordersFound !== undefined) {
+          setSyncMessage(`✅ Synced ${resData.ordersFound} orders (${resData.ordersImported || 0} new imported, ${resData.ordersUpdated || 0} updated). Date window: ${resData.syncWindow?.from} to ${resData.syncWindow?.to} (Last 60 days).`);
+        } else {
+          setSyncMessage(`✅ Synced ${resData.count} orders successfully!`);
+        }
         revalidator.revalidate();
       } else {
         throw new Error(resData.error || "Sync failed");
@@ -668,6 +674,7 @@ export default function DashboardRoute() {
   return (
     <Page
       title={`ProfitRx — ${data.shop?.replace(".myshopify.com", "") || "Store"}`}
+      subtitle={`Sync Window: Last 60 Days (${data.syncWindow?.from || "Recent"} – ${data.syncWindow?.to || "Today"}) • Evaluated Orders: ${data.orderCount} • Last Activity: ${data.lastSyncTime ? new Date(data.lastSyncTime).toLocaleDateString() : "Real-time"}`}
       primaryAction={
         <Button variant="primary" onClick={handleSyncOrders} loading={syncing} id="sync-orders-btn">
           ⟳ Sync Orders
@@ -694,11 +701,15 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
-        {/* ── INITIAL BACKGROUND SYNC LOADING BANNER ── */}
+        {/* ── ZERO-ORDER / SYNC WINDOW TRANSPARENCY BANNER ── */}
         {data.orderCount === 0 && (
           <Layout.Section>
-            <Banner tone="info" title="Initial Data Sync in Progress">
-              <p>Syncing your last 30 days of data... Please wait a moment while your orders and COGS catalog update automatically.</p>
+            <Banner tone="info" title="No Orders Found in Current 60-Day Window">
+              <p>
+                ProfitRx scans your store's orders from <strong>{data.syncWindow?.from || "the last 60 days"}</strong> to <strong>{data.syncWindow?.to || "today"}</strong>.
+                If your Shopify store only contains historical orders older than 60 days, Shopify Admin API requires the <code>read_all_orders</code> permission scope.
+                You can create a new test order in Shopify or click <strong>Sync Orders</strong> above to refresh.
+              </p>
             </Banner>
           </Layout.Section>
         )}

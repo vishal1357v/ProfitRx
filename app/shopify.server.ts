@@ -109,8 +109,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 1500.0,
-          currencyCode: "INR",
+          amount: 19.0,
+          currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -119,8 +119,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 3000.0,
-          currencyCode: "INR",
+          amount: 39.0,
+          currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
       ],
@@ -129,8 +129,8 @@ const shopify = shopifyApp({
       trialDays: 14,
       lineItems: [
         {
-          amount: 6000.0,
-          currencyCode: "INR",
+          amount: 79.0,
+          currencyCode: "USD",
           interval: BillingInterval.Every30Days,
         },
       ],

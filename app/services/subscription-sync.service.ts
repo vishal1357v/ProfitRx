@@ -69,12 +69,24 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
   }
 
   try {
-    const isTest = process.env.NODE_ENV !== "production";
-    // First attempt
+    // First attempt: Check live subscriptions, fallback to test subscriptions (for development stores)
     let checkResult = await billing.check({
       plans: ["STARTER", "GROWTH", "PRO"],
-      isTest,
+      isTest: false,
+    }).catch((err: any) => {
+      console.warn(`[Billing Check] Live check failed (${err.message}), checking test subscriptions...`);
+      return { appSubscriptions: [] };
     });
+
+    if (!checkResult.appSubscriptions?.length) {
+      checkResult = await billing.check({
+        plans: ["STARTER", "GROWTH", "PRO"],
+        isTest: true,
+      }).catch((err: any) => {
+        console.warn(`[Billing Check] Test check error: ${err.message}`);
+        return { appSubscriptions: [] };
+      });
+    }
 
     console.log(`[Billing Check] shop=${shop} attempt=1 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
 
@@ -84,14 +96,21 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
       await new Promise(r => setTimeout(r, 1500));
       checkResult = await billing.check({
         plans: ["STARTER", "GROWTH", "PRO"],
-        isTest,
-      });
+        isTest: true,
+      }).catch(() => ({ appSubscriptions: [] }));
+      
+      if (!checkResult.appSubscriptions?.length) {
+        checkResult = await billing.check({
+          plans: ["STARTER", "GROWTH", "PRO"],
+          isTest: false,
+        }).catch(() => ({ appSubscriptions: [] }));
+      }
       console.log(`[Billing Check] shop=${shop} attempt=2 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
     }
 
     const activeSub = checkResult.appSubscriptions?.find((sub: any) => {
       const s = (sub.status || "").toUpperCase();
-      return s === "ACTIVE" || s === "TRIALING";
+      return s === "ACTIVE" || s === "TRIALING" || s === "ACCEPTED";
     });
 
     console.log(`[Billing Check] shop=${shop} activeSub=${activeSub ? JSON.stringify({ name: activeSub.name, status: activeSub.status, id: activeSub.id }) : "NONE"}`);

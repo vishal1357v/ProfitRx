@@ -104,6 +104,8 @@ export class ShopifyService {
     const dateStr = sixtyDaysAgo.toISOString().split("T")[0];
     const query = `updated_at:>=${dateStr}`;
 
+    console.log(`[ShopifyService.getOrders] Fetching orders with query: "${query}" for shop: ${shop}`);
+
     const settings = shop ? (await prisma.storeSettings.findUnique({ where: { shop } })) : null;
     const pattern = settings?.rtoDetectionPattern || "rto,returned,undelivered,failed_delivery,rto-initiated,rto_initiated,shipped-rto,shiprocket-rto,delhivery_rto,rto-delhivery,rto-bluedart,return-to-origin,returned-to-sender";
 
@@ -125,7 +127,7 @@ export class ShopifyService {
               totalTaxSet { presentmentMoney { amount } }
               totalDiscountsSet { presentmentMoney { amount } }
               shippingLines(first: 1) {
-                edges { node { price } }
+                edges { node { originalPriceSet { presentmentMoney { amount } } } }
               }
               createdAt
               displayFinancialStatus
@@ -149,20 +151,14 @@ export class ShopifyService {
                   referrerUrl
                 }
               }
-              channelInformation {
-                channelDefinition {
-                  handle
-                }
-              }
               shippingAddress {
-                zip
                 city
                 province
+                provinceCode
+                countryCode
               }
               customer {
                 id
-                displayName
-                email
               }
               lineItems(first: 250) {
                 edges {
@@ -254,7 +250,7 @@ export class ShopifyService {
     const isSyncCapped = hasNextPage && pageCount >= maxPages;
     if (shop) {
       try {
-        await (prisma as any).storeSettings.updateMany({
+        await (prisma as any).storeSettings.update({
           where: { shop },
           data: { syncCapped: isSyncCapped }
         });
@@ -514,7 +510,11 @@ export class ShopifyService {
   // ── Order mapping ─────────────────────────────────────────
   private static mapOrder(node: any, rtoDetectionPattern: string): ShopifyOrder {
     const orderId = node.id.split("/").pop();
-    const shippingPrice = parseFloat(node.shippingLines?.edges?.[0]?.node?.price || "0");
+    const shippingPrice = parseFloat(
+      node.shippingLines?.edges?.[0]?.node?.originalPriceSet?.presentmentMoney?.amount ||
+      node.shippingLines?.edges?.[0]?.node?.price ||
+      "0"
+    );
     const discountAmount = parseFloat(node.totalDiscountsSet?.presentmentMoney?.amount || "0");
     const gateway = node.paymentGatewayNames?.[0] || null;
     const customerId = node.customer?.id?.split("/").pop() || null;
@@ -587,11 +587,17 @@ export class ShopifyService {
       `);
       const data = await res.json() as any;
       const planName = data?.data?.shop?.plan?.displayName || "Basic";
-      await (prisma.storeSettings as any).upsert({
-        where: { shop },
-        update: { shopifyPlanName: planName },
-        create: { shop, shopifyPlanName: planName, defaultCOGSPct: 40 },
-      });
+      const existingSettings = await (prisma.storeSettings as any).findUnique({ where: { shop } });
+      if (existingSettings) {
+        await (prisma.storeSettings as any).update({
+          where: { shop },
+          data: { shopifyPlanName: planName },
+        });
+      } else {
+        await (prisma.storeSettings as any).create({
+          data: { shop, shopifyPlanName: planName, defaultCOGSPct: 40 },
+        });
+      }
       return planName;
     } catch (err: any) {
       console.warn(`[ShopifyService] Failed to fetch shop plan name for ${shop}: ${err.message}`);
@@ -685,67 +691,57 @@ export class ShopifyService {
         snapshotCogs = order.totalPrice * (settings.defaultCOGSPct / 100);
       }
 
-      await (prisma.order as any).upsert({
-        where: { id: order.id },
-        update: {
-          totalPrice: order.totalPrice,
-          subtotalPrice: order.subtotalPrice,
-          totalTax: order.totalTax,
-          shippingPrice: order.shippingPrice,
-          discountAmount: order.discountAmount,
-          isCOD: order.isCOD,
-          financialStatus: order.financialStatus,
-          fulfillmentStatus: order.fulfillmentStatus,
-          productId: lineProdId,
-          gateway: order.gateway || null,
-          channelType: order.channelType || "WEBSITE",
-          channelAttribution: order.channelAttribution || "Website",
-          customerId: order.customerId || null,
-          customerName: order.customerName || null,
-          customerEmail: order.customerEmail || null,
-          pincode: order.pincode,
-          city: order.city,
-          province: order.province,
-          ...(riskResult && (!existing || existing.riskScore === null) ? {
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            riskReasons: riskResult.reasons,
-            merchantRecommendation: riskResult.recommendation,
-          } : {}),
-        },
-        create: {
-          id: order.id,
-          shop: session.shop,
-          orderNumber: parseInt((order.name || "").replace("#", "").replace(/\D/g, "")) || 0,
-          totalPrice: order.totalPrice,
-          subtotalPrice: order.subtotalPrice,
-          totalTax: order.totalTax,
-          shippingPrice: order.shippingPrice,
-          discountAmount: order.discountAmount,
-          isCOD: order.isCOD,
-          createdAt: order.createdAt,
-          processedAt: order.createdAt,
-          financialStatus: order.financialStatus,
-          fulfillmentStatus: order.fulfillmentStatus,
-          productId: lineProdId,
-          gateway: order.gateway || null,
-          channelType: order.channelType || "WEBSITE",
-          channelAttribution: order.channelAttribution || "Website",
-          customerId: order.customerId || null,
-          customerName: order.customerName || null,
-          customerEmail: order.customerEmail || null,
-          pincode: order.pincode,
-          city: order.city,
-          province: order.province,
-          cogsAtTimeOfOrder: snapshotCogs,
-          ...(riskResult ? {
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            riskReasons: riskResult.reasons,
-            merchantRecommendation: riskResult.recommendation,
-          } : {}),
-        },
-      });
+      const orderData = {
+        totalPrice: order.totalPrice,
+        subtotalPrice: order.subtotalPrice,
+        totalTax: order.totalTax,
+        shippingPrice: order.shippingPrice,
+        discountAmount: order.discountAmount,
+        isCOD: order.isCOD,
+        financialStatus: order.financialStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+        productId: lineProdId,
+        gateway: order.gateway || null,
+        channelType: order.channelType || "WEBSITE",
+        channelAttribution: order.channelAttribution || "Website",
+        customerId: order.customerId || null,
+        customerName: order.customerName || null,
+        customerEmail: order.customerEmail || null,
+        pincode: order.pincode,
+        city: order.city,
+        province: order.province,
+        ...(riskResult && (!existing || existing.riskScore === null) ? {
+          riskScore: riskResult.score,
+          riskLevel: riskResult.level,
+          riskReasons: riskResult.reasons,
+          merchantRecommendation: riskResult.recommendation,
+        } : {}),
+      };
+
+      if (existing) {
+        await (prisma.order as any).update({
+          where: { id: order.id },
+          data: orderData,
+        });
+      } else {
+        await (prisma.order as any).create({
+          data: {
+            id: order.id,
+            shop: session.shop,
+            orderNumber: parseInt((order.name || "").replace("#", "").replace(/\D/g, "")) || 0,
+            ...orderData,
+            createdAt: order.createdAt,
+            processedAt: order.createdAt,
+            cogsAtTimeOfOrder: snapshotCogs,
+            ...(riskResult ? {
+              riskScore: riskResult.score,
+              riskLevel: riskResult.level,
+              riskReasons: riskResult.reasons,
+              merchantRecommendation: riskResult.recommendation,
+            } : {}),
+          }
+        });
+      }
       count++;
     }
 
@@ -756,18 +752,45 @@ export class ShopifyService {
     await CustomerIntelligenceService.syncCustomerProfiles(session.shop);
     await AlertService.evaluateStoreAlerts(session.shop);
 
-    // Seed search queries if first run
-    await this.seedSearchQueriesIfEmpty(admin, session.shop);
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const dateStr = sixtyDaysAgo.toISOString().split("T")[0];
+    const todayStr = new Date().toISOString().split("T")[0];
 
-    // Update ordersUsed count in subscription
-    if (subscription && newOrdersCount > 0) {
-      await prisma.subscription.update({
-        where: { shop: session.shop },
-        data: { ordersUsed: { increment: newOrdersCount } },
-      });
+    // Find date bounds of synced orders
+    let oldestOrderAt: string | null = null;
+    let newestOrderAt: string | null = null;
+    if (orders.length > 0) {
+      const dates = orders.map(o => o.createdAt.getTime()).sort((a, b) => a - b);
+      oldestOrderAt = new Date(dates[0]).toISOString();
+      newestOrderAt = new Date(dates[dates.length - 1]).toISOString();
     }
 
-    return { count };
+    const syncWindow = {
+      from: dateStr,
+      to: todayStr,
+      days: 60,
+    };
+
+    let message = "";
+    if (orders.length > 0) {
+      message = `Sync complete: Shopify returned ${orders.length} orders (${newOrdersCount} imported, ${count - newOrdersCount} updated) within the 60-day window (${dateStr} to ${todayStr}).`;
+    } else {
+      message = `Sync complete: 0 orders found in the selected 60-day period (${dateStr} to ${todayStr}). If your store contains older orders, accessing orders beyond 60 days requires Shopify's 'read_all_orders' historical access scope.`;
+    }
+
+    console.log(`[ShopifyService.syncOrders] ${message}`);
+
+    return {
+      count,
+      ordersFound: orders.length,
+      ordersImported: newOrdersCount,
+      ordersUpdated: count - newOrdersCount,
+      syncWindow,
+      oldestOrderAt,
+      newestOrderAt,
+      message,
+    };
   }
 
   // ── Sync Orders For Shop (Cron / Offline) ─────────────────
@@ -830,67 +853,57 @@ export class ShopifyService {
         snapshotCogs = order.totalPrice * (settings.defaultCOGSPct / 100);
       }
 
-      await (prisma.order as any).upsert({
-        where: { id: order.id },
-        update: {
-          totalPrice: order.totalPrice,
-          subtotalPrice: order.subtotalPrice,
-          totalTax: order.totalTax,
-          shippingPrice: order.shippingPrice,
-          discountAmount: order.discountAmount,
-          isCOD: order.isCOD,
-          financialStatus: order.financialStatus,
-          fulfillmentStatus: order.fulfillmentStatus,
-          productId: lineProdId,
-          gateway: order.gateway || null,
-          channelType: order.channelType || "WEBSITE",
-          channelAttribution: order.channelAttribution || "Website",
-          customerId: order.customerId || null,
-          customerName: order.customerName || null,
-          customerEmail: order.customerEmail || null,
-          pincode: order.pincode,
-          city: order.city,
-          province: order.province,
-          ...(riskResult && (!existing || existing.riskScore === null) ? {
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            riskReasons: riskResult.reasons,
-            merchantRecommendation: riskResult.recommendation,
-          } : {}),
-        },
-        create: {
-          id: order.id,
-          shop: session.shop,
-          orderNumber: parseInt((order.name || "").replace("#", "").replace(/\D/g, "")) || 0,
-          totalPrice: order.totalPrice,
-          subtotalPrice: order.subtotalPrice,
-          totalTax: order.totalTax,
-          shippingPrice: order.shippingPrice,
-          discountAmount: order.discountAmount,
-          isCOD: order.isCOD,
-          createdAt: order.createdAt,
-          processedAt: order.createdAt,
-          financialStatus: order.financialStatus,
-          fulfillmentStatus: order.fulfillmentStatus,
-          productId: lineProdId,
-          gateway: order.gateway || null,
-          channelType: order.channelType || "WEBSITE",
-          channelAttribution: order.channelAttribution || "Website",
-          customerId: order.customerId || null,
-          customerName: order.customerName || null,
-          customerEmail: order.customerEmail || null,
-          pincode: order.pincode,
-          city: order.city,
-          province: order.province,
-          cogsAtTimeOfOrder: snapshotCogs,
-          ...(riskResult ? {
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            riskReasons: riskResult.reasons,
-            merchantRecommendation: riskResult.recommendation,
-          } : {}),
-        },
-      });
+      const orderData = {
+        totalPrice: order.totalPrice,
+        subtotalPrice: order.subtotalPrice,
+        totalTax: order.totalTax,
+        shippingPrice: order.shippingPrice,
+        discountAmount: order.discountAmount,
+        isCOD: order.isCOD,
+        financialStatus: order.financialStatus,
+        fulfillmentStatus: order.fulfillmentStatus,
+        productId: lineProdId,
+        gateway: order.gateway || null,
+        channelType: order.channelType || "WEBSITE",
+        channelAttribution: order.channelAttribution || "Website",
+        customerId: order.customerId || null,
+        customerName: order.customerName || null,
+        customerEmail: order.customerEmail || null,
+        pincode: order.pincode,
+        city: order.city,
+        province: order.province,
+        ...(riskResult && (!existing || existing.riskScore === null) ? {
+          riskScore: riskResult.score,
+          riskLevel: riskResult.level,
+          riskReasons: riskResult.reasons,
+          merchantRecommendation: riskResult.recommendation,
+        } : {}),
+      };
+
+      if (existing) {
+        await (prisma.order as any).update({
+          where: { id: order.id },
+          data: orderData,
+        });
+      } else {
+        await (prisma.order as any).create({
+          data: {
+            id: order.id,
+            shop: session.shop,
+            orderNumber: parseInt((order.name || "").replace("#", "").replace(/\D/g, "")) || 0,
+            ...orderData,
+            createdAt: order.createdAt,
+            processedAt: order.createdAt,
+            cogsAtTimeOfOrder: snapshotCogs,
+            ...(riskResult ? {
+              riskScore: riskResult.score,
+              riskLevel: riskResult.level,
+              riskReasons: riskResult.reasons,
+              merchantRecommendation: riskResult.recommendation,
+            } : {}),
+          }
+        });
+      }
       count++;
     }
 
@@ -1021,7 +1034,12 @@ export class ShopifyService {
       pincodeMap[pin].totalLoss += event.amount;
     }
 
-    const upsertPromises: any[] = [];
+    const existingPincodes = await (prisma as any).pincodeStats.findMany({
+      where: { shop },
+      select: { pincode: true }
+    });
+    const existingPincodeSet = new Set(existingPincodes.map((p: any) => p.pincode));
+
     for (const [pincode, stats] of Object.entries(pincodeMap)) {
       if (pincode === "UNKNOWN" && stats.totalOrders < 3) continue;
       const rtoRate = stats.codOrders > 0 ? (stats.rtoCount / stats.codOrders) * 100 : 0;
@@ -1029,20 +1047,31 @@ export class ShopifyService {
       const aov = stats.totalOrders > 0 ? stats.revenue / stats.totalOrders : 0;
       const deliveryRate = stats.totalOrders > 0 ? (stats.successfulDeliveries / stats.totalOrders) * 100 : 0;
 
-      upsertPromises.push(
-        (prisma as any).pincodeStats.upsert({
-          where: { shop_pincode: { shop, pincode } },
-          update: { city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel, successfulDeliveries: stats.successfulDeliveries, deliveryRate, aov, revenue: stats.revenue },
-          create: { shop, pincode, city: stats.city, province: stats.province, totalOrders: stats.totalOrders, codOrders: stats.codOrders, rtoCount: stats.rtoCount, totalLoss: stats.totalLoss, rtoRate, riskLevel, successfulDeliveries: stats.successfulDeliveries, deliveryRate, aov, revenue: stats.revenue },
-        })
-      );
-    }
+      const pData = {
+        city: stats.city,
+        province: stats.province,
+        totalOrders: stats.totalOrders,
+        codOrders: stats.codOrders,
+        rtoCount: stats.rtoCount,
+        totalLoss: stats.totalLoss,
+        rtoRate,
+        riskLevel,
+        successfulDeliveries: stats.successfulDeliveries,
+        deliveryRate,
+        aov,
+        revenue: stats.revenue
+      };
 
-    // Execute pincode upserts in chunks of 100
-    const batchSize = 100;
-    for (let i = 0; i < upsertPromises.length; i += batchSize) {
-      const batch = upsertPromises.slice(i, i + batchSize);
-      await prisma.$transaction(batch);
+      if (existingPincodeSet.has(pincode)) {
+        await (prisma as any).pincodeStats.update({
+          where: { shop_pincode: { shop, pincode } },
+          data: pData,
+        });
+      } else {
+        await (prisma as any).pincodeStats.create({
+          data: { shop, pincode, ...pData },
+        });
+      }
     }
   }
 

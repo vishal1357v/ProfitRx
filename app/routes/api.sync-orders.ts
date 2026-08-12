@@ -25,7 +25,17 @@ export async function action({ request }: ActionFunctionArgs) {
     const result = await withDbRetry(async () => {
       return await ShopifyService.syncOrders(request);
     });
-    return Response.json({ success: true, count: result.count });
+    return Response.json({
+      success: true,
+      count: result.count,
+      ordersFound: result.ordersFound,
+      ordersImported: result.ordersImported,
+      ordersUpdated: result.ordersUpdated,
+      syncWindow: result.syncWindow,
+      oldestOrderAt: result.oldestOrderAt,
+      newestOrderAt: result.newestOrderAt,
+      message: result.message,
+    });
   } catch (error) {
     if (error instanceof Response) {
       throw error;

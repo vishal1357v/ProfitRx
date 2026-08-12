@@ -11,6 +11,10 @@ export interface BillingDataDTO {
   orderLimit: number | null;
   ordersUsed: number;
   trialEndsAt: string | null;
+  lastSyncedAt: string | null;
+  shopifyChargeId: string | null;
+  billingProvider: string;
+  isTestStore: boolean;
   totalRtoSavings: number;
 }
 
@@ -37,6 +41,12 @@ export class BillingApplicationService {
       (settings?.defaultForwardShipping || 60) + (settings?.defaultReturnShipping || 70);
     const totalRtoSavings = blockedCodCount * avgRtoLoss;
 
+    const isTestStore =
+      (settings?.shopifyPlanName || "").toLowerCase().includes("develop") ||
+      (settings?.shopifyPlanName || "").toLowerCase().includes("partner") ||
+      (settings?.shopifyPlanName || "").toLowerCase().includes("test") ||
+      shop.includes("test");
+
     return {
       shop,
       host,
@@ -45,6 +55,10 @@ export class BillingApplicationService {
       orderLimit: subscription.orderLimit,
       ordersUsed: subscription.ordersUsed,
       trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
+      lastSyncedAt: subscription.updatedAt ? subscription.updatedAt.toISOString() : new Date().toISOString(),
+      shopifyChargeId: subscription.shopifyChargeId || null,
+      billingProvider: "Shopify App Billing API (Recurring Application Charge)",
+      isTestStore,
       totalRtoSavings,
     };
   }

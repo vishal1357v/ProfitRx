@@ -55,39 +55,38 @@ export class CustomerIntelligenceService {
       const customerName = (firstOrder as any).customerName || (firstOrder as any).name || `Customer ${customerId.substring(0, 6)}`;
       const customerEmail = (firstOrder as any).customerEmail || (firstOrder as any).email || null;
 
-      upsertPromises.push(
-        (prisma as any).customerProfile.upsert({
+      const profileData = {
+        customerName,
+        customerEmail,
+        firstOrderDate,
+        lastOrderDate,
+        orderCount,
+        totalRevenue,
+        ltv,
+        aov,
+        cohortMonth,
+        channelSource,
+        updatedAt: new Date(),
+      };
+
+      const existingProfile = await (prisma as any).customerProfile.findUnique({
+        where: { shop_customerId: { shop, customerId } },
+      });
+
+      if (existingProfile) {
+        await (prisma as any).customerProfile.update({
           where: { shop_customerId: { shop, customerId } },
-          update: {
-            customerName,
-            customerEmail,
-            firstOrderDate,
-            lastOrderDate,
-            orderCount,
-            totalRevenue,
-            ltv,
-            aov,
-            cohortMonth,
-            channelSource,
-            updatedAt: new Date(),
-          },
-          create: {
+          data: profileData,
+        });
+      } else {
+        await (prisma as any).customerProfile.create({
+          data: {
             shop,
             customerId,
-            customerName,
-            customerEmail,
-            firstOrderDate,
-            lastOrderDate,
-            orderCount,
-            totalRevenue,
-            ltv,
-            aov,
-            cohortMonth,
-            channelSource,
-            updatedAt: new Date(),
+            ...profileData,
           },
-        })
-      );
+        });
+      }
 
       // Phase 3: CustomerRisk Profile Updates
       const codOrdersCount = custOrders.filter(o => o.isCOD).length;
@@ -99,55 +98,44 @@ export class CustomerIntelligenceService {
       const riskInput = { rtoCount, codOrders: codOrdersCount, cancellationCount, aov };
       const riskResult = RiskEngineService.calculateCustomerRisk(riskInput);
 
-      upsertPromises.push(
-        (prisma as any).customerRisk.upsert({
+      const riskData = {
+        phone: (firstOrder as any).phone || null,
+        email: customerEmail,
+        totalOrders: orderCount,
+        codOrders: codOrdersCount,
+        prepaidOrders,
+        successfulDeliveries,
+        rtoCount,
+        cancellationCount,
+        aov,
+        lifetimeSpend: totalRevenue,
+        lastOrderDate,
+        riskScore: riskResult.score,
+        riskLevel: riskResult.level,
+        updatedAt: new Date(),
+      };
+
+      const existingRisk = await (prisma as any).customerRisk.findUnique({
+        where: { shop_customerId: { shop, customerId } },
+      });
+
+      if (existingRisk) {
+        await (prisma as any).customerRisk.update({
           where: { shop_customerId: { shop, customerId } },
-          update: {
-            phone: (firstOrder as any).phone || null,
-            email: customerEmail,
-            totalOrders: orderCount,
-            codOrders: codOrdersCount,
-            prepaidOrders,
-            successfulDeliveries,
-            rtoCount,
-            cancellationCount,
-            aov,
-            lifetimeSpend: totalRevenue,
-            lastOrderDate,
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            updatedAt: new Date(),
-          },
-          create: {
+          data: riskData,
+        });
+      } else {
+        await (prisma as any).customerRisk.create({
+          data: {
             shop,
             customerId,
-            phone: (firstOrder as any).phone || null,
-            email: customerEmail,
-            totalOrders: orderCount,
-            codOrders: codOrdersCount,
-            prepaidOrders,
-            successfulDeliveries,
-            rtoCount,
-            cancellationCount,
-            aov,
-            lifetimeSpend: totalRevenue,
-            lastOrderDate,
-            riskScore: riskResult.score,
-            riskLevel: riskResult.level,
-            updatedAt: new Date(),
+            ...riskData,
           },
-        })
-      );
+        });
+      }
     }
 
-    // Run database operations in batches of 100 to prevent connection pools and memory timeout bottlenecks
-    const batchSize = 100;
-    for (let i = 0; i < upsertPromises.length; i += batchSize) {
-      const batch = upsertPromises.slice(i, i + batchSize);
-      await prisma.$transaction(batch);
-    }
-
-    return { updated: upsertPromises.length };
+    return { updated: customerGroupMap.size };
   }
 
   /**

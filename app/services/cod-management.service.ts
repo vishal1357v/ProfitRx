@@ -58,30 +58,37 @@ export class CODManagementService {
    * Update COD management settings
    */
   static async updateCODSettings(shop: string, updateData: Partial<CODSettings>) {
-    const settings = await prisma.storeSettings.upsert({
-      where: { shop },
-      update: {
-        ...(updateData.codBlockingEnabled !== undefined && { codBlockingEnabled: updateData.codBlockingEnabled }),
-        ...(updateData.codBlockedPincodes !== undefined && { codBlockedPincodes: updateData.codBlockedPincodes }),
-        ...(updateData.otpVerificationEnabled !== undefined && { otpVerificationEnabled: updateData.otpVerificationEnabled }),
-        ...(updateData.partialPaymentEnabled !== undefined && { partialPaymentEnabled: updateData.partialPaymentEnabled }),
-        ...(updateData.partialPaymentAmount !== undefined && { partialPaymentAmount: updateData.partialPaymentAmount }),
-        ...(updateData.codFeeEnabled !== undefined && { codFeeEnabled: updateData.codFeeEnabled }),
-        ...(updateData.codFeeAmount !== undefined && { codFeeAmount: updateData.codFeeAmount }),
-        ...(updateData.codFeeType !== undefined && { codFeeType: updateData.codFeeType }),
-      } as any,
-      create: {
-        shop,
-        codBlockingEnabled: updateData.codBlockingEnabled ?? false,
-        codBlockedPincodes: updateData.codBlockedPincodes ?? [],
-        otpVerificationEnabled: updateData.otpVerificationEnabled ?? false,
-        partialPaymentEnabled: updateData.partialPaymentEnabled ?? false,
-        partialPaymentAmount: updateData.partialPaymentAmount ?? 50,
-        codFeeEnabled: updateData.codFeeEnabled ?? false,
-        codFeeAmount: updateData.codFeeAmount ?? 30,
-        codFeeType: updateData.codFeeType ?? "fixed",
-      } as any,
-    });
+    const existing = await (prisma.storeSettings as any).findUnique({ where: { shop } });
+    let settings;
+    if (existing) {
+      settings = await (prisma.storeSettings as any).update({
+        where: { shop },
+        data: {
+          ...(updateData.codBlockingEnabled !== undefined && { codBlockingEnabled: updateData.codBlockingEnabled }),
+          ...(updateData.codBlockedPincodes !== undefined && { codBlockedPincodes: updateData.codBlockedPincodes }),
+          ...(updateData.otpVerificationEnabled !== undefined && { otpVerificationEnabled: updateData.otpVerificationEnabled }),
+          ...(updateData.partialPaymentEnabled !== undefined && { partialPaymentEnabled: updateData.partialPaymentEnabled }),
+          ...(updateData.partialPaymentAmount !== undefined && { partialPaymentAmount: updateData.partialPaymentAmount }),
+          ...(updateData.codFeeEnabled !== undefined && { codFeeEnabled: updateData.codFeeEnabled }),
+          ...(updateData.codFeeAmount !== undefined && { codFeeAmount: updateData.codFeeAmount }),
+          ...(updateData.codFeeType !== undefined && { codFeeType: updateData.codFeeType }),
+        },
+      });
+    } else {
+      settings = await (prisma.storeSettings as any).create({
+        data: {
+          shop,
+          codBlockingEnabled: updateData.codBlockingEnabled ?? false,
+          codBlockedPincodes: updateData.codBlockedPincodes ?? [],
+          otpVerificationEnabled: updateData.otpVerificationEnabled ?? false,
+          partialPaymentEnabled: updateData.partialPaymentEnabled ?? false,
+          partialPaymentAmount: updateData.partialPaymentAmount ?? 50,
+          codFeeEnabled: updateData.codFeeEnabled ?? false,
+          codFeeAmount: updateData.codFeeAmount ?? 30,
+          codFeeType: updateData.codFeeType ?? "fixed",
+        },
+      });
+    }
 
     try {
       await this.syncCODRulesToShopify(shop);
@@ -193,30 +200,20 @@ export class CODManagementService {
     // 4. Conditional gate: if risk level is LOW, bypass OTP challenge entirely
     if (riskLevel === "LOW") {
       console.log(`[CODManagementService] Pincode "${pincode || "unknown"}" is LOW risk. Bypassing OTP verification challenge for order ${orderId}`);
-      const record = await (prisma as any).cODOrder.upsert({
-        where: { orderId },
-        update: {
-          shop,
-          phone,
-          otp: null,
-          otpAttempts: 0,
-          otpVerified: true,
-          otpSentAt: null,
-          otpVerifiedAt: new Date(),
-          status: "VERIFIED",
-        },
-        create: {
-          orderId,
-          shop,
-          phone,
-          otp: null,
-          otpAttempts: 0,
-          otpVerified: true,
-          otpSentAt: null,
-          otpVerifiedAt: new Date(),
-          status: "VERIFIED",
-        },
-      });
+      const bypassData = {
+        shop,
+        phone,
+        otp: null,
+        otpAttempts: 0,
+        otpVerified: true,
+        otpSentAt: null,
+        otpVerifiedAt: new Date(),
+        status: "VERIFIED",
+      };
+      const existingRecord = await (prisma as any).cODOrder.findUnique({ where: { orderId } });
+      const record = existingRecord
+        ? await (prisma as any).cODOrder.update({ where: { orderId }, data: bypassData })
+        : await (prisma as any).cODOrder.create({ data: { orderId, ...bypassData } });
       return { success: true, record, otpSent: false, bypassed: true, provider: "bypass" };
     }
 
@@ -228,28 +225,19 @@ export class CODManagementService {
       return { success: false, message: "OTP delivery is unavailable. Configure a WhatsApp provider before enabling verification.", provider: dispatchRes.provider };
     }
 
-    const record = await (prisma as any).cODOrder.upsert({
-      where: { orderId },
-      update: {
-        shop,
-        phone,
-        otp: hashedOtp,
-        otpAttempts: 0,
-        otpVerified: false,
-        otpSentAt: new Date(),
-        status: "OTP_SENT",
-      },
-      create: {
-        orderId,
-        shop,
-        phone,
-        otp: hashedOtp,
-        otpAttempts: 0,
-        otpVerified: false,
-        otpSentAt: new Date(),
-        status: "OTP_SENT",
-      },
-    });
+    const otpData = {
+      shop,
+      phone,
+      otp: hashedOtp,
+      otpAttempts: 0,
+      otpVerified: false,
+      otpSentAt: new Date(),
+      status: "OTP_SENT",
+    };
+    const existingOtpRecord = await (prisma as any).cODOrder.findUnique({ where: { orderId } });
+    const record = existingOtpRecord
+      ? await (prisma as any).cODOrder.update({ where: { orderId }, data: otpData })
+      : await (prisma as any).cODOrder.create({ data: { orderId, ...otpData } });
 
     console.log(`[CODManagementService] Dispatched OTP to ***${phone.slice(-4)} via ${dispatchRes.provider} for ${riskLevel} risk order.`);
     return { success: true, record, otpSent: true, provider: dispatchRes.provider };

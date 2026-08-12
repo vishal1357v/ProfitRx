@@ -6,6 +6,7 @@ if (typeof BigInt !== "undefined" && !(BigInt.prototype as any).toJSON) {
 }
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeonHttp } from "@prisma/adapter-neon";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
@@ -18,11 +19,15 @@ function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
   if (connectionString) {
     try {
+      if (connectionString.includes("neon.tech")) {
+        const adapter = new PrismaNeonHttp(connectionString);
+        return new PrismaClient({ adapter });
+      }
       const pool = new pg.Pool({ connectionString });
       const adapter = new PrismaPg(pool);
       return new PrismaClient({ adapter });
     } catch (err) {
-      console.error("[db.server.ts] Error initializing PrismaPg adapter, falling back to standard PrismaClient:", err);
+      console.error("[db.server.ts] Error initializing Prisma adapter, falling back to standard PrismaClient:", err);
     }
   }
   return new PrismaClient();
@@ -35,4 +40,3 @@ if (!global.prismaGlobal) {
 const prisma = global.prismaGlobal;
 
 export default prisma;
-// Force IDE TS Server to reload types

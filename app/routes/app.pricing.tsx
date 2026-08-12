@@ -81,39 +81,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const returnUrl = `https://${url.host}/app/dashboard?shop=${session.shop}&host=${encodeURIComponent(host)}&plan_updated=true`;
 
   // Pre-persist the selected plan as PENDING so the DB records merchant intent
-  // before Shopify redirect. If the post-payment sync fails (race condition),
-  // the sync service can respect this PENDING state instead of reverting to FREE.
+  // before Shopify redirect.
   await BillingApplicationService.upsertSubscriptionRecord({
     shop: session.shop,
     plan: dbPlan,
     status: "PENDING",
   });
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("[Pricing] Development Bypass Active - Skipping Shopify Billing API");
-    const trialEndsAt = new Date();
-    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
-
-    await BillingApplicationService.upsertSubscriptionRecord({
-      shop: session.shop,
-      plan: dbPlan,
-      status: "TRIALING",
-      trialEndsAt,
-    });
-    return redirect(`/app/dashboard?shop=${session.shop}&host=${host}&plan_updated=true`);
-  }
+  const settings = await prisma.storeSettings.findUnique({ where: { shop: session.shop } });
+  const isDevStore =
+    process.env.NODE_ENV !== "production" ||
+    (settings?.shopifyPlanName || "").toLowerCase().includes("develop") ||
+    (settings?.shopifyPlanName || "").toLowerCase().includes("partner") ||
+    (settings?.shopifyPlanName || "").toLowerCase().includes("affiliate") ||
+    (settings?.shopifyPlanName || "").toLowerCase().includes("test") ||
+    session.shop.includes("test") ||
+    session.shop.includes("dev");
 
   try {
     return await (billing.request as any)({
       plan: plan,
-      isTest: process.env.NODE_ENV !== "production",
+      isTest: isDevStore,
       trialDays: 14,
       returnUrl,
     });
   } catch (error: any) {
     console.error("[Pricing Action Error]:", error);
+    // If billing.request threw an exit-iframe redirect Response, re-throw it so App Bridge can redirect!
     if (error instanceof Response || (error && typeof error.status === "number" && error.headers)) {
       throw error;
+    }
+
+    // If Shopify Billing API threw an error requiring test charges on dev store, retry with isTest: true
+    if (!isDevStore && (error?.message || "").toLowerCase().includes("test")) {
+      try {
+        return await (billing.request as any)({
+          plan: plan,
+          isTest: true,
+          trialDays: 14,
+          returnUrl,
+        });
+      } catch (retryErr: any) {
+        if (retryErr instanceof Response || (retryErr && typeof retryErr.status === "number" && retryErr.headers)) {
+          throw retryErr;
+        }
+      }
     }
     
     // Revert the PENDING status since Shopify billing failed to initiate
@@ -123,7 +135,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       status: "ACTIVE",
     });
 
-    return Response.json({ error: "Failed to initiate Shopify billing. Please try again or contact support." }, { status: 500 });
+    const detailedMessage = error?.message || "Failed to initiate Shopify billing.";
+    return Response.json({ error: `Shopify Billing Error: ${detailedMessage}` }, { status: 500 });
   }
 };
 

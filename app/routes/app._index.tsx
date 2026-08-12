@@ -1,1 +1,1 @@
-export { loader, default } from "./dashboard";
+export { loader, default } from "./app.dashboard";

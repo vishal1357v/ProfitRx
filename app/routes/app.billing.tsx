@@ -56,7 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt, totalRtoSavings } = useLoaderData<typeof loader>();
+  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt, lastSyncedAt, shopifyChargeId, billingProvider, isTestStore, totalRtoSavings } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -78,21 +78,21 @@ export default function BillingPage() {
     },
     STARTER: {
       name: "Starter Plan",
-      price: "₹1,500/mo",
+      price: "₹1,500/mo ($19 USD)",
       color: "info",
       includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "GST Compliance Reports", "Basic RTO Insights", "Weekly WhatsApp Digest", "CSV Data Export"],
       lacks: ["COD Risk Score", "RTO Pincode Heatmap", "Profit Leaks & COD Shield", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "API Access"],
     },
     GROWTH: {
       name: "Growth Plan",
-      price: "₹3,000/mo",
+      price: "₹3,000/mo ($39 USD)",
       color: "attention",
       includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "COD Shield & OTP Verification", "Advanced Email Alerts", "AI Profit Recommendations"],
       lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support", "API Access"],
     },
     PRO: {
       name: "Pro Plan",
-      price: "₹6,000/mo",
+      price: "₹6,000/mo ($79 USD)",
       color: "success",
       includes: ["Unlimited orders/mo", "Everything in Growth", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "Customer Intelligence", "Multi-store Support", "API Access for Custom Integrations", "Priority Support & Dedicated Onboarding"],
       lacks: [],
@@ -100,14 +100,14 @@ export default function BillingPage() {
     // Legacy aliases
     BASIC: {
       name: "Starter Plan",
-      price: "₹1,500/mo",
+      price: "₹1,500/mo ($19 USD)",
       color: "info",
       includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "GST Reports", "Basic RTO Insights"],
       lacks: ["COD Risk Score", "RTO Heatmap", "LTV & Cohort Analysis", "ROAS Sync"],
     },
     ADVANCE: {
       name: "Pro Plan",
-      price: "₹6,000/mo",
+      price: "₹6,000/mo ($79 USD)",
       color: "success",
       includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "API Access"],
       lacks: [],
@@ -135,7 +135,7 @@ export default function BillingPage() {
         {isTrialActive && (
           <Layout.Section>
             <Banner tone="info" title="🎉 Active 14-Day Free Trial Mode">
-              <p>You are currently on a 14-day free trial. Your trial ends in <strong>{trialDaysRemaining} days</strong> ({trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : ""}). You can explore all capabilities, configure weights shipping rules, and reduce RTO risk risk-free.</p>
+              <p>You are currently on a 14-day free trial. Your trial ends in <strong>{trialDaysRemaining} days</strong> ({trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : ""}). You can explore all capabilities, configure shipping rules, and protect COD profits risk-free.</p>
             </Banner>
           </Layout.Section>
         )}
@@ -145,7 +145,7 @@ export default function BillingPage() {
           <div style={{
             padding: "20px 24px",
             borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12), rgba())",
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))",
             border: "1px solid rgba(16,185,129,0.3)",
             marginBottom: "20px"
           }}>
@@ -184,6 +184,7 @@ export default function BillingPage() {
                       <InlineStack gap="150" blockAlign="center">
                         <Text variant="headingXl" as="h2">{planInfo.name}</Text>
                         <Badge tone={planInfo.color as any}>{status.toUpperCase()}</Badge>
+                        {isTestStore && <Badge tone="info">Development Store (Test Charges Active)</Badge>}
                       </InlineStack>
                     </BlockStack>
                     <div style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -211,6 +212,22 @@ export default function BillingPage() {
                       </BlockStack>
                     )}
                   </BlockStack>
+
+                  <Divider />
+
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="bodyXs" as="span" tone="subdued">
+                      Billing Provider: <strong>{billingProvider}</strong>
+                    </Text>
+                    {shopifyChargeId && (
+                      <Text variant="bodyXs" as="span" tone="subdued">
+                        Shopify Subscription ID: <code style={{ fontSize: 11 }}>{shopifyChargeId.replace("gid://shopify/AppSubscription/", "")}</code>
+                      </Text>
+                    )}
+                    <Text variant="bodyXs" as="span" tone="subdued">
+                      Last Verified: {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Real-time"}
+                    </Text>
+                  </InlineStack>
                 </BlockStack>
               </div>
             </Grid.Cell>
@@ -218,11 +235,11 @@ export default function BillingPage() {
             <Grid.Cell>
               <Card>
                 <Box padding="400">
-                  <div style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     <BlockStack gap="300">
                       <Text variant="headingMd" as="h2">Manage Plan</Text>
                       <Text variant="bodySm" as="p" tone="subdued">
-                        Change tiers, update billing information, or review transaction histories inside Shopify Billing portal.
+                        Change tiers, review Shopify subscription charges, or verify synchronization with Shopify Billing.
                       </Text>
                       <BlockStack gap="200">
                         <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="primary" fullWidth>

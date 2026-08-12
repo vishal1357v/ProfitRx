@@ -126,9 +126,7 @@ export class DashboardApplicationService {
     const adSpendDisconnected = adSpendConnections.some((c: any) => !c.isConnected && c.accessToken != null);
     const productMap = new Map(products.map((p: any) => [p.id, p.title]));
     const settings = await ProfitService.getSettings(rawSettings);
-    if (!rawSettings?.onboardingCompleted) {
-      throw redirect(`/app/onboarding?shop=${encodeURIComponent(session.shop)}&host=${encodeURIComponent(host)}`);
-    }
+    const onboardingCompleted = Boolean(rawSettings?.onboardingCompleted);
 
     const revenue = orders.reduce((sum: number, o: any) => sum + (o.fulfillmentStatus === "RTO" ? 0 : o.totalPrice), 0);
     const orderCount = orders.length;
@@ -431,6 +429,17 @@ export class DashboardApplicationService {
       })
     ]);
 
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    const dateStr = sixtyDaysAgo.toISOString().split("T")[0];
+    const todayStr = new Date().toISOString().split("T")[0];
+    const syncWindow = {
+      from: dateStr,
+      to: todayStr,
+      days: 60,
+    };
+    const lastSyncTime = orders.length > 0 ? (orders[0].createdAt ? new Date(orders[0].createdAt).toISOString() : new Date().toISOString()) : null;
+
     const blockedCodCount = orders.filter((o: any) => o.isCOD && (o.fulfillmentStatus || "").toLowerCase().includes("block")).length;
     const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
     const totalRtoSavings = blockedCodCount * avgRtoLoss;
@@ -478,8 +487,14 @@ export class DashboardApplicationService {
       trialEndsAt,
       recentDecisions,
       recentAlerts,
+      syncWindow,
+      lastSyncTime,
+      onboardingCompleted,
     };
   } catch (err: any) {
+    if (err instanceof Response) {
+      throw err;
+    }
     console.error("[Dashboard Loader Critical Error Caught]:", err);
     return {
       shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
@@ -518,6 +533,9 @@ export class DashboardApplicationService {
       trialEndsAt: null,
       recentDecisions: [],
       recentAlerts: [],
+      syncWindow: { from: "", to: "", days: 60 },
+      lastSyncTime: null,
+      onboardingCompleted: false,
     };
   }
 
