@@ -273,14 +273,15 @@ export default function ProfitLeaksRoute() {
 
   return (
     <Page
-      title="Profit Leak Detector"
+      title="Profit Leaks Diagnostic"
+      subtitle="Pinpoint financial margin leakage from RTO returns, freight overages, and discount erosion."
       secondaryActions={[
         {
-          content: "📊 View RTO Analytics",
+          content: "RTO Analytics",
           url: "/app/rto",
         },
         {
-          content: "⚙️ COGS Catalog",
+          content: "COGS Catalog",
           url: "/app/cogs",
         },
       ]}

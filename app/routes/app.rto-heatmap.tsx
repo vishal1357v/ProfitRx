@@ -124,10 +124,15 @@ export default function RTOHeatmapRoute() {
 
   return (
     <Page
-      title="RTO & COD Intelligence"
+      title="Pincode Risk Heatmap"
+      subtitle="Geographic RTO risk concentration and one-click COD blocking by pincode tier."
       secondaryActions={[
         {
-          content: "📋 Manage RTO Events",
+          content: "COD Rules & Policy",
+          url: `/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+        },
+        {
+          content: "Manage RTO Events",
           url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         }
       ]}

@@ -149,7 +149,15 @@ export default function CODRulesRoute() {
   });
 
   return (
-    <Page title="Advanced Merchant Rules" subtitle="Configure automated policies to protect your business.">
+    <Page
+      title="COD Rules & Policy"
+      subtitle="Configure deterministic thresholds and protection policies to eliminate high-ticket RTO losses."
+      primaryAction={{
+        content: isSaving ? "Saving..." : "Save Policies",
+        onAction: handleSaveRules,
+        loading: isSaving,
+      }}
+    >
       <Layout>
         {saveBanner && (
           <Layout.Section>

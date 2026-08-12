@@ -31,7 +31,7 @@ export default function ReportsHub() {
   const { shop, host } = useLoaderData<typeof loader>();
 
   return (
-    <Page title="📈 Reports" subtitle="Export detailed profit, product, and risk reports">
+    <Page title="Reports Suite" subtitle="Generate and stream structured CSV financial, product, and RTO reports.">
       <Layout>
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4 }}>

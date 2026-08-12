@@ -248,14 +248,15 @@ export default function RtoRoute() {
 
   return (
     <Page
-      title="COD & Return to Origin (RTO) Analytics"
+      title="RTO Analytics"
+      subtitle="Courier performance breakdown, return reason tracking, and manual RTO event logging."
       secondaryActions={[
         {
-          content: "🔍 View Profit Leaks",
+          content: "Profit Leaks",
           url: "/app/profit-leaks",
         },
         {
-          content: "🗺️ Pincode Heatmap",
+          content: "Pincode Risk Heatmap",
           url: "/app/rto-heatmap",
         },
       ]}

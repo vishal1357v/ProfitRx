@@ -527,12 +527,12 @@ export default function App() {
                   />
                 </Popover>
 
-                {/* Popover Group 4: System & Settings */}
+                {/* Popover Group 4: Settings */}
                 <Popover
-                  active={activePopover === "system"}
+                  active={activePopover === "settings"}
                   activator={
                     <button
-                      onClick={() => togglePopover("system")}
+                      onClick={() => togglePopover("settings")}
                       className={`gg-nav-link ${isSystemActive ? "active" : ""}`}
                       style={{
                         display: "inline-flex",
@@ -551,7 +551,7 @@ export default function App() {
                       }}
                     >
                       <Icon source={SettingsIcon} tone={isSystemActive ? "primary" : "subdued"} />
-                      <span>System</span>
+                      <span>Settings</span>
                       <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
                     </button>
                   }
@@ -560,7 +560,12 @@ export default function App() {
                   <ActionList
                     items={[
                       {
-                        content: "Store Health",
+                        content: "Store & Cost Settings",
+                        url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: SettingsIcon,
+                      },
+                      {
+                        content: "Store Health Diagnostics",
                         url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: HeartIcon,
                       },
@@ -568,11 +573,6 @@ export default function App() {
                         content: "Alert Center",
                         url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: NotificationIcon,
-                      },
-                      {
-                        content: "General Settings",
-                        url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: SettingsIcon,
                       },
                       {
                         content: "Plans & Billing",
@@ -619,7 +619,7 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={ShieldCheckMarkIcon} />
-                    <span>COD Rules & Risk Shield</span>
+                    <span>COD Rules & Policy</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -684,8 +684,16 @@ export default function App() {
                     <span>Reports Suite</span>
                   </ReactRouterLink>
 
-                  {/* System & Settings Category */}
-                  <span className="gg-mobile-category-title">System</span>
+                  {/* Settings Category */}
+                  <span className="gg-mobile-category-title">Settings</span>
+                  <ReactRouterLink
+                    to={`/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={SettingsIcon} />
+                    <span>Store & Cost Settings</span>
+                  </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
@@ -701,14 +709,6 @@ export default function App() {
                   >
                     <Icon source={NotificationIcon} />
                     <span>Alert Center</span>
-                  </ReactRouterLink>
-                  <ReactRouterLink
-                    to={`/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={SettingsIcon} />
-                    <span>General Settings</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}

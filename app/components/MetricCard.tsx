@@ -12,7 +12,7 @@ interface MetricCardProps {
   badge?: { content: string; tone: "success" | "warning" | "critical" | "info" };
   loading?: boolean;
   subtitle?: React.ReactNode;
-  action?: { content: string; onAction: () => void };
+  action?: { content: string; onAction?: () => void; url?: string };
   id?: string;
 }
 
@@ -38,12 +38,20 @@ export function MetricCard({
             <InlineStack align="space-between" blockAlign="start">
               {icon && (
                 <div className={`gg-stat-icon ${classes.icon}`}>
-                  <span style={{ fontSize: 18 }} aria-hidden="true">{icon}</span>
+                  <span style={{ fontSize: 20 }}>{icon}</span>
                 </div>
               )}
               {tooltip && (
                 <Tooltip content={tooltip}>
-                  <span style={{ cursor: "help", fontSize: 12, color: "var(--gg-text-muted)" }} aria-label={tooltip}>ⓘ</span>
+                  <button
+                    style={{
+                      background: "none", border: "none", cursor: "pointer",
+                      padding: 2, color: "var(--gg-text-muted)", fontSize: 13,
+                    }}
+                    aria-label={`Info about ${title}`}
+                  >
+                    ℹ️
+                  </button>
                 </Tooltip>
               )}
             </InlineStack>
@@ -66,7 +74,7 @@ export function MetricCard({
               </div>
             )}
             {action && (
-              <Button variant="plain" onClick={action.onAction}>
+              <Button variant="plain" onClick={action.onAction} url={action.url}>
                 {action.content}
               </Button>
             )}

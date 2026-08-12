@@ -128,7 +128,10 @@ export default function AlertsRoute() {
   };
 
   return (
-    <Page title="Store Alerts & Threshold Rules">
+    <Page
+      title="Alert Center"
+      subtitle="Real-time threshold notifications, RTO spike alerts, and merchant resolution inbox."
+    >
       <Layout>
 
         {/* ── Active Alerts ────────────────────────────── */}

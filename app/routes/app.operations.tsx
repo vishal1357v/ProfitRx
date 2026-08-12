@@ -162,15 +162,15 @@ export default function OperationsRoute() {
   return (
     <Page
       title="Operations Center"
-      subtitle="Real-time order monitoring, COD verification lifecycle, and AI decision executions."
+      subtitle="Real-time order monitoring, COD verification lifecycle, and policy execution."
       secondaryActions={[
         {
-          content: "🛡️ COD Rules",
-          url: "/app/cod-rules",
+          content: "COD Rules & Policy",
+          url: `/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         },
         {
-          content: "🗺️ Pincode Protection",
-          url: "/app/rto-heatmap",
+          content: "Pincode Risk Heatmap",
+          url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         },
       ]}
     >
@@ -244,7 +244,7 @@ export default function OperationsRoute() {
                         heading="No execution logs recorded yet"
                         image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                       >
-                        <p>Automated AI actions (Shopify tags, WhatsApp messages, holds) are logged here.</p>
+                        <p>Automated protection actions (Shopify tags, WhatsApp messages, holds) are logged here.</p>
                       </EmptyState>
                     ) : (
                       <DataTable

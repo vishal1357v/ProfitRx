@@ -169,7 +169,8 @@ export default function SettingsRoute() {
   return (
     <Frame>
       <Page
-        title="🇮🇳 Logistics, GST & Store Settings"
+        title="Store & Cost Settings"
+        subtitle="Configure forward and return shipping, weight slabs, COD handling fees, GST rates, and notification channels."
         primaryAction={{
           content: "Save Settings",
           onAction: handleSave,

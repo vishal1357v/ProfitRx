@@ -317,7 +317,10 @@ export default function COGSPage() {
   });
 
   return (
-    <Page title="Automated Product Cost (COGS) Management">
+    <Page
+      title="COGS Catalog"
+      subtitle="Manage unit product costs, sync native Shopify inventory costs, and configure fallback margin defaults."
+    >
       <Layout>
         {/* Banner for Auto-Sync */}
         <Layout.Section>

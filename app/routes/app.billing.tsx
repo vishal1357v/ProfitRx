@@ -127,7 +127,10 @@ export default function BillingPage() {
   }
 
   return (
-    <Page title="Store Billing & Plan Usage">
+    <Page
+      title="Plans & Billing"
+      subtitle="Manage your ProfitRx subscription, track evaluated order quotas, and compare plan features."
+    >
       <Layout>
         {isTrialActive && (
           <Layout.Section>

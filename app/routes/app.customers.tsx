@@ -245,14 +245,15 @@ export default function CustomersRoute() {
 
   return (
     <Page
-      title="Customer Intelligence — LTV & Cohort Retention"
+      title="Customer Intelligence"
+      subtitle="Customer lifetime value (LTV), cohort retention curves, and channel quality attribution."
       secondaryActions={[
         {
-          content: "📈 Marketing ROAS",
+          content: "Marketing ROAS",
           url: "/app/roas",
         },
         {
-          content: "🎯 RTO Analytics",
+          content: "RTO Analytics",
           url: "/app/rto",
         },
       ]}

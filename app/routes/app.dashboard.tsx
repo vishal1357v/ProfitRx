@@ -783,13 +783,13 @@ export default function DashboardRoute() {
             <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1 }}>
               <Card>
                 <BlockStack gap="400">
-                  <SectionHeader title="Today's Profit Saved" subtitle="Automated COD & RTO protection" />
+                  <SectionHeader title="Estimated Avoided Loss" subtitle="Modeled savings from prevented RTOs" />
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', background: 'var(--gg-accent-green-alpha-10)', borderRadius: '12px', border: '1px solid var(--gg-accent-green-alpha-20)' }}>
                     <Text variant="heading3xl" as="h2" tone="success">
                       ₹{Math.round(data.totalRtoSavings || 0).toLocaleString("en-IN")}
                     </Text>
                     <Text variant="bodyMd" as="span" tone="subdued">
-                      {data.blockedCodCount} high-risk orders blocked
+                      {data.blockedCodCount} high-risk orders intervened
                     </Text>
                   </div>
                 </BlockStack>
@@ -798,7 +798,7 @@ export default function DashboardRoute() {
             <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
               <Card>
                 <BlockStack gap="400">
-                  <SectionHeader title="Recent Activity" subtitle="Real-time order decisions & alerts" />
+                  <SectionHeader title="Recent Activity & Attention" subtitle="Real-time order decisions & alerts" />
                   <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                     {data.recentDecisions?.length === 0 && data.recentAlerts?.length === 0 ? (
                       <EmptyStateCard title="No recent activity" description="Waiting for new orders or alerts." icon="🕰️" action={{ text: "Sync Orders", onClick: handleSyncOrders }} />
@@ -837,84 +837,60 @@ export default function DashboardRoute() {
 
         <Layout.Section>
           <StatGrid columns={gridCols}>
-            {/* Revenue */}
+            {/* Realized Profit */}
             <MetricCard
-              title="Total Revenue"
+              title="Realized Profit"
+              value={`₹${Math.round(Math.abs(data.netProfit)).toLocaleString("en-IN")}`}
+              prefix={data.netProfit < 0 ? "-" : ""}
+              tone={data.netProfit >= 0 ? "success" : "critical"}
+              icon="⚡"
+              tooltip="Actual net profit from fulfilled orders: Sales minus COGS, forward shipping, and gateway fees."
+              loading={syncing}
+              badge={data.missingCogsCount > 0 ? { content: "Est. Fallback", tone: "warning" } : { content: "Actual COGS", tone: "success" }}
+              subtitle={
+                <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
+                  {data.netProfit >= 0 ? "▲ Realized Net Profit" : "▼ Net Operating Loss"}
+                </span>
+              }
+            />
+
+            {/* Total Revenue */}
+            <MetricCard
+              title="Gross Revenue"
               value={`₹${Math.round(data.revenue).toLocaleString("en-IN")}`}
               tone="info"
               icon="💰"
-              tooltip="Sum of all order sales including shipping and tax."
+              tooltip="Total order sales value across all payment methods."
               loading={syncing}
               subtitle={
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                   <span>Prepaid: <strong style={{ color: "var(--gg-accent-green)" }}>₹{Math.round(data.prepaidRevenue || 0).toLocaleString("en-IN")}</strong></span>
                   <span>COD: <strong style={{ color: "var(--gg-accent-amber)" }}>₹{Math.round(data.codRevenue || 0).toLocaleString("en-IN")}</strong></span>
                 </div>
               }
             />
 
-            {/* Net Profit */}
-            <MetricCard
-              title="Net Profit"
-              value={`₹${Math.round(Math.abs(data.netProfit)).toLocaleString("en-IN")}`}
-              prefix={data.netProfit < 0 ? "-" : ""}
-              tone={data.netProfit >= 0 ? "success" : "critical"}
-              icon="⚡"
-              tooltip="Sales minus COGS, shipping cost, and transaction/RTO leaks."
-              loading={syncing}
-              badge={data.missingCogsCount > 0 ? { content: "Est. Excl.", tone: "warning" } : undefined}
-              subtitle={
-                <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
-                  {data.netProfit >= 0 ? "▲ Positive Profit" : "▼ Negative Profit"}
-                </span>
-              }
-            />
-
-            {/* Margin */}
+            {/* Net Margin */}
             <MetricCard
               title="Net Margin"
               value={`${Math.round(data.netMargin)}%`}
               tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}
               icon="💡"
-              tooltip="Net Profit divided by Revenue. Aim for >20%."
+              tooltip="Realized Net Profit divided by Gross Revenue."
               loading={syncing}
-              badge={data.missingCogsCount > 0 ? { content: "Est. Excl.", tone: "warning" } : undefined}
-              subtitle={data.netMargin > 20 ? "Healthy Margin" : "Low Margin"}
+              badge={data.missingCogsCount > 0 ? { content: "Est. Fallback", tone: "warning" } : undefined}
+              subtitle={data.netMargin > 20 ? "Healthy Margin (>20%)" : "Low Margin (<20%)"}
             />
 
-            {/* ROAS & CAC (if connected) */}
-            {data.hasConnectedAdAccount && (
-              <>
-                <MetricCard
-                  title="Blended ROAS"
-                  value={`${data.roasData.blendedROAS}x`}
-                  tone={data.roasData.blendedROAS >= 2.5 ? "success" : data.roasData.blendedROAS >= 1.5 ? "warning" : "critical"}
-                  icon="🔍"
-                  tooltip="Total Revenue divided by Blended Ad Spend."
-                  loading={syncing}
-                  subtitle={`Meta says ~4.0x. True: ${data.roasData.blendedROAS || 0}x`}
-                />
-                <MetricCard
-                  title="True CAC"
-                  value={`₹${Math.round(data.roasData.trueCACRaw).toLocaleString("en-IN")}`}
-                  tone="neutral"
-                  icon="👤"
-                  tooltip="Total Blended Ad Spend divided by unique customers."
-                  loading={syncing}
-                  subtitle="Blended customer acquisition cost"
-                />
-              </>
-            )}
-
-            {/* Orders */}
+            {/* Total Orders */}
             <MetricCard
               title="Total Orders"
               value={data.orderCount.toLocaleString("en-IN")}
               tone="neutral"
               icon="📅"
-              tooltip="Cumulative order volume in store."
+              tooltip="Total order volume evaluated."
               loading={syncing}
-              subtitle="All-time orders"
+              subtitle="All evaluated orders"
             />
 
             {/* Profit Leaks */}
@@ -923,11 +899,11 @@ export default function DashboardRoute() {
               value={`₹${Math.round(data.leaks.totalLeak).toLocaleString("en-IN")}`}
               tone="critical"
               icon="⚠️"
-              tooltip="Recoverable money lost to RTO, shipping overage, and discounts."
+              tooltip="Identified financial leakage from RTO returns, freight overages, and discounts."
               loading={syncing}
               action={{
-                content: "Leak Details →",
-                onAction: () => setSelectedTab(3)
+                content: "Inspect Leaks →",
+                url: `/app/profit-leaks?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`
               }}
             />
           </StatGrid>

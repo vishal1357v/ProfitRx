@@ -51,7 +51,10 @@ export default function ProfitHealthRoute() {
   const currentTheme = statusColors[healthStatus.status] || statusColors.HEALTHY;
 
   return (
-    <Page title="Profit Health Assessment">
+    <Page
+      title="Store Health Diagnostics"
+      subtitle="System data integrity, COGS coverage, webhook latency, and profit health diagnostics."
+    >
       <Layout>
         {/* Main Status Box */}
         <Layout.Section>

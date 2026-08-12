@@ -251,14 +251,15 @@ export default function ROASRoute() {
 
   return (
     <Page
-      title="Automated ROAS & True Customer Acquisition Cost"
+      title="Marketing ROAS"
+      subtitle="Blended ROAS, customer acquisition costs (CAC), and channel spend tracking."
       secondaryActions={[
         {
-          content: "👥 Customer Intelligence",
+          content: "Customer Intelligence",
           url: "/app/customers",
         },
         {
-          content: "📊 Profit Leaks",
+          content: "Profit Leaks",
           url: "/app/profit-leaks",
         },
       ]}
