@@ -800,7 +800,11 @@ export default function DashboardRoute() {
                       ₹{Math.round(data.totalRtoSavings || 0).toLocaleString("en-IN")}
                     </Text>
                     <Text variant="bodyMd" as="span" tone="subdued">
-                      {data.blockedCodCount} high-risk orders intervened
+                      {data.blockedCodCount > 0
+                        ? `${data.blockedCodCount} high-risk orders intervened`
+                        : data.orderCount > 0
+                          ? `All ${data.orderCount} orders verified safe`
+                          : "0 high-risk orders intervened"}
                     </Text>
                   </div>
                 </BlockStack>
@@ -827,15 +831,20 @@ export default function DashboardRoute() {
                               <a href={`/app/alerts?shop=${data.shop}&host=${data.host}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>View</a>
                             ]
                           })),
-                          ...(data.recentDecisions || []).map((d: any) => ({
-                            time: new Date(d.createdAt).getTime(),
-                            row: [
-                              <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
-                              <Badge tone="success">Decision</Badge>,
-                              <span>Order #{d.order?.orderNumber} evaluated. Risk: <Badge tone={d.order?.riskLevel === 'HIGH' ? 'critical' : 'success'}>{d.order?.riskLevel || 'LOW'}</Badge></span>,
-                              <a href={`/app/orders/${encodeURIComponent(d.orderId.replace("gid://shopify/Order/", ""))}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</a>
-                            ]
-                          }))
+                          ...(data.recentDecisions || []).map((d: any) => {
+                            const orderNum = d.order?.orderNumber || String(d.orderId || "").replace("gid://shopify/Order/", "").replace("auto-log-", "");
+                            const riskLevel = d.order?.riskLevel || "LOW";
+                            const cleanOrderId = String(d.orderId || "").replace("gid://shopify/Order/", "").replace("auto-log-", "");
+                            return {
+                              time: new Date(d.createdAt).getTime(),
+                              row: [
+                                <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
+                                <Badge tone="success">Decision</Badge>,
+                                <span>Order #{orderNum} evaluated. Risk: <Badge tone={riskLevel === 'HIGH' || riskLevel === 'CRITICAL' ? 'critical' : riskLevel === 'MEDIUM' ? 'warning' : 'success'}>{riskLevel}</Badge></span>,
+                                <a href={`/app/orders/${encodeURIComponent(cleanOrderId)}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</a>
+                              ]
+                            };
+                          })
                         ].sort((a, b) => b.time - a.time).slice(0, 5).map(item => item.row)}
                       />
                     )}

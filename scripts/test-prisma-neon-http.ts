@@ -5,7 +5,7 @@ const connectionString = "postgresql://neondb_owner:npg_8sDJ7nqpfmYI@ep-weathere
 
 async function testHttp() {
   console.log("Testing PrismaNeonHttp adapter...");
-  const adapter = new PrismaNeonHttp(connectionString);
+  const adapter = new PrismaNeonHttp(connectionString, {});
   const prisma = new PrismaClient({ adapter });
 
   const t0 = Date.now();

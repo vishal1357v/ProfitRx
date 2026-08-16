@@ -606,7 +606,16 @@ export class ShopifyService {
   }
 
   // ── Sync Orders ───────────────────────────────────────────
-  static async syncOrders(request: Request): Promise<{ count: number }> {
+  static async syncOrders(request: Request): Promise<{
+    count: number;
+    ordersFound?: number;
+    ordersImported?: number;
+    ordersUpdated?: number;
+    syncWindow?: { from: string; to: string; days: number };
+    oldestOrderAt?: string | null;
+    newestOrderAt?: string | null;
+    message?: string;
+  }> {
     const { session, admin } = await authenticate.admin(request);
     console.log("Session scopes:", session.scope);
 
@@ -743,6 +752,28 @@ export class ShopifyService {
         });
       }
       count++;
+
+      // Ensure ExecutionLog exists so merchant operations & activity center have real decision audit entries
+      try {
+        const existingLog = await prisma.executionLog.findFirst({
+          where: { shop: session.shop, orderId: order.id }
+        });
+        if (!existingLog) {
+          const decisionText = riskResult?.recommendation || (order.isCOD ? ((riskResult?.score || 0) > 50 ? "OTP_VERIFY" : "ALLOW_COD") : "ALLOW_PREPAID");
+          await prisma.executionLog.create({
+            data: {
+              shop: session.shop,
+              orderId: order.id,
+              step: "DECISION",
+              status: "SUCCESS",
+              message: `Evaluated order #${parseInt((order.name || "").replace("#", "").replace(/\D/g, "")) || 0}. Risk: ${riskResult?.level || "LOW"} (${riskResult?.score ?? 0}/100). Decision: ${decisionText}.`,
+              createdAt: order.createdAt,
+            }
+          });
+        }
+      } catch (logErr) {
+        // Non-blocking log persistence
+      }
     }
 
     // Update pincode stats

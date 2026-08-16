@@ -20,7 +20,7 @@ function createPrismaClient(): PrismaClient {
   if (connectionString) {
     try {
       if (connectionString.includes("neon.tech")) {
-        const adapter = new PrismaNeonHttp(connectionString);
+        const adapter = new PrismaNeonHttp(connectionString, {});
         return new PrismaClient({ adapter });
       }
       const pool = new pg.Pool({ connectionString });

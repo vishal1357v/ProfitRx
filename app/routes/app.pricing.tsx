@@ -20,6 +20,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { BillingApplicationService } from "../application/billing/billing.application";
+import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -88,7 +89,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     status: "PENDING",
   });
 
-  const settings = await prisma.storeSettings.findUnique({ where: { shop: session.shop } });
+  const settings = await SettingsRepository.getByShop(session.shop);
   const isDevStore =
     process.env.NODE_ENV !== "production" ||
     (settings?.shopifyPlanName || "").toLowerCase().includes("develop") ||
