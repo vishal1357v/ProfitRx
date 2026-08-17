@@ -48,8 +48,9 @@ function decryptToken(token: string | null) {
 }
 
 async function verifyRealMerchantLoop() {
-  const host = 'ep-weathered-tree-at8vwwnb-pooler.c-9.us-east-1.aws.neon.tech';
-  const connStr = 'postgresql://neondb_owner:npg_8sDJ7nqpfmYI@ep-weathered-tree-at8vwwnb-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require';
+  const connStr = process.env.DATABASE_URL || 'postgresql://user:pass@localhost:5432/neondb?sslmode=require';
+  const hostMatch = connStr.match(/@([^/:]+)/);
+  const host = hostMatch ? hostMatch[1] : 'localhost';
 
   console.log("================================================================================");
   console.log("       PROFITRX PHASE 1 — COMPLETE REAL MERCHANT LOOP VERIFICATION");
