@@ -22,6 +22,7 @@ export class RiskStep implements PipelineStep<OrderPipelineData> {
       ...data,
       riskScore: riskResult.probability * 100,
       confidence: riskResult.confidence,
+      riskResult,
     };
   }
 }

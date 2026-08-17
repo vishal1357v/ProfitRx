@@ -98,5 +98,22 @@ export class OrderRepository {
       where: { shop, orderNumber },
     });
   }
+
+  /**
+   * Create an order record in database with shop isolation.
+   */
+  static async createOrder(data: any): Promise<any> {
+    return prisma.order.create({ data });
+  }
+
+  /**
+   * Ensure order exists in database, creating it if absent.
+   */
+  static async ensureOrderExists(shop: string, orderId: string, orderData: any): Promise<any> {
+    const existing = await this.findById(shop, orderId);
+    if (existing) return existing;
+    return this.createOrder(orderData);
+  }
 }
+
 

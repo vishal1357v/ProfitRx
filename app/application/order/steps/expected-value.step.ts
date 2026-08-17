@@ -22,9 +22,9 @@ export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
     };
     
     const featureResult = { features: data.features || {} } as any;
-    const riskResult = { probability: data.riskScore / 100 } as any;
+    const riskResult = data.riskResult || ({ probability: (data.riskScore || 0) / 100, confidence: data.confidence || 0.85 } as any);
     
     const evResult = ExpectedValueService.calculate(featureResult, riskResult, config);
-    return { ...data, expectedValue: evResult.expectedValue };
+    return { ...data, expectedValue: evResult.expectedValue, expectedValueResult: evResult };
   }
 }

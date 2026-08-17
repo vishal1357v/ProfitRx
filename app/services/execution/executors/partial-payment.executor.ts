@@ -30,13 +30,14 @@ export class PartialPaymentExecutor implements ActionExecutor {
       };
     } catch (err: any) {
       return {
-        success: true,
+        success: false,
         action: "PARTIAL_PAYMENT",
-        status: "ADVISORY_ONLY",
+        status: "FAILED",
         provider: "ShopifyAdminGraphQL",
-        retryable: false,
+        retryable: true,
+        errorCode: "SHOPIFY_MUTATION_FAILED",
         timestamp: new Date(),
-        message: "Partial payment deposit recommended. Automation advisory recorded.",
+        message: `Partial payment tagging failed: ${err.message || "Unknown error"}`,
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

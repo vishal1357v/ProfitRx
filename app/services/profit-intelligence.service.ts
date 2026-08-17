@@ -183,9 +183,10 @@ export class ProfitIntelligenceService {
     const recentRtoLoss = recentRTO.reduce((s: number, e: any) => addMoney(s, e.amount), 0);
     const prevRtoLoss = prevRTO.reduce((s: number, e: any) => addMoney(s, e.amount), 0);
 
-    // Also count unfulfilled/returned orders automatically using courier RTO costs
-    const autoRtoOrders = orders.filter((o: any) => o.fulfillmentStatus === "RTO");
-    const autoRtoLoss = autoRtoOrders.reduce((s: number, o: any) => {
+    // Also count unfulfilled/returned orders automatically using courier RTO costs (only if not already recorded in rtoEvents)
+    const rtoEventOrderIds = new Set(rtoEvents.map((e: any) => String(e.orderId)));
+    const unrecordedRtoOrders = orders.filter((o: any) => o.fulfillmentStatus === "RTO" && !rtoEventOrderIds.has(String(o.id)));
+    const autoRtoLoss = unrecordedRtoOrders.reduce((s: number, o: any) => {
       return addMoney(s, ProfitService.calculateRTOLoss(o, settings as any));
     }, 0);
 
@@ -245,6 +246,7 @@ export class ProfitIntelligenceService {
 
     const orders = await prisma.order.findMany({ where: { shop } });
     const rtoEvents = await prisma.rTOEvent.findMany({ where: { shop } });
+    const rtoEventOrderIds = new Set(rtoEvents.map((e: any) => String(e.orderId)));
 
     const cogsDict = await ProfitService.getCOGS(shop);
 
@@ -258,7 +260,8 @@ export class ProfitIntelligenceService {
 
         dailyLeaks[ds].discount = addMoney(dailyLeaks[ds].discount, (o.discountAmount || 0));
         dailyLeaks[ds].shipping = addMoney(dailyLeaks[ds].shipping, shippingLoss);
-        if (o.fulfillmentStatus === "RTO") {
+        // Only count unrecorded RTO orders to prevent double counting with rtoEvents
+        if (o.fulfillmentStatus === "RTO" && !rtoEventOrderIds.has(String(o.id))) {
           dailyLeaks[ds].rto = addMoney(dailyLeaks[ds].rto, ProfitService.calculateRTOLoss(o, settings as any));
         }
       }
@@ -266,7 +269,7 @@ export class ProfitIntelligenceService {
 
     rtoEvents.forEach((e: any) => {
       const ds = e.createdAt.toISOString().split("T")[0];
-      if (dailyLeaks[ds]) dailyLeaks[ds].rto += e.amount;
+      if (dailyLeaks[ds]) dailyLeaks[ds].rto = addMoney(dailyLeaks[ds].rto, e.amount);
     });
 
     return Object.values(dailyLeaks);

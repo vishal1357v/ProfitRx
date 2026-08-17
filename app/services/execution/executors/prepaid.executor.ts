@@ -30,13 +30,14 @@ export class PrepaidExecutor implements ActionExecutor {
       };
     } catch (err: any) {
       return {
-        success: true,
+        success: false,
         action: "PREPAID_ONLY",
-        status: "ADVISORY_ONLY",
+        status: "FAILED",
         provider: "ShopifyAdminGraphQL",
-        retryable: false,
+        retryable: true,
+        errorCode: "SHOPIFY_MUTATION_FAILED",
         timestamp: new Date(),
-        message: "Prepaid conversion recommended. Automation advisory recorded.",
+        message: `Prepaid tagging failed: ${err.message || "Unknown error"}`,
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

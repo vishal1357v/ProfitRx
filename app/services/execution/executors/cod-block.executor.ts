@@ -30,13 +30,14 @@ export class CodBlockExecutor implements ActionExecutor {
       };
     } catch (err: any) {
       return {
-        success: true,
+        success: false,
         action: "BLOCK_COD",
-        status: "DELIVERED",
+        status: "FAILED",
         provider: "ShopifyAdminGraphQL",
-        retryable: false,
+        retryable: true,
+        errorCode: "SHOPIFY_MUTATION_FAILED",
         timestamp: new Date(),
-        message: "COD blocked in ProfitRx engine.",
+        message: `COD block tagging failed: ${err.message || "Unknown error"}`,
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

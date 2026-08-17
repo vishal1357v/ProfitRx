@@ -50,6 +50,52 @@ export interface GSTSummary {
 
 const COD_KEYWORDS = ["cod", "cash", "cash on delivery", "manual"];
 
+const INDIAN_STATE_ALIASES: Record<string, string> = {
+  AP: "ANDHRA PRADESH",
+  AR: "ARUNACHAL PRADESH",
+  AS: "ASSAM",
+  BR: "BIHAR",
+  CG: "CHHATTISGARH",
+  CT: "CHHATTISGARH",
+  GA: "GOA",
+  GJ: "GUJARAT",
+  HR: "HARYANA",
+  HP: "HIMACHAL PRADESH",
+  JK: "JAMMU AND KASHMIR",
+  JH: "JHARKHAND",
+  KA: "KARNATAKA",
+  KL: "KERALA",
+  MP: "MADHYA PRADESH",
+  MH: "MAHARASHTRA",
+  MN: "MANIPUR",
+  ML: "MEGHALAYA",
+  MZ: "MIZORAM",
+  NL: "NAGALAND",
+  OD: "ODISHA",
+  OR: "ODISHA",
+  PB: "PUNJAB",
+  RJ: "RAJASTHAN",
+  SK: "SIKKIM",
+  TN: "TAMIL NADU",
+  TG: "TELANGANA",
+  TS: "TELANGANA",
+  TR: "TRIPURA",
+  UP: "UTTAR PRADESH",
+  UK: "UTTARAKHAND",
+  UA: "UTTARAKHAND",
+  WB: "WEST BENGAL",
+  DL: "DELHI",
+  "DELHI NCR": "DELHI",
+  "NATIONAL CAPITAL TERRITORY OF DELHI": "DELHI",
+  "NCT OF DELHI": "DELHI",
+};
+
+export function normalizeIndianState(rawState?: string | null): string {
+  if (!rawState) return "";
+  const cleaned = rawState.trim().toUpperCase().replace(/[^A-Z0-9\s]/g, "");
+  return INDIAN_STATE_ALIASES[cleaned] || cleaned;
+}
+
 function isCodOrder(order: { isCOD?: boolean; gateway?: string | null }): boolean {
   if (order.isCOD) return true;
   if (!order.gateway) return false;
@@ -124,16 +170,20 @@ export class ProfitService {
     for (const slab of sorted) {
       const maxWeight = Number(slab.maxWeightGrams) || 0;
       if (weightGrams <= maxWeight) {
+        const forward = Number(slab.forwardCost);
+        const returnShip = Number(slab.returnCost);
         return {
-          forward: Number(slab.forwardCost) ?? defaultForward,
-          returnShip: Number(slab.returnCost) ?? defaultReturn
+          forward: Number.isFinite(forward) ? forward : defaultForward,
+          returnShip: Number.isFinite(returnShip) ? returnShip : defaultReturn,
         };
       }
     }
     const heaviest = sorted[sorted.length - 1];
+    const forward = Number(heaviest.forwardCost);
+    const returnShip = Number(heaviest.returnCost);
     return {
-      forward: Number(heaviest.forwardCost) ?? defaultForward,
-      returnShip: Number(heaviest.returnCost) ?? defaultReturn
+      forward: Number.isFinite(forward) ? forward : defaultForward,
+      returnShip: Number.isFinite(returnShip) ? returnShip : defaultReturn,
     };
   }
 
@@ -249,13 +299,25 @@ export class ProfitService {
       for (const o of orders) {
         const orderPrice = Number(o.totalPrice) || 0;
         packagingCosts += settings.defaultPackaging;
-        forwardShipping += settings.defaultForwardShipping;
+
+        const slabsCost = this.getSlabShippingCosts(
+          o.totalWeight,
+          settings.shippingSlabs,
+          settings.defaultForwardShipping,
+          settings.defaultReturnShipping || 70
+        );
+
+        const orderForwardShipping =
+          o.actualShippingCost !== null && o.actualShippingCost !== undefined
+            ? Number(o.actualShippingCost)
+            : slabsCost.forward;
+        forwardShipping += orderForwardShipping;
 
         const isCod = isCodOrder(o as any);
         if (isCod) {
           codHandlingFees += settings.defaultCODHandling;
-          if (o.fulfillmentStatus === "RTO") {
-            returnShipping += settings.defaultReturnShipping;
+          if (isRtoStatus(o.fulfillmentStatus)) {
+            returnShipping += slabsCost.returnShip;
           }
         } else {
           const rawFee = (orderPrice * razorpayRate) + (orderPrice * shopifySurchargeRate) + settings.gatewayFixedFee;
@@ -305,8 +367,8 @@ export class ProfitService {
         totalTaxableSales += taxablePrice;
         totalGstCollected += orderTax;
 
-        const merchantState = (settings.merchantState || "MAHARASHTRA").toUpperCase();
-        const customerState = (o.province || "").toUpperCase();
+        const merchantState = normalizeIndianState(settings.merchantState || "MAHARASHTRA");
+        const customerState = normalizeIndianState(o.province);
 
         if (customerState && customerState !== merchantState) {
           interStateSales += taxablePrice;
