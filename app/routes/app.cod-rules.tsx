@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useNavigation } from "react-router";
+import { useLoaderData, useSubmit, useNavigation, redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -23,20 +23,29 @@ import { CodRulesApplicationService } from "../application/protection/cod-rules.
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
+  const url = new URL(request.url);
+  let host = url.searchParams.get("host") || "";
+  if (!host && session?.shop) {
+    const storeHandle = session.shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+  }
 
-  try {
-    await billing.require({
-      plans: ["GROWTH", "PRO"],
-      isTest: process.env.NODE_ENV !== "production",
-      onFailure: async () => {
-        throw new Response("Plan upgrade required", { status: 402 });
+  // Enforce billing if not bypassed
+  if (process.env.BYPASS_BILLING !== "true") {
+    try {
+      await billing.require({
+        plans: ["GROWTH", "PRO"],
+        isTest: process.env.NODE_ENV !== "production",
+        onFailure: async () => {
+          throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
+        },
+      });
+    } catch (error) {
+      if (error instanceof Response) {
+        throw error;
       }
-    });
-  } catch (error) {
-    if (error instanceof Response && error.status === 402) {
-      throw Response.redirect(`/app/pricing?shop=${encodeURIComponent(shop)}`);
+      console.warn("[CodRules Billing Guard Warning]:", error);
     }
-    throw error;
   }
 
   return CodRulesApplicationService.getCodRulesData(shop);
