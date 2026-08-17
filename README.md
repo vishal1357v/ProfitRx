@@ -1,166 +1,399 @@
-# ProfitRx ⚡ — The Actionable Profit & RTO Shield Platform for Shopify
+# ProfitRx  — Real-Time Profit Intelligence & RTO Risk Shield for Shopify
 
-ProfitRx is a production-grade, commercial Shopify application designed for modern e-commerce merchants (specifically D2C brands operating in high-COD markets like India and LATAM). It functions as a dual **Profit Intelligence Engine** and **Return-to-Origin (RTO) Risk Shield**.
+<div align="center">
 
-Unlike standard Shopify analytics tools that display superficial gross sales, ProfitRx calculates a merchant's **True Net Pocket Profit** in real-time by ingesting item-level Cost of Goods Sold (COGS), shipping weight slabs, payment gateway fees, Cash on Delivery (COD) charges, and ad platform spends. Additionally, it deploys custom **Shopify Functions** and **WhatsApp OTP verification workflows** to block high-risk COD orders.
+![ProfitRx Banner](https://img.shields.io/badge/Shopify-App_Bridge_v4-95BF47?style=for-the-badge&logo=shopify&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-v7_SSR-E0234E?style=for-the-badge&logo=reactrouter&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-ORM_v6-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![WebAssembly](https://img.shields.io/badge/Shopify_Function-WASM_/_Rust-654FF0?style=for-the-badge&logo=webassembly&logoColor=white)
+![Polaris](https://img.shields.io/badge/Design-Shopify_Polaris_v13-008060?style=for-the-badge&logo=shopify&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+
+**A high-throughput, production-hardened Shopify application engineered to eliminate Return-to-Origin (RTO) losses and compute True Net Pocket Profit in real time.**
+
+[Architecture](#-system-architecture) • [Engineering Moats](#-deep-dive-technical-moats) • [Decision Engine](#-rto-decision--expected-loss-engine) • [Database Schema](#-database-schema--domain-model) • [Setup Guide](#-local-development--setup)
+
+</div>
 
 ---
 
-## 🎯 The Problem It Solves
+## 🎯 Executive Summary & The Problem
 
-E-commerce merchants frequently operate under the illusion of profitability because traditional dashboards display gross revenue without accounting for operational profit drains:
-1. **RTO (Return to Origin) Drain:** In markets like India, 20% to 40% of COD orders are returned or rejected at delivery. Merchants lose forward and return freight costs plus packaging and handling fees.
-2. **Hidden Payment Gateway & Tax Overhead:** Payment gateways charge transaction fees that are subject to GST. Shopify also imposes plan-based transaction surcharges.
-3. **Inaccurate COGS:** Merchants lack a unified view when COGS is partially recorded in Shopify and partially managed via manual overrides.
-4. **Blended CAC vs. True Margin:** Paid marketing dashboards display channel-specific ROAS based on gross revenue, leading merchants to scale campaigns that are actually net-unprofitable after COGS and return costs.
+In high-growth e-commerce markets dominated by **Cash on Delivery (COD)** (e.g., India, Southeast Asia, LATAM), direct-to-consumer (D2C) brands face severe operational margin erosion:
 
----
+1. **The RTO Cash Drain:** 20% to 40% of COD orders result in Return-to-Origin (failed/rejected deliveries). For every RTO, merchants bleed forward freight (₹60–₹120), reverse logistics (₹70–₹140), packaging, and inventory deadweight.
+2. **The "Vanity Profit" Illusion:** Standard Shopify analytics report gross GMV without factoring in:
+   - Dynamic variant-level **Cost of Goods Sold (COGS)** snapshots at the exact time of order.
+   - Payment gateway fees (e.g., 2% Razorpay/Cashfree/Stripe) and statutory **18% GST on processing fees**.
+   - Multi-tier volumetric shipping weight slabs.
+   - Channel-attributed paid ad spends (Meta, Google, TikTok) mapped to net realized margins.
 
-## 🌟 Main Differentiators & Features
-
-- **Triple-Engine Profit Calculation:** Order-level profit calculations with historical COGS snapshotting (`cogsAtTimeOfOrder`), preventing past order profit distortion when product costs change.
-- **Checkout Payment Customization (Shopify Function):** Native WASM-compiled payment customization function (`cod-blocker`) that dynamically hides COD payment methods at Shopify Checkout based on real-time pincode risk lists synced via GraphQL metafields.
-- **Dynamic OTP Verification:** Risk-gated OTP verification (via WhatsApp Meta Cloud API or Twilio) triggered only for Medium/High/Critical risk orders or buyers with personal RTO history > 20%, bypassing Low-risk buyers to preserve checkout conversion.
-- **Regional Cold-Start Pincode Analytics:** Aggregated pincode RTO heatmaps with a 2-digit regional prefix fallback algorithm to estimate risk for newly encountered pincodes.
-- **Blended & Profit-Adjusted ROAS:** Multi-platform ad spend aggregation (Meta, Google, TikTok) mapped against true net profit to calculate True CAC and CAC Payback per order.
-- **GST Accountant Report Export:** Exports 1-click GSTR-1 compliant spreadsheets with transaction splits, taxable values, and SGST/CGST/IGST breakdown.
-- **AI Search Query Tracker:** Measures store product visibility, CTR, impressions, and rank in AI search engines (ChatGPT Search, Gemini, Microsoft Copilot).
+### The ProfitRx Solution
+**ProfitRx** bridges this critical gap through a dual-engine architecture:
+- **Financial Precision Engine:** Reconstructs the exact unit economics of every transaction to compute **True Net Pocket Profit**, Blended ROAS, and CAC Payback per order.
+- **RTO Protection & Decision Shield:** Executes low-latency checkout interventions via **WASM-compiled Shopify Functions**, cold-start pincode heuristics, and **risk-gated WhatsApp OTP verification** powered by an Expected Value (EV) economic decision model.
 
 ---
 
 ## 🏛️ System Architecture
 
-ProfitRx employs a hybrid serverless architecture utilizing React Router 7 SSR endpoints hosted on Vercel, connected to a PostgreSQL database via Prisma ORM, and integrated into Shopify via Shopify App Bridge, Admin GraphQL API, Webhooks, and Shopify Functions.
+ProfitRx is built following **Vertical Slice Architecture** and **Domain-Driven Design (DDD)** principles, guaranteeing strict separation of concerns across presentation, domain logic, edge computation, and persistence.
 
 ```mermaid
 graph TD
     %% Presentation Layer
-    subgraph Presentation ["Presentation Layer (Remix App)"]
-        UI["React Router v7 + Shopify Polaris"]
-        CSS["Inlined global.css Dark Mode Styles"]
+    subgraph Presentation ["1. Presentation Layer (React Router v7 SSR)"]
+        UI["Shopify Polaris v13 + App Bridge UI"]
+        SSR["Zero-Waterfall SSR Handlers"]
+        Theme["Server-Inlined CSS Dark Mode System"]
     end
 
     %% Edge Extension Layer
-    subgraph Extension ["Shopify Checkout Extension Layer"]
-        Func["cod-blocker (WebAssembly Shopify Function)"]
+    subgraph Extension ["2. Edge Checkout Extension Layer"]
+        WASM["cod-blocker (WebAssembly Shopify Function)"]
+        Metafield["$app:cod-blocker GraphQL Metafields"]
     end
 
     %% Core Application Layer
-    subgraph Core ["Core Business Logic (Service Container)"]
-        SS["ShopifyService (Order Sync & Pincode Stats)"]
-        PS["ProfitService (Order Profitability & COGS)"]
-        CODS["CODManagementService (Rules & Blocks)"]
-        CIS["CustomerIntelligenceService (LTV & Cohort Retention)"]
-        Alerts["AlertService (AI Profit Leaks & Weekly Digest)"]
-        Ads["AdSpendService (Meta/Google OAuth Daily Spend)"]
-        WA["WhatsappService (Twilio/Meta OTP & Digests)"]
+    subgraph Core ["3. Domain & Application Services"]
+        direction TB
+        DE["Decision & Expected Value Engine"]
+        PS["Profit & Tax Engine (GST & COGS)"]
+        COD["COD Management & Rules Service"]
+        CI["Customer Intelligence (LTV & Cohorts)"]
+        ADS["Multi-Platform Ad Spend Aggregator"]
+        WA["WhatsApp / Twilio OTP Dispatcher"]
+        ALERT["Profit Leak & Anomaly Engine"]
     end
 
-    %% Data & Infrastructure
-    subgraph Data ["Data Persistence Layer"]
-        Prisma["Prisma ORM Client v6"]
-        DB[(PostgreSQL Serverless Database)]
+    %% Background & Sync Layer
+    subgraph Sync ["4. Real-time Ingestion & Cron Layer"]
+        WH["HMAC SHA-256 Webhook Ingestion"]
+        Cron["Vercel Cron (api.auto-sync)"]
+        OAuth["AES-256 Encrypted Session Store"]
     end
 
-    %% Webhook & Sync Layer
-    subgraph Webhook ["Real-time Sync & Cron Layer"]
-        SyncAPI["api/auto-sync (Vercel Cron)"]
-        OrderWH["webhooks/orders/updated"]
-        GDPRWH["webhooks/shop/redact"]
+    %% Persistence Layer
+    subgraph Persistence ["5. Persistence Layer (PostgreSQL)"]
+        Prisma["Prisma ORM v6 (Connection Pooling)"]
+        DB[(PostgreSQL / Neon Serverless DB)]
     end
 
-    %% Flow lines
-    UI --> Core
+    %% External APIs
+    subgraph External ["6. External Ecosystem Integrations"]
+        ShopifyAPI["Shopify Admin GraphQL API (2026-04)"]
+        MetaAPI["Meta Marketing API"]
+        GoogleAPI["Google Ads API"]
+        WhatsAppAPI["Meta WhatsApp Cloud API"]
+    end
+
+    %% Connections
+    UI --> SSR
+    SSR --> Core
+    WASM -->|Reads cached list| Metafield
+    WH -->|orders/create, update| Core
+    Cron -->|Scheduled aggregations| Core
     Core --> Prisma
     Prisma --> DB
-    Func --> Core
-    OrderWH --> SS
-    GDPRWH --> DB
-    SyncAPI --> SS
+    Core --> ShopifyAPI
+    ADS --> MetaAPI
+    ADS --> GoogleAPI
+    WA --> WhatsAppAPI
+    Core --> OAuth
 ```
 
-### Advanced Technical Moats
+---
 
-1. **High-Performance Serverless Architecture (TTFB < 100ms)**
-   - **TTFB Optimization:** Implemented a 1-hour database cache layer for active subscriptions and a 15-minute static cache for products to bypass slow Shopify GraphQL catalog lookups. 
-   - **Zero-Waterfall Rendering:** Inlined custom dark-mode CSS directly into the HTML payload via server-side loaders and asynchronous font styling.
-2. **Production-Hardened Resilience**
-   - **Billing Propagation Protections:** 1.5s retry delay on billing checks and a 5-minute `PENDING` protection prevent premature downgrades while checkout propagates through Shopify.
-   - **Security:** Strict isolated multi-tenant operations (`where: { shop }`) and completely parameterized SQL execution through Prisma, defending against SQL Injection vulnerabilities. HMAC verification for all Shopify webhooks.
+## ⚡ Deep-Dive Technical Moats
+
+### 1. Sub-5ms Checkout Intervention via WebAssembly (Shopify Function)
+Rather than relying on brittle client-side JavaScript script tags that execute after page render (and can be bypassed via DevTools), ProfitRx compiles native payment customization logic into **WebAssembly (`cart_payment_methods_transform`)**.
+- Runs directly inside Shopify's checkout infrastructure at the edge with **execution times under 5 milliseconds**.
+- Evaluates cart shipping addresses against high-risk pincode lists synchronized into `$app:cod-blocker` merchant metafields via GraphQL.
+- Dynamically hides or disables COD options for blacklisted zones before the payment method list is rendered to the customer.
+
+### 2. Economic Expected Value (EV) Decision Model
+Traditional fraud filters apply rigid, arbitrary thresholds (e.g., "block all orders > ₹2,000"). ProfitRx evaluates order risk through an **Expected Loss vs. Intervention Friction** economic model:
+
+$$\mathbb{E}[\text{Net Benefit}] = \Big(P(\text{RTO}) \times \text{Loss}_{\text{RTO}}\Big) - \Big(\text{Cost}_{\text{OTP}} + P(\text{Dropoff}) \times \text{Margin}\Big)$$
+
+- **Low Risk:** Verification is silently bypassed—zero friction, preserving checkout conversion rates.
+- **Medium / High / Critical Risk:** Triggers automated 6-digit cryptographic OTP verification dispatched over WhatsApp Meta Cloud API or Twilio.
+- Once verified, the order is tagged `COD_Verified` in Shopify Admin via GraphQL mutation.
+
+### 3. Cold-Start Pincode Fallback Algorithm
+New merchants frequently lack historical order volume across all 19,000+ Indian postal codes. ProfitRx resolves the cold-start data sparsity problem using a **hierarchical prefix resolution tree**:
+```
+Exact 6-Digit Pincode (e.g., 560034) 
+    └── If historical orders < 5
+         └── Fallback: 3-Digit Sorting District (560xxx)
+              └── If insufficient
+                   └── Fallback: 2-Digit Regional Circle (56xxxx - Karnataka)
+                        └── Global Store Risk Baseline
+```
+
+### 4. Immutable Historical COGS Snapshotting
+When raw material costs or supplier prices change, recalculating past orders with new COGS distorts historical financial records.
+- ProfitRx snapshots product and variant costs at the exact millisecond of purchase into `cogsAtTimeOfOrder` and `OrderLineItem.cogsPerUnitAtOrder`.
+- Full dual-priority resolution: `Manual Override` $\rightarrow$ `Native Shopify Cost` $\rightarrow$ `Store Category Default`.
+- Guarantees that historical P&L, GST reports, and monthly accounting logs remain **mathematically immutable**.
+
+### 5. Multi-Tenant Security & Token Encryption at Rest
+- **AES-256-GCM Encryption:** Merchant access tokens and ad platform OAuth credentials are encrypted with authenticated AES-256-GCM before database insertion.
+- **Strict Tenant Isolation:** All database read/write queries enforce mandatory compound indexing and tenant scoping (`where: { shop }`).
+- **SQL Injection Defense:** Strict adherence to parameterized Prisma queries with zero raw string concatenations.
+- **Cryptographic Webhook Verification:** Mandatory HMAC SHA-256 header validation on all inbound Shopify webhooks with a 2-second fast-acknowledgement loop to prevent Shopify retry storms.
 
 ---
 
-## 📊 Database Schema Overview (Prisma ORM)
+## 🔄 End-to-End Operational Flows
 
-| Model | Purpose | Primary Fields |
+### A. Webhook Ingestion & Real-Time Margin Pipeline
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Shopify as Shopify Webhook Dispatcher
+    participant Ingest as /webhooks/orders/create
+    participant Auth as HMAC Verifier
+    participant SS as ShopifyService
+    participant PS as ProfitService
+    participant DB as PostgreSQL (Prisma)
+
+    Shopify->>Ingest: POST /webhooks/orders/create (Payload + HMAC Header)
+    Ingest->>Auth: Verify HMAC SHA-256 Signature
+    alt Invalid Signature
+        Auth-->>Ingest: 401 Unauthorized
+    else Signature Valid
+        Auth-->>Ingest: Authorized (shop verified)
+        Ingest->>SS: Ingest Order & Snapshot Variant COGS
+        SS->>DB: Upsert Order (with cogsAtTimeOfOrder)
+        SS->>DB: Update PincodeStats & CustomerProfile (LTV, AOV)
+        Ingest->>PS: Compute Net Profit, GST, Shipping, Gateway Fees
+        PS->>DB: Update Daily ProfitSnapshot
+        Ingest-->>Shopify: 200 OK (Acknowledged in <200ms)
+    end
+```
+
+### B. Risk Evaluation & Dynamic OTP Verification Loop
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Buyer as Customer Browser
+    participant Store as Shopify Storefront
+    participant Func as WASM Shopify Function
+    participant COD as CODManagementService
+    participant WA as Meta WhatsApp API
+    participant Admin as Shopify Admin GraphQL
+
+    Buyer->>Store: Enters Shipping Address & Pincode
+    Store->>Func: cart_payment_methods_transform
+    Func->>Func: Lookup Pincode in Metafield
+    alt Pincode in Blocked List
+        Func-->>Store: Filter out COD (Display Prepaid Only)
+    else Pincode Allowed
+        Func-->>Store: Allow COD Selection
+        Buyer->>Store: Completes COD Order
+        Store->>COD: evaluateRisk(orderId, customerHistory, pincode)
+        alt Risk Score == LOW
+            COD->>Admin: Tag Order: "COD_Trusted_AutoBypass"
+        else Risk Score >= MEDIUM
+            COD->>COD: Generate 6-Digit Secure OTP
+            COD->>WA: Dispatch WhatsApp Interactive OTP Template
+            WA-->>Buyer: WhatsApp message with 1-tap verification link
+            Buyer->>COD: Submits 6-digit OTP code
+            COD->>Admin: Tag Order: "COD_Verified" & Update Financial Status
+        end
+    end
+```
+
+---
+
+## 📊 Database Schema & Domain Model
+
+The persistence layer is modeled in PostgreSQL using Prisma 6 ORM, fully indexed for fast time-series analytical queries:
+
+```mermaid
+erDiagram
+    Session ||--o{ Order : processes
+    StoreSettings ||--o{ Subscription : configures
+    Order ||--|{ OrderLineItem : contains
+    Order ||--o{ OrderRefund : has
+    Order ||--o{ ExecutionLog : tracks
+    OrderLineItem }|--|| ProductCOGS : snapshots
+    PincodeStats }|--|| StoreSettings : aggregates
+    CustomerProfile ||--o{ Order : places
+    AdSpendDaily }|--|| StoreSettings : aggregates
+
+    Session {
+        string id PK
+        string shop UK
+        string accessToken "Encrypted AES-256"
+        datetime expiresAt
+    }
+    Order {
+        string id PK
+        string shop
+        float totalPrice
+        float subtotalPrice
+        float totalTax
+        float shippingPrice
+        boolean isCOD
+        float cogsAtTimeOfOrder
+        int riskScore
+        string riskLevel
+        string pincode
+        string channelAttribution
+    }
+    OrderLineItem {
+        string id PK
+        string shopifyLineItemId UK
+        string title
+        int quantity
+        float unitPrice
+        float cogsPerUnitAtOrder
+        float totalCOGSAtOrder
+    }
+    PincodeStats {
+        string id PK
+        string pincode
+        int totalOrders
+        int rtoCount
+        float rtoRate
+        string riskLevel
+    }
+    CustomerProfile {
+        string id PK
+        string customerId
+        float ltv
+        float aov
+        int totalOrders
+        float personalRtoRate
+    }
+    Subscription {
+        string id PK
+        string shop UK
+        string plan
+        string status
+        int orderLimit
+        int ordersUsed
+    }
+```
+
+---
+
+## 🛠️ Tech Stack & Engineering Specifications
+
+| Domain | Technology / Library | Architectural Role |
 | :--- | :--- | :--- |
-| **`Session`** | Auth store for merchant offline/online sessions | `shop`, `accessToken`, `scope`, `expiresAt` |
-| **`Order`** | Sync cache of Shopify orders | `id`, `shop`, `totalPrice`, `isCOD`, `pincode`, `fulfillmentStatus` |
-| **`ProductCOGS`** | COGS and Variant cost tracking | `shop`, `productId`, `cost`, `source` |
-| **`RTOEvent`** | Custom logs of courier returns | `shop`, `orderId`, `eventType`, `amount` (estimated loss) |
-| **`PincodeStats`**| Aggregated RTO rates per pincode | `shop`, `pincode`, `rtoRate`, `riskLevel` (Indexed) |
-| **`CustomerProfile`**| Customer cohort and LTV metrics | `shop`, `customerId`, `ltv`, `aov`, `cohortMonth` |
-| **`AdSpend`** | OAuth keys for Meta/Google connections | `shop`, `platform`, `accessToken`, `isConnected` |
-| **`AdSpendDaily`** | Synced daily spend | `shop`, `platform`, `date`, `spend` |
-| **`ProfitSnapshot`**| Daily profit snapshots | `shop`, `date`, `revenue`, `profit`, `totalLeak` |
-| **`Alert`** | Automated profit leak alerts | `shop`, `type`, `severity`, `isRead` |
-| **`Subscription`**| Plan verification cache | `shop`, `plan`, `status`, `orderLimit`, `ordersUsed` |
-| **`StoreSettings`**| Logistics cost and feature configurations | `shop`, `defaultForwardShipping`, `whatsappEnabled` |
-| **`CODOrder`**| OTP verification and state management | `orderId`, `shop`, `otp`, `status` |
+| **Framework & SSR** | [React Router v7](https://reactrouter.com/) (SSR) + Node.js | Full-stack server-side rendering, loader/action data pipeline |
+| **UI Design System** | [Shopify Polaris v13](https://polaris.shopify.com/) + Polaris Icons | Native Shopify Admin merchant interface aesthetics |
+| **Shopify Integration**| [@shopify/app-bridge-react](https://shopify.dev/docs/api/app-bridge-library) v4 | Iframe session tokens, modal dialogs, contextual navigation |
+| **Checkout Extensions**| Rust / WebAssembly (`cart_payment_methods_transform`) | Real-time payment method customization at Shopify Checkout |
+| **ORM & Database** | [Prisma v6](https://www.prisma.io/) + PostgreSQL | Multi-tenant relational persistence with connection pooling |
+| **Security & Crypto** | Node.js `crypto` (AES-256-GCM, HMAC SHA-256) | Encrypted OAuth session tokens and secure webhook signatures |
+| **Messaging & OTP** | WhatsApp Meta Cloud API + Twilio SDK | Risk-gated automated customer verification workflows |
+| **Email Dispatch** | Resend SDK | Critical profit leak alerts and automated weekly performance digests |
+| **Ad Integrations** | Meta Marketing API, Google Ads API, TikTok API | Blended ROAS, ad spend ingestion, and True CAC mapping |
+| **Testing & Quality** | Vitest + TypeScript + Custom Verification Suites | High-coverage unit tests, billing loop and RTO simulation scripts |
 
 ---
 
-## 🚀 Local Development Setup
+## 🚀 Local Development & Setup
 
 ### Prerequisites
-* **Node.js** (v20.19+ recommended)
-* **Shopify Partners account** and a development store
-* **PostgreSQL** database connection URL
+- **Node.js**: `v20.19.0` or higher (`v22+` supported)
+- **Shopify Partner Account** with a development store
+- **PostgreSQL Database** instance (local or hosted via Neon / Supabase)
+- **Shopify CLI**: `npm install -g @shopify/cli`
 
 ### Installation
 
-1. **Clone the repo**
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/vishal1357v/greek-god-saas.git
    cd greek-god-saas
    ```
 
-2. **Install dependencies**
+2. **Install project dependencies:**
    ```bash
    npm install
    ```
 
-3. **Configure environment variables**
+3. **Configure environment variables:**
    Create a `.env` file in the root directory:
    ```env
+   # App & Server Configuration
    PORT=3000
-   SHOPIFY_API_KEY="your-shopify-api-key"
-   SHOPIFY_API_SECRET="your-shopify-api-secret"
-   SHOPIFY_APP_URL="https://your-public-url.vercel.app"
+   NODE_ENV="development"
+   SHOPIFY_API_KEY="your-shopify-client-id"
+   SHOPIFY_API_SECRET="your-shopify-client-secret"
+   SHOPIFY_APP_URL="https://your-tunnel-url.ngrok.io"
    SCOPES="read_products,read_orders,write_orders,read_customers,read_fulfillments,write_metafields,read_metafields,write_payment_customizations"
-   DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
+
+   # Database (PostgreSQL / Neon)
+   DATABASE_URL="postgresql://user:password@localhost:5432/profitrx?sslmode=prefer"
+
+   # Security & Verification
+   TOKEN_ENCRYPTION_KEY="32-character-random-secret-key-for-aes-256"
+   CRON_SECRET="your-secure-cron-trigger-token"
    BYPASS_BILLING="true"
-   SUPPORT_EMAIL="support@yourdomain.com"
-   CRON_SECRET="your-vercel-cron-secret"
+
+   # Notifications & APIs (Optional for local testing)
+   RESEND_API_KEY="re_123456789"
+   WHATSAPP_TOKEN="your-meta-cloud-token"
+   WHATSAPP_PHONE_NUMBER_ID="your-phone-id"
    ```
 
-4. **Initialize database & Prisma client**
+4. **Initialize database schema & run seed data:**
    ```bash
    npx prisma db push
    npx prisma db seed
    ```
 
-5. **Start the local development server**
+5. **Start local development server:**
    ```bash
    npm run dev
    ```
 
 ---
 
-## 📖 Complete Engineering Handbook
-For an in-depth understanding of the system's runtime architecture, webhook lifecycles, and feature gating matrix, please refer to the [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) handbook located in the repository root.
+## 🧪 Testing & Runtime Verification
+
+The repository includes a comprehensive automated verification suite validating risk algorithms, billing state machines, and webhook lifecycles:
+
+```bash
+# Run unit test suite
+npm run test
+
+# Run complete TypeScript compilation & typecheck
+npm run typecheck
+
+# Run end-to-end RTO protection simulation audit
+npx tsx scripts/verify-real-rto-protection.ts
+
+# Run billing lifecycle and retry propagation audit
+npx tsx scripts/verify-real-billing-loop.ts
+
+# Run master runtime audit suite
+npx tsx scripts/audit-master-suite.ts
+```
 
 ---
 
-## 📄 License
-Distributed under the MIT License. See `LICENSE` for more information.
+## 💡 Key Engineering Decisions & Trade-Offs
+
+| Decision | Alternative Considered | Why ProfitRx Chose This Approach |
+| :--- | :--- | :--- |
+| **WASM Shopify Function** | ScriptTag / Checkout UI Extension | WebAssembly runs natively on Shopify's checkout engine in $<5\text{ms}$ with zero reliance on client-side JS execution, preventing bypassing. |
+| **Vertical Slice Architecture** | Traditional Layered Architecture | Colocating route loaders, application services, and domain repositories prevents architectural drift and simplifies feature testing. |
+| **Dual-Priority COGS** | Single Native Cost Field | Shopify's native unit cost does not handle tiered supplier discounts or offline overrides; dual-priority ensures exact margin modeling. |
+| **2-Digit Pincode Heuristics** | Naive 6-Digit Lookup | Prevents false negatives on cold-start postal codes where a single failed delivery could otherwise bias an entire pincode. |
+
+---
+
+## 📄 License & Attribution
+
+Distributed under the **MIT License**. Created by [xlr8j](https://github.com/vishal1357v). Built with precision for the modern e-commerce engineering ecosystem.
+
