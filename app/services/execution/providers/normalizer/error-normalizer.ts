@@ -26,6 +26,10 @@ export class ProviderErrorNormalizer {
       return "INVALID_TEMPLATE";
     }
 
+    if (message.includes("mutation") || message.includes("graphql") || message.includes("usererror")) {
+      return "SHOPIFY_MUTATION_FAILED";
+    }
+
     return "UNKNOWN_ERROR";
   }
 
@@ -34,6 +38,7 @@ export class ProviderErrorNormalizer {
       case "PROVIDER_TIMEOUT":
       case "NETWORK_ERROR":
       case "RATE_LIMITED":
+      case "SHOPIFY_MUTATION_FAILED":
       case "UNKNOWN_ERROR":
         return true;
       case "INVALID_CONFIGURATION":

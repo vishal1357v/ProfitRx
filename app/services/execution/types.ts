@@ -29,6 +29,7 @@ export type ProviderErrorCode =
   | "NETWORK_ERROR"
   | "INVALID_TEMPLATE"
   | "UNSUPPORTED_ACTION"
+  | "SHOPIFY_MUTATION_FAILED"
   | "UNKNOWN_ERROR";
 
 export interface ExecutionResult {
