@@ -12,6 +12,24 @@ export class PartialPaymentExecutor implements ActionExecutor {
       const tagResult = await ShopifyService.tagOrder(context.shop, context.orderId, "ProfitRx-Deposit-Required");
       providerLatencyMs = performance.now() - providerStart;
 
+      if (!tagResult.success) {
+        return {
+          success: false,
+          action: "PARTIAL_PAYMENT",
+          status: "FAILED",
+          provider: "ShopifyAdminGraphQL",
+          retryable: true,
+          errorCode: "SHOPIFY_MUTATION_FAILED",
+          timestamp: new Date(),
+          message: "Failed to tag order as ProfitRx-Deposit-Required on Shopify Admin.",
+          metrics: {
+            executionTimeMs: performance.now() - startTime,
+            retryCount: 0,
+            providerLatencyMs,
+          },
+        };
+      }
+
       return {
         success: true,
         action: "PARTIAL_PAYMENT",
@@ -19,9 +37,7 @@ export class PartialPaymentExecutor implements ActionExecutor {
         provider: "ShopifyAdminGraphQL",
         retryable: false,
         timestamp: new Date(),
-        message: tagResult.success
-          ? "Order tagged as ProfitRx-Deposit-Required on Shopify Admin."
-          : "Partial payment deposit recommended. Automation advisory recorded.",
+        message: "Order tagged as ProfitRx-Deposit-Required on Shopify Admin.",
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

@@ -262,7 +262,8 @@ export class ProfitService {
 
   /**
    * Calculate net RTO loss for an undelivered order.
-   * Upfront partial deposit collected (e.g. ₹100) offsets return shipping loss.
+   * Forward shipping + return shipping + packaging cost.
+   * Upfront partial deposit collected (e.g. ₹100) offsets return logistics loss.
    */
   static calculateRTOLoss(
     order: { isCOD?: boolean; gateway?: string | null; fulfillmentStatus?: string; partialDepositCollected?: number },
@@ -271,9 +272,8 @@ export class ProfitService {
     const forward = roundMoney(settings.defaultForwardShipping ?? 60);
     const returnShip = roundMoney(settings.defaultReturnShipping ?? 70);
     const packaging = roundMoney(settings.defaultPackaging ?? 10);
-    const codHandling = isCodOrder(order) ? roundMoney(settings.defaultCODHandling ?? 50) : 0;
     
-    const rawLoss = addMoney(forward, returnShip, packaging, codHandling);
+    const rawLoss = addMoney(forward, returnShip, packaging);
     const deposit = roundMoney(order.partialDepositCollected || 0);
     return Math.max(0, subtractMoney(rawLoss, deposit));
   }

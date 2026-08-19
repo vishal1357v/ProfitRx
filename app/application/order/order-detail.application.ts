@@ -3,6 +3,9 @@ import { ExecutionLogRepository, ExecutionLogRecord } from "../../infrastructure
 import { LearningRecordRepository } from "../../infrastructure/repositories/learning-record.repository";
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { FeatureConfidenceCalculator } from "../../services/order-features/feature-confidence.calculator";
+import { ProfitService } from "../../services/profit.service";
+import { EventBus } from "../../infrastructure/events/event.bus";
+import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
 
 export interface OrderIntelligenceDTO {
   order: {
@@ -106,9 +109,10 @@ export class OrderDetailApplicationService {
     const forwardShipping = settings?.defaultForwardShipping ?? 60;
     const returnShipping = settings?.defaultReturnShipping ?? 70;
 
-    // Expected Value = (ProfitIfDelivered * (1 - pRto)) - (LossIfRTO * pRto)
-    const profitIfDelivered = order.totalPrice - cogsUsed - forwardShipping;
-    const lossIfRto = forwardShipping + returnShipping;
+    const parsedSettings = ProfitService.getSettings(settings);
+    const { profit: calculatedProfit } = ProfitService.calculateOrderProfit(order, cogsUsed, parsedSettings);
+    const profitIfDelivered = calculatedProfit;
+    const lossIfRto = ProfitService.calculateRTOLoss(order, parsedSettings);
     const pRto = riskScore / 100;
     const expectedValue = (profitIfDelivered * (1 - pRto)) - (lossIfRto * pRto);
 
@@ -207,4 +211,57 @@ export class OrderDetailApplicationService {
       shop,
     };
   }
+
+  /**
+   * Applies a merchant override on an order's decision, logging the reason and updating the audit trail.
+   */
+  static async overrideDecision(
+    shop: string,
+    orderId: string,
+    action: string,
+    reason: string = "Manual merchant review override"
+  ): Promise<{ success: boolean; message: string }> {
+    const order = await OrderRepository.findById(shop, orderId);
+    if (!order) {
+      return { success: false, message: "Order not found" };
+    }
+
+    // 1. Update the order decision recommendation
+    await OrderRepository.updateDecision(shop, orderId, {
+      merchantRecommendation: action,
+    });
+
+    // 2. Persist audit log
+    await ExecutionLogRepository.createLog({
+      shop,
+      orderId,
+      step: "MERCHANT_OVERRIDE",
+      status: "SUCCESS",
+      message: `Merchant manually changed decision to ${action}. Reason: ${reason}`,
+      data: {
+        overriddenAction: action,
+        previousAction: order.merchantRecommendation,
+        reason,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // 3. Publish event for analytics and learning records
+    const context = ExecutionContextFactory.create(shop, orderId, `override_${Date.now()}`);
+    await EventBus.publish({
+      type: "DECISION_MADE",
+      context,
+      payload: {
+        action,
+        confidence: 1.0,
+        expectedValue: 0,
+        riskScore: order.riskScore || 0,
+        isOverride: true,
+        overrideReason: reason,
+      },
+    });
+
+    return { success: true, message: `Order decision updated to ${action}` };
+  }
 }
+

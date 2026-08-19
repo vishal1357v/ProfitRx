@@ -127,6 +127,8 @@ export class WhatsAppService {
       defaultGatewayFeePct: settings?.defaultGatewayFeePct ?? 2,
       defaultCODHandling: settings?.defaultCODHandling ?? 40,
       defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
+      defaultReturnShipping: settings?.defaultReturnShipping ?? 70,
+      defaultPackaging: settings?.defaultPackaging ?? 10,
       defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
     };
 
@@ -137,8 +139,7 @@ export class WhatsAppService {
       totalCogs += c;
       totalFees += fees;
       if (o.fulfillmentStatus === "RTO") {
-        const retShip = settings?.defaultReturnShipping ?? 70;
-        rtoLoss += retShip + c;
+        rtoLoss += ProfitService.calculateRTOLoss(o, evalSettings);
       }
     }
 
@@ -152,15 +153,21 @@ export class WhatsAppService {
       take: 2,
     });
     const pincodeListStr = highRtoPincodes.map((p) => p.pincode).join(", ");
+    const highRtoPincodeLoss = highRtoPincodes.reduce((sum, p) => sum + (p.totalLoss || 0), 0);
+    const pincodeSavings = highRtoPincodeLoss > 0 ? Math.round(highRtoPincodeLoss) : Math.round(rtoLoss * 0.4);
+    const productSavings = Math.max(0, Math.round(rtoLoss * 0.3));
+    const courierSavings = Math.max(0, Math.round(rtoLoss * 0.15));
 
     // Action 2: Top Product
     const firstOrder = targetOrders[0];
     const topProdName = firstOrder?.productId || "Catalog Items";
 
     const actionItems = [
-      `1. 🛑 *Block COD in pincodes:* ${pincodeListStr} (Saves approx. ₹3,100)`,
-      `2. ⚡ *Disable COD on Product:* ${topProdName} (Saves approx. ₹1,800)`,
-      `3. 🚚 *Route optimization:* Swap courier in UP zone (Saves approx. ₹900)`,
+      pincodeListStr
+        ? `1. 🛑 *Block COD in pincodes:* ${pincodeListStr} (Saves approx. ₹${pincodeSavings.toLocaleString("en-IN")})`
+        : `1. 🛑 *Enable High-Risk Pincode Shield* (Protects against regional RTO clusters)`,
+      `2. ⚡ *Verify COD on High-Risk Orders of:* ${topProdName} (Saves approx. ₹${productSavings.toLocaleString("en-IN")})`,
+      `3. 🚚 *Logistics Optimization:* Review shipping providers with >15% return rate (Saves approx. ₹${courierSavings.toLocaleString("en-IN")})`,
     ];
 
     const formattedMessage = `*PROFITRX WEEKLY PROFIT DIGEST* 📊

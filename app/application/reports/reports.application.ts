@@ -22,28 +22,96 @@ export class ReportsApplicationService {
     switch (type) {
       case "daily-profit": {
         reportTitle = "Daily Profit Report";
-        const snapshots = await ReportsRepository.getProfitSnapshots(shop, 90);
-        reportData = snapshots.map((s) => ({
-          date: s.date.toISOString().split("T")[0],
-          revenue: Math.round(s.revenue),
-          profit: Math.round(s.profit),
-          margin: s.margin.toFixed(1),
-          cogs: Math.round(s.cogs),
-          fees: Math.round(s.fees),
-          rtoLoss: Math.round(s.rtoLoss),
-        }));
+        let snapshots = await ReportsRepository.getProfitSnapshots(shop, 90);
+        if (snapshots.length === 0) {
+          const orders = await ReportsRepository.getOrdersForReports(shop, 90);
+          const cogsMap = await ProfitService.getCOGS(shop);
+          const dailyMap: Record<string, { revenue: number; profit: number; cogs: number; fees: number; rtoLoss: number }> = {};
+
+          for (const o of orders) {
+            const dateKey = new Date(o.createdAt).toISOString().split("T")[0];
+            if (!dailyMap[dateKey]) {
+              dailyMap[dateKey] = { revenue: 0, profit: 0, cogs: 0, fees: 0, rtoLoss: 0 };
+            }
+            const cogs = o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""] ?? ((o.totalPrice || 0) * (settings.defaultCOGSPct || 40)) / 100;
+            const { profit, fees } = ProfitService.calculateOrderProfit(o, cogs, settings);
+            const isRto = o.fulfillmentStatus === "RTO";
+
+            if (isRto) {
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].rtoLoss += fees;
+              dailyMap[dateKey].profit -= fees;
+            } else {
+              dailyMap[dateKey].revenue += o.totalPrice || 0;
+              dailyMap[dateKey].cogs += cogs;
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].profit += profit;
+            }
+          }
+
+          reportData = Object.entries(dailyMap)
+            .map(([date, d]) => ({
+              date,
+              revenue: Math.round(d.revenue),
+              profit: Math.round(d.profit),
+              margin: d.revenue > 0 ? ((d.profit / d.revenue) * 100).toFixed(1) : "0.0",
+              cogs: Math.round(d.cogs),
+              fees: Math.round(d.fees),
+              rtoLoss: Math.round(d.rtoLoss),
+            }))
+            .sort((a, b) => b.date.localeCompare(a.date));
+        } else {
+          reportData = snapshots.map((s) => ({
+            date: s.date.toISOString().split("T")[0],
+            revenue: Math.round(s.revenue),
+            profit: Math.round(s.profit),
+            margin: s.margin.toFixed(1),
+            cogs: Math.round(s.cogs),
+            fees: Math.round(s.fees),
+            rtoLoss: Math.round(s.rtoLoss),
+          }));
+        }
         break;
       }
 
       case "weekly-profit": {
         reportTitle = "Weekly Profit Report";
-        const snapshots = await ReportsRepository.getProfitSnapshots(shop, 90);
-        const weeks: Record<
-          string,
-          { revenue: number; profit: number; cogs: number; fees: number; count: number }
-        > = {};
+        let snapshots = await ReportsRepository.getProfitSnapshots(shop, 90);
+        let dailyItems: Array<{ date: string; revenue: number; profit: number; cogs: number; fees: number }> = [];
 
-        snapshots.forEach((s) => {
+        if (snapshots.length === 0) {
+          const orders = await ReportsRepository.getOrdersForReports(shop, 90);
+          const cogsMap = await ProfitService.getCOGS(shop);
+          const dailyMap: Record<string, { revenue: number; profit: number; cogs: number; fees: number }> = {};
+
+          for (const o of orders) {
+            const dateKey = new Date(o.createdAt).toISOString().split("T")[0];
+            if (!dailyMap[dateKey]) dailyMap[dateKey] = { revenue: 0, profit: 0, cogs: 0, fees: 0 };
+            const cogs = o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""] ?? ((o.totalPrice || 0) * (settings.defaultCOGSPct || 40)) / 100;
+            const { profit, fees } = ProfitService.calculateOrderProfit(o, cogs, settings);
+            if (o.fulfillmentStatus !== "RTO") {
+              dailyMap[dateKey].revenue += o.totalPrice || 0;
+              dailyMap[dateKey].cogs += cogs;
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].profit += profit;
+            } else {
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].profit -= fees;
+            }
+          }
+          dailyItems = Object.entries(dailyMap).map(([date, d]) => ({ date, ...d }));
+        } else {
+          dailyItems = snapshots.map((s) => ({
+            date: s.date.toISOString().split("T")[0],
+            revenue: s.revenue,
+            profit: s.profit,
+            cogs: s.cogs,
+            fees: s.fees,
+          }));
+        }
+
+        const weeks: Record<string, { revenue: number; profit: number; cogs: number; fees: number; count: number }> = {};
+        dailyItems.forEach((s) => {
           const d = new Date(s.date);
           const weekStart = new Date(d);
           weekStart.setDate(d.getDate() - d.getDay());
@@ -72,14 +140,43 @@ export class ReportsApplicationService {
 
       case "monthly-profit": {
         reportTitle = "Monthly Profit Report";
-        const snapshots = await ReportsRepository.getProfitSnapshots(shop, 365);
-        const months: Record<
-          string,
-          { revenue: number; profit: number; cogs: number; fees: number }
-        > = {};
+        let snapshots = await ReportsRepository.getProfitSnapshots(shop, 365);
+        let dailyItems: Array<{ date: string; revenue: number; profit: number; cogs: number; fees: number }> = [];
 
-        snapshots.forEach((s) => {
-          const key = s.date.toISOString().substring(0, 7);
+        if (snapshots.length === 0) {
+          const orders = await ReportsRepository.getOrdersForReports(shop, 365);
+          const cogsMap = await ProfitService.getCOGS(shop);
+          const dailyMap: Record<string, { revenue: number; profit: number; cogs: number; fees: number }> = {};
+
+          for (const o of orders) {
+            const dateKey = new Date(o.createdAt).toISOString().split("T")[0];
+            if (!dailyMap[dateKey]) dailyMap[dateKey] = { revenue: 0, profit: 0, cogs: 0, fees: 0 };
+            const cogs = o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""] ?? ((o.totalPrice || 0) * (settings.defaultCOGSPct || 40)) / 100;
+            const { profit, fees } = ProfitService.calculateOrderProfit(o, cogs, settings);
+            if (o.fulfillmentStatus !== "RTO") {
+              dailyMap[dateKey].revenue += o.totalPrice || 0;
+              dailyMap[dateKey].cogs += cogs;
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].profit += profit;
+            } else {
+              dailyMap[dateKey].fees += fees;
+              dailyMap[dateKey].profit -= fees;
+            }
+          }
+          dailyItems = Object.entries(dailyMap).map(([date, d]) => ({ date, ...d }));
+        } else {
+          dailyItems = snapshots.map((s) => ({
+            date: s.date.toISOString().split("T")[0],
+            revenue: s.revenue,
+            profit: s.profit,
+            cogs: s.cogs,
+            fees: s.fees,
+          }));
+        }
+
+        const months: Record<string, { revenue: number; profit: number; cogs: number; fees: number }> = {};
+        dailyItems.forEach((s) => {
+          const key = s.date.substring(0, 7);
           if (!months[key]) months[key] = { revenue: 0, profit: 0, cogs: 0, fees: 0 };
           months[key].revenue += s.revenue;
           months[key].profit += s.profit;
@@ -169,14 +266,33 @@ export class ReportsApplicationService {
       case "profit-leak-report": {
         reportTitle = "Profit Leak Report";
         const snapshots = await ReportsRepository.getProfitSnapshots(shop, 90);
-        reportData = snapshots.map((s) => ({
-          date: s.date.toISOString().split("T")[0],
-          rtoLoss: Math.round(s.rtoLoss),
-          shippingOverage: Math.round(s.shippingOverage),
-          discountLoss: Math.round(s.discountLoss),
-          codFailureLoss: Math.round(s.codFailureLoss),
-          totalLeak: Math.round(s.totalLeak),
-        }));
+        if (snapshots.length === 0) {
+          const events = await ReportsRepository.getRtoEvents(shop, 100);
+          const leakMap: Record<string, { rtoLoss: number; shippingOverage: number; discountLoss: number; codFailureLoss: number; totalLeak: number }> = {};
+          events.forEach((e) => {
+            const d = e.createdAt.toISOString().split("T")[0];
+            if (!leakMap[d]) leakMap[d] = { rtoLoss: 0, shippingOverage: 0, discountLoss: 0, codFailureLoss: 0, totalLeak: 0 };
+            leakMap[d].rtoLoss += e.amount || 0;
+            leakMap[d].totalLeak += e.amount || 0;
+          });
+          reportData = Object.entries(leakMap).map(([date, d]) => ({
+            date,
+            rtoLoss: Math.round(d.rtoLoss),
+            shippingOverage: Math.round(d.shippingOverage),
+            discountLoss: Math.round(d.discountLoss),
+            codFailureLoss: Math.round(d.codFailureLoss),
+            totalLeak: Math.round(d.totalLeak),
+          })).sort((a, b) => b.date.localeCompare(a.date));
+        } else {
+          reportData = snapshots.map((s) => ({
+            date: s.date.toISOString().split("T")[0],
+            rtoLoss: Math.round(s.rtoLoss),
+            shippingOverage: Math.round(s.shippingOverage),
+            discountLoss: Math.round(s.discountLoss),
+            codFailureLoss: Math.round(s.codFailureLoss),
+            totalLeak: Math.round(s.totalLeak),
+          }));
+        }
         break;
       }
 

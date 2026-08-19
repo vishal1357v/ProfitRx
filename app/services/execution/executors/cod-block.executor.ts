@@ -12,6 +12,24 @@ export class CodBlockExecutor implements ActionExecutor {
       const tagResult = await ShopifyService.tagOrder(context.shop, context.orderId, "ProfitRx-COD-Blocked");
       providerLatencyMs = performance.now() - providerStart;
 
+      if (!tagResult.success) {
+        return {
+          success: false,
+          action: "BLOCK_COD",
+          status: "FAILED",
+          provider: "ShopifyAdminGraphQL",
+          retryable: true,
+          errorCode: "SHOPIFY_MUTATION_FAILED",
+          timestamp: new Date(),
+          message: "Failed to tag order as ProfitRx-COD-Blocked on Shopify Admin.",
+          metrics: {
+            executionTimeMs: performance.now() - startTime,
+            retryCount: 0,
+            providerLatencyMs,
+          },
+        };
+      }
+
       return {
         success: true,
         action: "BLOCK_COD",
@@ -19,9 +37,7 @@ export class CodBlockExecutor implements ActionExecutor {
         provider: "ShopifyAdminGraphQL",
         retryable: false,
         timestamp: new Date(),
-        message: tagResult.success
-          ? "Order tagged as ProfitRx-COD-Blocked on Shopify Admin."
-          : "COD blocked in ProfitRx engine (Shopify Admin offline).",
+        message: "Order tagged as ProfitRx-COD-Blocked on Shopify Admin.",
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

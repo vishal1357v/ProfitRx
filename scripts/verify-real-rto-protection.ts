@@ -172,10 +172,11 @@ function buildFeatures(params: {
       dataConfidence: 1,
       warnings: [],
       sources: {
-        cogs: "SKU_TABLE",
-        shipping: "STORE_SETTINGS",
-        customerHistory: "CUSTOMER_PROFILE",
-        pincodeHistory: "PINCODE_STATS"
+        cogs: "MERCHANT_DEFAULT",
+        shipping: "MERCHANT_DEFAULT",
+        customerHistory: "NONE",
+        pincodeHistory: "NONE",
+        adCost: "UNAVAILABLE",
       },
       generatedAt: new Date(),
       generatedFromOrderCreatedAt: new Date()
@@ -298,14 +299,14 @@ async function verifyRealRTOProtection() {
   }
 
   // Common Decision Engine Configurations
-  const defaultDecisionSettings: MerchantDecisionSettings = {
+  const defaultDecisionSettings: any = {
     minEVGainThreshold: 10,
     maxFrictionAcceptable: 8,
     primaryObjective: "MAXIMIZE_EV",
     prioritizeConversion: false
   };
 
-  const defaultInterventions: MerchantInterventionSettings = {
+  const defaultInterventions: any = {
     enabledActions: ["ALLOW_COD", "OTP_VERIFY", "PREPAID_ONLY", "BLOCK_COD"],
     otpSettings: {
       provider: "fast2sms",
@@ -332,7 +333,7 @@ async function verifyRealRTOProtection() {
     }
   };
 
-  const baseFinancialAssumptions: FinancialAssumptions = {
+  const baseFinancialAssumptions: any = {
     forwardShippingCost: 80,
     returnShippingCost: 70,
     packagingCost: 10,
@@ -383,15 +384,15 @@ async function verifyRealRTOProtection() {
     customerRtoRate: 0
   });
 
-  const riskA: RTORiskResult = {
+  const riskA: any = {
     probability: 0.08,
     riskLevel: "LOW",
     confidence: 0.85,
-    topFactors: [],
+    factors: [],
     metadata: { modelVersion: "v1", calculationTimeMs: 1 }
   };
 
-  const baselineEVA: ExpectedValueResult = {
+  const baselineEVA: any = {
     expectedValue: 430,
     profitIfDelivered: 469,
     lossIfRto: 160,
@@ -419,9 +420,9 @@ async function verifyRealRTOProtection() {
     shop,
     orderId: String(orderA.id),
     decision: decisionA,
-    customer: { phone: "+919811000001", email: "normal.buyer.delhi@gmail.com" },
+    customer: { id: "cust-1", phone: "+919811000001", email: "normal.buyer.delhi@gmail.com" },
     financials: { orderTotal: 899, expectedValue: decisionA.recommendedExpectedValue }
-  });
+  } as any);
   console.log(`   • Execution Status:    ${execResultA.status} (${execResultA.message})`);
 
   // Verify on Shopify: No restriction tags applied
@@ -474,15 +475,15 @@ async function verifyRealRTOProtection() {
     customerRtoRate: 0
   });
 
-  const riskB: RTORiskResult = {
+  const riskB: any = {
     probability: 0.50,
     riskLevel: "HIGH",
     confidence: 0.60,
-    topFactors: [{ factorName: "High Order Value", contribution: 0.40, description: "High ticket capital exposure" }],
+    factors: [{ factorName: "High Order Value", contribution: 0.40, description: "High ticket capital exposure" }],
     metadata: { modelVersion: "v1", calculationTimeMs: 1 }
   };
 
-  const baselineEVB: ExpectedValueResult = {
+  const baselineEVB: any = {
     expectedValue: 770,
     profitIfDelivered: 5020,
     lossIfRto: 3560,
@@ -492,7 +493,7 @@ async function verifyRealRTOProtection() {
     calculationDetails: { grossRevenue: 8500, cogs: 3400, forwardShipping: 80, returnShipping: 70, packaging: 10, paymentGatewayFee: 0, codHandlingFee: 0, isCod: true }
   };
 
-  const decisionB = {
+  const decisionB: any = {
     recommendedAction: "PREPAID_ONLY",
     baselineExpectedValue: -500,
     recommendedExpectedValue: 2000,
@@ -502,7 +503,7 @@ async function verifyRealRTOProtection() {
     confidenceBefore: 0.80,
     confidenceAfter: 1.0,
     evaluatedActions: [],
-    reasoning: [{ code: "RULE_REQUIRE_PREPAID", severity: "HIGH" as const, message: "Order value (₹8,500) exceeds prepaid threshold of ₹5,000. Prepayment required to safeguard merchant capital." }],
+    reasoning: [{ code: "RULE_REQUIRE_PREPAID", severity: "CRITICAL" as const, message: "Order value (₹8,500) exceeds prepaid threshold of ₹5,000. Prepayment required to safeguard merchant capital." }],
     metadata: { decisionVersion: "decision-engine-v1", calculationDate: new Date() }
   };
 
@@ -514,9 +515,9 @@ async function verifyRealRTOProtection() {
     shop,
     orderId: String(orderB.id),
     decision: decisionB,
-    customer: { phone: "+919822000002", email: "high.value.buyer@gmail.com" },
+    customer: { id: "cust-2", phone: "+919822000002", email: "high.value.buyer@gmail.com" },
     financials: { orderTotal: 8500, expectedValue: decisionB.recommendedExpectedValue }
-  });
+  } as any);
   console.log(`   • Execution Status:    ${execResultB.status} (${execResultB.message})`);
 
   // Verify on Shopify Admin API: Physically verify tag
@@ -584,9 +585,9 @@ async function verifyRealRTOProtection() {
     shop,
     orderId: String(orderC.id),
     decision: decisionC,
-    customer: { phone: "+919833000003", email: "kolkata.buyer@gmail.com" },
+    customer: { id: "cust-3", phone: "+919833000003", email: "kolkata.buyer@gmail.com" },
     financials: { orderTotal: 1200, expectedValue: 0 }
-  });
+  } as any);
   console.log(`   • Execution Status:    ${execResultC.status} (${execResultC.message})`);
 
   // Query Shopify Admin API to physically verify tag
@@ -644,7 +645,7 @@ async function verifyRealRTOProtection() {
   console.log(`   • Customer Reason:     "${customerRiskD.reasons[0]?.code}" (${customerRiskD.reasons[0]?.description})`);
   console.log(`   • Combined Order Risk: ${orderRiskD.score}% (${orderRiskD.level})`);
 
-  const decisionD = {
+  const decisionD: any = {
     recommendedAction: "BLOCK_COD",
     baselineExpectedValue: -120,
     recommendedExpectedValue: 0,
@@ -665,9 +666,9 @@ async function verifyRealRTOProtection() {
     shop,
     orderId: String(orderD.id),
     decision: decisionD,
-    customer: { phone: repeatOffenderPhone, email: repeatOffenderEmail },
+    customer: { id: "cust-4", phone: repeatOffenderPhone, email: repeatOffenderEmail },
     financials: { orderTotal: 1500, expectedValue: 0 }
-  });
+  } as any);
   console.log(`   • Execution Status:    ${execResultD.status} (${execResultD.message})`);
 
   // Query Shopify Admin API to physically verify tag

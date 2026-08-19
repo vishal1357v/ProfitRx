@@ -6,19 +6,33 @@ export class LearningRecordRepository {
    */
   static async saveRecord(shopId: string, orderId: string, recordData: any): Promise<void> {
     try {
-      const fullOrderId = orderId.includes("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+      const decodedId = decodeURIComponent(orderId);
+      const rawId = decodedId.replace("gid://shopify/Order/", "");
+      const gid = `gid://shopify/Order/${rawId}`;
+
+      // Query parent Order in DB to ensure matching foreign key
+      const existingOrder = await prisma.order.findFirst({
+        where: {
+          shop: shopId,
+          id: { in: [orderId, rawId, gid, decodedId] },
+        },
+        select: { id: true },
+      });
+
+      const matchedOrderId = existingOrder ? existingOrder.id : orderId;
+
       await prisma.learningRecord.create({
         data: {
           shop: shopId,
-          orderId: fullOrderId,
-          predictedRto: recordData.predictedRto || 0,
+          orderId: matchedOrderId,
+          predictedRto: recordData.predictedRto || (recordData.riskBefore !== undefined ? recordData.riskBefore * 100 : 0),
           actualRto: recordData.actualRto || false,
-          features: recordData.features || {}
-        }
+          features: recordData.features || {},
+        },
       });
-      console.log(`[Repository] Saved Learning Record for ${orderId}`);
+      console.log(`[Repository] Saved Learning Record for ${matchedOrderId}`);
     } catch (e: any) {
-      console.error(`[Repository] Failed to save learning record for ${orderId}`, e.message);
+      console.error(`[Repository] Failed to save learning record for ${orderId}:`, e.message);
     }
   }
 

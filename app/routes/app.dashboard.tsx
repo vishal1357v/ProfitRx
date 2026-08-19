@@ -1851,12 +1851,11 @@ export default function DashboardRoute() {
                       • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
                     </div>
                     <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
-                      🎯 <strong>Your 3 Actions This Week:</strong>
+                      🎯 <strong>Live Protection Status:</strong>
                     </div>
                     <div style={{ marginTop: "4px" }}>
-                      1. 🛑 <strong>Block COD in pincodes:</strong> 110053, 110078 (Saves approx. ₹3,100)<br />
-                      2. ⚡ <strong>Disable COD on Product:</strong> {data.topProducts[0]?.name || "Catalog Items"} (Saves approx. ₹1,800)<br />
-                      3. 🚚 <strong>Route optimizations:</strong> Swap courier in UP zone (Saves approx. ₹900)
+                      • <strong>Real-Time Screening:</strong> Active on all incoming orders.<br />
+                      • <strong>RTO Prevention:</strong> Automated verification & risk scoring enabled.<br />
                     </div>
                     <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
                     <div style={{ clear: "both" }} />

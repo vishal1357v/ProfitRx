@@ -7,6 +7,7 @@ import { ExpectedValueStep } from "./steps/expected-value.step";
 import { DecisionStep } from "./steps/decision.step";
 import { ExecutionStep } from "./steps/execution.step";
 import { EventBus } from "../../infrastructure/events/event.bus";
+import { OrderRepository } from "../../infrastructure/repositories/order.repository";
 
 export class OrderApplicationService {
   /**
@@ -25,8 +26,23 @@ export class OrderApplicationService {
     try {
       const result = await pipeline.execute(context, { rawOrder });
 
-      // Event Bus Subscriptions completely abstract Outcome & Analytics persistence!
       if (result.finalDecision) {
+        const orderId = String(rawOrder?.id || context.orderId);
+        await OrderRepository.updateDecision(context.shopId, orderId, {
+          riskScore: result.riskScore !== undefined ? Math.round(result.riskScore) : null,
+          riskLevel:
+            result.riskResult?.riskLevel ||
+            (result.riskScore && result.riskScore >= 70
+              ? "CRITICAL"
+              : result.riskScore && result.riskScore >= 50
+                ? "HIGH"
+                : result.riskScore && result.riskScore >= 30
+                  ? "MEDIUM"
+                  : "LOW"),
+          merchantRecommendation: result.finalDecision,
+        });
+
+        // Event Bus Subscriptions completely abstract Outcome & Analytics persistence!
         await EventBus.publish({
           type: "DECISION_MADE",
           context,

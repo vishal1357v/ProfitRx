@@ -24,6 +24,35 @@ export class ReportsRepository {
   }
 
   /**
+   * Get orders for dynamic time-series profit reporting.
+   */
+  static async getOrdersForReports(shop: string, days = 90): Promise<any[]> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    return prisma.order.findMany({
+      where: {
+        shop,
+        createdAt: { gte: startDate },
+      },
+      select: {
+        id: true,
+        productId: true,
+        totalPrice: true,
+        totalTax: true,
+        shippingPrice: true,
+        cogsAtTimeOfOrder: true,
+        fulfillmentStatus: true,
+        isCOD: true,
+        gateway: true,
+        discountAmount: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /**
    * Find customer profiles for reporting with shop isolation.
    */
   static async getCustomerProfiles(shop: string, limit = 100): Promise<any[]> {

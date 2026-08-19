@@ -114,6 +114,39 @@ export class OrderRepository {
     if (existing) return existing;
     return this.createOrder(orderData);
   }
+
+  /**
+   * Update order decision and risk evaluation results.
+   */
+  static async updateDecision(
+    shop: string,
+    orderId: string,
+    updateData: {
+      riskScore?: number | null;
+      riskLevel?: string | null;
+      riskReasons?: any;
+      merchantRecommendation?: string | null;
+    }
+  ): Promise<void> {
+    const decodedId = decodeURIComponent(orderId);
+    const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
+    const rawId = decodedId.replace("gid://shopify/Order/", "");
+
+    const existing = await prisma.order.findFirst({
+      where: {
+        shop,
+        id: { in: [orderId, rawId, gid, decodedId] },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.order.update({
+        where: { id: existing.id },
+        data: updateData,
+      });
+    }
+  }
 }
 
 

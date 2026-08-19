@@ -82,10 +82,20 @@ export class SettingsRepository {
    * Upsert general store settings with shop isolation.
    */
   static async upsertStoreSettings(shopId: string, data: any): Promise<any> {
-    return prisma.storeSettings.upsert({
+    const existing = await prisma.storeSettings.findUnique({
       where: { shop: shopId },
-      update: data,
-      create: {
+      select: { id: true },
+    });
+
+    if (existing) {
+      return prisma.storeSettings.update({
+        where: { shop: shopId },
+        data,
+      });
+    }
+
+    return prisma.storeSettings.create({
+      data: {
         shop: shopId,
         ...data,
       },
@@ -96,24 +106,32 @@ export class SettingsRepository {
    * Update COD Rules fields with shop isolation.
    */
   static async updateCodRules(shopId: string, rules: any): Promise<void> {
-    await prisma.storeSettings.upsert({
+    const updateData = {
+      rulesRejectCodOver: rules.rulesRejectCodOver,
+      rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
+      rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
+      rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
+      rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
+    };
+
+    const existing = await prisma.storeSettings.findUnique({
       where: { shop: shopId },
-      update: {
-        rulesRejectCodOver: rules.rulesRejectCodOver,
-        rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
-        rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
-        rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
-        rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
-      },
-      create: {
-        shop: shopId,
-        rulesRejectCodOver: rules.rulesRejectCodOver,
-        rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
-        rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
-        rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
-        rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
-      },
+      select: { id: true },
     });
+
+    if (existing) {
+      await prisma.storeSettings.update({
+        where: { shop: shopId },
+        data: updateData,
+      });
+    } else {
+      await prisma.storeSettings.create({
+        data: {
+          shop: shopId,
+          ...updateData,
+        },
+      });
+    }
   }
 
   /**
@@ -129,10 +147,20 @@ export class SettingsRepository {
       data.onboardingCompleted = completed;
     }
 
-    return prisma.storeSettings.upsert({
+    const existing = await prisma.storeSettings.findUnique({
       where: { shop: shopId },
-      update: data,
-      create: {
+      select: { id: true },
+    });
+
+    if (existing) {
+      return prisma.storeSettings.update({
+        where: { shop: shopId },
+        data,
+      });
+    }
+
+    return prisma.storeSettings.create({
+      data: {
         shop: shopId,
         ...data,
       },

@@ -1,5 +1,6 @@
-import { LoaderFunctionArgs, redirect } from "react-router";
-import { useLoaderData, useNavigate, isRouteErrorResponse, useRouteError } from "react-router";
+import { useState } from "react";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, isRouteErrorResponse, useRouteError, redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers = (headersArgs: any) => boundary.headers(headersArgs);
@@ -19,6 +20,12 @@ import {
   EmptyState,
   Banner,
   Tooltip,
+  Button,
+  ButtonGroup,
+  Modal,
+  TextField,
+  Select,
+  DataTable,
 } from "@shopify/polaris";
 import {
   LockIcon,
@@ -27,6 +34,8 @@ import {
   CashDollarIcon,
   DeliveryIcon,
   PersonIcon,
+  AlertBubbleIcon,
+  CheckIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { OrderDetailApplicationService } from "../application/order/order-detail.application";
@@ -51,17 +60,68 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   return { ...data, host };
 };
 
+export const action = async ({ request, params }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const orderId = params.id;
+
+  if (!orderId) {
+    return Response.json({ success: false, error: "Missing order ID" }, { status: 400 });
+  }
+
+  const formData = await request.formData();
+  const intent = formData.get("intent") as string;
+
+  if (intent === "override_decision") {
+    const action = formData.get("action") as string;
+    const reason = (formData.get("reason") as string) || "Manual merchant review override";
+
+    const result = await OrderDetailApplicationService.overrideDecision(shop, orderId, action, reason);
+    return Response.json(result);
+  }
+
+  return Response.json({ success: false, error: "Invalid intent" }, { status: 400 });
+};
+
 export default function OrderIntelligenceRoute() {
-  const { order, intelligence, executionLogs, learningRecords, shop, host } = useLoaderData<typeof loader>();
+  const data = useLoaderData<typeof loader>();
+  const actionData = useActionData() as any;
   const navigate = useNavigate();
+  const submit = useSubmit();
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+
+  const { order, intelligence, executionLogs, learningRecords, shop, host } = data;
+
+  const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
+  const [overrideAction, setOverrideAction] = useState(intelligence.decision || "ALLOW_COD");
+  const [overrideReason, setOverrideReason] = useState("");
 
   const riskScore = intelligence.riskScore;
   let riskTone: "success" | "warning" | "critical" | "info" = "success";
   if (riskScore > 30) riskTone = "warning";
+
   if (riskScore > 60) riskTone = "critical";
 
   const reasons = intelligence.riskReasons || [];
   const expectedValue = intelligence.expectedValue;
+
+  const handleQuickAction = (actionName: string) => {
+    const formData = new FormData();
+    formData.append("intent", "override_decision");
+    formData.append("action", actionName);
+    formData.append("reason", `Quick merchant action: ${actionName}`);
+    submit(formData, { method: "post" });
+  };
+
+  const handleConfirmOverride = () => {
+    const formData = new FormData();
+    formData.append("intent", "override_decision");
+    formData.append("action", overrideAction);
+    formData.append("reason", overrideReason || "Merchant manual override");
+    submit(formData, { method: "post" });
+    setIsOverrideModalOpen(false);
+  };
 
   return (
     <Page
@@ -78,12 +138,25 @@ export default function OrderIntelligenceRoute() {
           <Badge tone={riskTone}>{`${intelligence.riskLevel} RISK`}</Badge>
         </InlineStack>
       }
+      primaryAction={{
+        content: "Override Decision",
+        onAction: () => setIsOverrideModalOpen(true),
+      }}
     >
       <Layout>
+        {/* Action feedback banner */}
+        {actionData?.success && (
+          <Layout.Section>
+            <Banner tone="success" title="Decision Updated" onDismiss={() => {}}>
+              <p>{actionData.message || "Order decision updated successfully."}</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {/* Main Intelligence & Decision Section */}
         <Layout.Section>
           <BlockStack gap="400">
-            {/* Top Engine Decision Banner */}
+            {/* Top Engine Decision Banner & Quick Actions */}
             <Card>
               <BlockStack gap="300">
                 <InlineStack align="space-between" blockAlign="center">
@@ -103,6 +176,46 @@ export default function OrderIntelligenceRoute() {
                     <strong>Economic Justification:</strong> {intelligence.economicJustification}
                   </Text>
                 </Box>
+
+                {/* Quick 1-Click Action Controls */}
+                <Divider />
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h3">
+                    Merchant Action Controls
+                  </Text>
+                  <InlineStack gap="200" wrap>
+                    <Button
+                      variant={intelligence.decision === "ALLOW_COD" ? "primary" : "secondary"}
+                      tone={intelligence.decision === "ALLOW_COD" ? "success" : undefined}
+                      disabled={isSubmitting}
+                      onClick={() => handleQuickAction("ALLOW_COD")}
+                    >
+                      ✓ Allow COD
+                    </Button>
+                    <Button
+                      variant={intelligence.decision === "OTP_VERIFY" ? "primary" : "secondary"}
+                      disabled={isSubmitting}
+                      onClick={() => handleQuickAction("OTP_VERIFY")}
+                    >
+                      📱 Send OTP Verification
+                    </Button>
+                    <Button
+                      variant={intelligence.decision === "PREPAID_ONLY" ? "primary" : "secondary"}
+                      disabled={isSubmitting}
+                      onClick={() => handleQuickAction("PREPAID_ONLY")}
+                    >
+                      💳 Require Prepaid
+                    </Button>
+                    <Button
+                      variant={intelligence.decision === "BLOCK_COD" ? "primary" : "secondary"}
+                      tone="critical"
+                      disabled={isSubmitting}
+                      onClick={() => handleQuickAction("BLOCK_COD")}
+                    >
+                      🛑 Block COD
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
               </BlockStack>
             </Card>
 
@@ -202,13 +315,47 @@ export default function OrderIntelligenceRoute() {
 
                 <Divider />
 
+                {/* Detailed Unit Economics Table */}
+                <Text variant="headingSm" as="h3">
+                  Unit Economics Accounting Breakdown
+                </Text>
+                <DataTable
+                  columnContentTypes={["text", "text", "numeric"]}
+                  headings={["Cost Component", "Source / Basis", "Amount (₹)"]}
+                  rows={[
+                    ["Gross Order Revenue", "Customer checkout price", `₹${order.totalPrice.toLocaleString("en-IN")}`],
+                    ["Product COGS", intelligence.hasRealCogs ? "Actual SKU Cost" : "Store Default %", `-₹${Math.round(intelligence.cogsUsed).toLocaleString("en-IN")}`],
+                    ["Forward Courier Freight", "Configured shipping rate", `-₹${Math.round(intelligence.forwardShipping).toLocaleString("en-IN")}`],
+                    ["COD Handling & Fee", order.isCOD ? "Gateway / Handling" : "N/A (Prepaid)", `-₹${order.isCOD ? 20 : 0}`],
+                    ["Packaging & Dispatch", "Configured store default", "-₹10"],
+                    [
+                      "Estimated Delivered Profit",
+                      "Revenue - (COGS + Shipping + Fees)",
+                      `+₹${Math.round(intelligence.profitIfDelivered).toLocaleString("en-IN")}`
+                    ],
+                    [
+                      "Potential RTO Return Loss",
+                      "Forward + Return Shipping + Packaging",
+                      `-₹${Math.round(intelligence.lossIfRto).toLocaleString("en-IN")}`
+                    ],
+                    [
+                      "Net Expected Value (EV)",
+                      `(Profit × P(Del)) - (Loss × P(RTO))`,
+                      `${expectedValue >= 0 ? "+" : ""}₹${Math.round(expectedValue).toLocaleString("en-IN")}`
+                    ],
+                  ]}
+                />
+
+
+                <Divider />
+
                 {/* Risk Reasons Breakdown */}
                 <Text variant="headingSm" as="h3">
                   Detected Risk Factors
                 </Text>
                 {reasons.length > 0 ? (
                   <BlockStack gap="200">
-                    {reasons.map((r, i) => (
+                    {reasons.map((r: any, i: number) => (
                       <InlineStack key={i} align="space-between">
                         <Text as="span">{r.reason}</Text>
                         <Text as="span" tone={r.impact > 0 ? "critical" : "success"} fontWeight="bold">
@@ -218,6 +365,7 @@ export default function OrderIntelligenceRoute() {
                       </InlineStack>
                     ))}
                   </BlockStack>
+
                 ) : (
                   <Box padding="300" background="bg-surface-secondary" borderRadius="100">
                     <Text as="p" tone="subdued">
@@ -339,7 +487,7 @@ export default function OrderIntelligenceRoute() {
                   Line Items ({order.lineItems.length})
                 </Text>
                 <BlockStack gap="200">
-                  {order.lineItems.map((item) => (
+                  {order.lineItems.map((item: any) => (
                     <InlineStack key={item.id} align="space-between" blockAlign="center">
                       <BlockStack gap="050">
                         <Text variant="bodyMd" as="span" fontWeight="bold">
@@ -443,9 +591,57 @@ export default function OrderIntelligenceRoute() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+
+      {/* Manual Override Modal */}
+      <Modal
+        open={isOverrideModalOpen}
+        onClose={() => setIsOverrideModalOpen(false)}
+        title="Override Decision Engine Recommendation"
+        primaryAction={{
+          content: "Save Override Decision",
+          onAction: handleConfirmOverride,
+          loading: isSubmitting,
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setIsOverrideModalOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            <Banner tone="info">
+              <p>
+                Manual overrides update the decision status for this order and help calibrate future AI recommendations.
+              </p>
+            </Banner>
+            <Select
+              label="Select Decision"
+              options={[
+                { label: "✓ Allow COD (Fulfill unverified)", value: "ALLOW_COD" },
+                { label: "📱 OTP Verification (Require customer OTP)", value: "OTP_VERIFY" },
+                { label: "💳 Require Prepaid (Convert to prepaid)", value: "PREPAID_ONLY" },
+                { label: "🛑 Block COD (Cancel / reject COD)", value: "BLOCK_COD" },
+              ]}
+              value={overrideAction}
+              onChange={(val) => setOverrideAction(val)}
+            />
+            <TextField
+              label="Reason for Override"
+              value={overrideReason}
+              onChange={(val) => setOverrideReason(val)}
+              placeholder="e.g. VIP returning customer, spoke on WhatsApp, high risk address"
+              autoComplete="off"
+              multiline={3}
+            />
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }
+
 
 export function ErrorBoundary() {
   const error = useRouteError();

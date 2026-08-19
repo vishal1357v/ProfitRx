@@ -21,23 +21,27 @@ export class ExpectedValueService {
     const { probability: rtoProbability } = riskResult;
     const deliveryProbability = 1 - rtoProbability;
 
+    const rawFeatures = (features || {}) as any;
+    const financials = rawFeatures.financials || {};
+    const logistics = rawFeatures.logistics || {};
+
     // ── Delivered Scenario ──
-    const revenue = features.netOrderValue;
-    const shippingRevenue = features.customerPaidShipping;
+    const revenue = rawFeatures.netOrderValue ?? rawFeatures.grossOrderValue ?? financials.netOrderValue ?? financials.grossOrderValue ?? 0;
+    const shippingRevenue = rawFeatures.customerPaidShipping ?? financials.customerPaidShipping ?? 0;
     
     // Default fallback if cogs are 0 or missing
-    const cogs = features.cogs || 0;
+    const cogs = rawFeatures.cogs ?? financials.cogs ?? 0;
     
     // Use the exact inputs that would be lost on RTO, which are also incurred on delivery
-    // Note: features.forwardShippingCost is the cost to the merchant
-    const forwardShippingCost = features.forwardShippingCost || 0;
-    const packaging = features.packagingCost || 0;
+    const forwardShippingCost = rawFeatures.forwardShippingCost ?? financials.forwardShippingCost ?? 0;
+    const packaging = rawFeatures.packagingCost ?? financials.packagingCost ?? financials.packaging ?? 0;
     
     // If it's a COD order, we pay the COD fee upon delivery (unless assumptions say we pay on RTO too)
-    const codFee = features.isCOD ? (features.codFee || 0) : 0;
-    const paymentFee = features.paymentFee || 0;
+    const isCOD = Boolean(rawFeatures.isCOD ?? financials.isCOD);
+    const codFee = isCOD ? (rawFeatures.codFee ?? financials.codFee ?? 0) : 0;
+    const paymentFee = rawFeatures.paymentFee ?? financials.paymentFee ?? 0;
     
-    const adCost = assumptions.includesAdCost ? (features.allocatedAdCost || 0) : 0;
+    const adCost = assumptions.includesAdCost ? (rawFeatures.allocatedAdCost ?? financials.allocatedAdCost ?? 0) : 0;
 
     const contributionProfitRaw = revenue + shippingRevenue - cogs - forwardShippingCost - paymentFee - codFee - packaging - adCost;
     const contributionProfit = roundMoney(contributionProfitRaw);
@@ -59,10 +63,10 @@ export class ExpectedValueService {
     const inventoryDamage = roundMoney(inventoryDamageRaw);
     const recoveredInventoryValue = roundMoney(cogs - inventoryDamage);
 
-    const returnShipping = features.returnShippingCost || 0;
+    const returnShipping = rawFeatures.returnShippingCost ?? logistics.returnShippingCost ?? financials.returnShippingCost ?? 0;
     
     const customerShippingRefund = assumptions.refundsShippingOnRTO ? shippingRevenue : 0;
-    const rtoCodFee = (features.isCOD && assumptions.chargesCodFeeOnRTO) ? codFee : 0;
+    const rtoCodFee = (isCOD && assumptions.chargesCodFeeOnRTO) ? codFee : 0;
 
     const totalLossRaw = forwardShippingCost + returnShipping + packaging + inventoryDamage + customerShippingRefund + rtoCodFee;
     const totalLoss = roundMoney(totalLossRaw);

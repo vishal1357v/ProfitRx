@@ -2,12 +2,12 @@ import { PipelineStep } from "../../pipeline/pipeline.interface";
 import { ExecutionContext as PipelineContext } from "../../../infrastructure/context/execution.context";
 import { OrderPipelineData } from "../order-pipeline.types";
 import { ExecutionService } from "../../../services/execution/execution.service";
-import { MemoryIdempotencyStore } from "../../../services/execution/persistence/idempotency/memory.idempotency-store";
+import { DatabaseIdempotencyStore } from "../../../services/execution/persistence/idempotency/database.idempotency-store";
 import { PrismaExecutionLogger } from "../../../services/execution/persistence/logging/prisma.execution-logger";
 import { ExecutionContext as ServiceExecutionContext } from "../../../services/execution/types";
 
 // Singleton instances for execution lifecycle
-const idempotencyStore = new MemoryIdempotencyStore();
+const idempotencyStore = new DatabaseIdempotencyStore();
 const executionLogger = new PrismaExecutionLogger();
 const executionService = new ExecutionService(idempotencyStore, executionLogger);
 
