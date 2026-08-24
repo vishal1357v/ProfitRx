@@ -5,6 +5,8 @@ import { ExecutionService } from "../../../services/execution/execution.service"
 import { DatabaseIdempotencyStore } from "../../../services/execution/persistence/idempotency/database.idempotency-store";
 import { PrismaExecutionLogger } from "../../../services/execution/persistence/logging/prisma.execution-logger";
 import { ExecutionContext as ServiceExecutionContext } from "../../../services/execution/types";
+import { SettingsRepository } from "../../../infrastructure/repositories/settings.repository";
+import { ExecutionLogRepository } from "../../../infrastructure/repositories/execution-log.repository";
 
 // Singleton instances for execution lifecycle
 const idempotencyStore = new DatabaseIdempotencyStore();
@@ -20,6 +22,10 @@ export class ExecutionStep implements PipelineStep<OrderPipelineData> {
     const rawOrder = data.rawOrder || {};
     const orderId = String(rawOrder.id || context.orderId || "");
     const shop = context.shopId;
+
+    // 1. Fetch merchant protection mode (Beta Gate #5)
+    const policy = await SettingsRepository.getMerchantPolicy(shop);
+    const mode = policy.protectionMode || "OBSERVE";
 
     const customer = {
       id: String(rawOrder.customer?.id || ""),
@@ -44,6 +50,58 @@ export class ExecutionStep implements PipelineStep<OrderPipelineData> {
       },
     };
 
+    // 2. Handle OBSERVE mode: calculate recommendation only, never mutate Shopify
+    if (mode === "OBSERVE") {
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: "ADVISORY_ONLY",
+        message: `Protection Mode: OBSERVE. Recommendation generated: ${data.finalDecision}. No Shopify mutation performed.`,
+        data: { decision, mode },
+      });
+
+      return {
+        ...data,
+        executionStatus: "ADVISORY_ONLY",
+      };
+    }
+
+    // 3. Handle REVIEW mode: queue risky decisions for merchant approval
+    if (mode === "REVIEW" && data.finalDecision !== "ALLOW_COD") {
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: "PENDING_MERCHANT_REVIEW",
+        message: `Protection Mode: REVIEW. Action ${data.finalDecision} queued for merchant approval.`,
+        data: { decision, mode },
+      });
+
+      return {
+        ...data,
+        executionStatus: "PENDING_MERCHANT_REVIEW",
+      };
+    }
+
+    // 4. Handle ASSISTED mode: auto-verify medium risk, but queue BLOCK actions for approval
+    if (mode === "ASSISTED" && data.finalDecision === "BLOCK_COD") {
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: "PENDING_MERCHANT_REVIEW",
+        message: `Protection Mode: ASSISTED. Block action queued for merchant approval.`,
+        data: { decision, mode },
+      });
+
+      return {
+        ...data,
+        executionStatus: "PENDING_MERCHANT_REVIEW",
+      };
+    }
+
+    // 5. Execute action (AUTOMATED mode or non-blocked ASSISTED / safe REVIEW)
     const execContext: ServiceExecutionContext = {
       shop,
       orderId,
@@ -68,4 +126,5 @@ export class ExecutionStep implements PipelineStep<OrderPipelineData> {
     };
   }
 }
+
 

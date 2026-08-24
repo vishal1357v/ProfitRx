@@ -4,6 +4,7 @@ import { LearningRecordRepository } from "../../infrastructure/repositories/lear
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { FeatureConfidenceCalculator } from "../../services/order-features/feature-confidence.calculator";
 import { ProfitService } from "../../services/profit.service";
+import { CanonicalEconomicsCalculator } from "../../services/economics/canonical-economics.calculator";
 import { EventBus } from "../../infrastructure/events/event.bus";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
 
@@ -32,6 +33,8 @@ export interface OrderIntelligenceDTO {
     riskLevel: string;
     riskReasons: Array<{ reason: string; impact: number }>;
     merchantRecommendation: string | null;
+    protectionMode: string;
+    executionStatus: string;
     lineItems: Array<{
       id: string;
       shopifyLineItemId: string;
@@ -56,6 +59,41 @@ export interface OrderIntelligenceDTO {
     lossIfRto: number;
     evidenceQuality: number;
     economicJustification: string;
+    protectionMode: string;
+    executionStatus: string;
+  };
+  economics: {
+    revenue: { value: number; state: string; source: string };
+    customerPaidShipping: { value: number; state: string; source: string };
+    tax: { value: number; state: string; source: string };
+    cogs: { value: number; state: string; source: string };
+    forwardShipping: { value: number; state: string; source: string };
+    returnShipping: { value: number; state: string; source: string };
+    packaging: { value: number; state: string; source: string };
+    codFee: { value: number; state: string; source: string };
+    gatewayFee: { value: number; state: string; source: string };
+    deliveredProfit: { value: number; state: string; source: string };
+    rtoLossExposure: { value: number; state: string; source: string };
+    expectedValue: { value: number; state: string; source: string };
+    expectedROI: { value: number; state: string; source: string };
+    expectedLoss: { value: number; state: string; source: string };
+    deliveryProbability: number;
+    rtoProbability: number;
+    dataCompleteness: {
+      hasActualCogs: boolean;
+      hasActualShipping: boolean;
+      hasWeight: boolean;
+      warnings: string[];
+    };
+  };
+  evidence: {
+    addressScore: number;
+    hasRealCogs: boolean;
+    cogsSource: string;
+    shippingSource: string;
+    pincode: string | null;
+    province: string | null;
+    city: string | null;
   };
   executionLogs: Array<{
     id: string;
@@ -63,6 +101,13 @@ export interface OrderIntelligenceDTO {
     status: string;
     message: string | null;
     createdAt: string;
+  }>;
+  overrideHistory: Array<{
+    previousDecision: string;
+    newDecision: string;
+    reason: string;
+    actor: string;
+    timestamp: string;
   }>;
   learningRecords: Array<{
     id: string;
@@ -91,30 +136,72 @@ export class OrderDetailApplicationService {
     }
 
     // 2. Fetch associated Logs, Learnings, and Store Settings in parallel
-    const [executionLogs, learningRecords, settings] = await Promise.all([
+    const [executionLogs, learningRecords, rawSettings, policy] = await Promise.all([
       ExecutionLogRepository.findByOrderId(shop, orderId),
       LearningRecordRepository.findByOrderId(shop, orderId),
       SettingsRepository.getByShop(shop),
+      SettingsRepository.getMerchantPolicy(shop),
     ]);
 
-    // 3. Compute domain intelligence values
-    const riskScore = order.riskScore ?? 0;
-    const riskLevel = order.riskLevel || (riskScore > 60 ? "CRITICAL" : riskScore > 30 ? "HIGH" : "LOW");
+    const settings = ProfitService.getSettings(rawSettings);
+    const protectionMode = policy.protectionMode || "OBSERVE";
+
+    // Latest execution status
+    const latestExecutionLog = [...executionLogs].reverse().find((l) => l.step === "EXECUTION");
+    let executionStatus = "UNPROCESSED";
+    if (latestExecutionLog) {
+      executionStatus = latestExecutionLog.status;
+    } else if (protectionMode === "OBSERVE") {
+      executionStatus = "ADVISORY_ONLY";
+    }
+
+    // Extract override history from execution logs
+    const overrideLogs = executionLogs.filter((l) => l.step === "MERCHANT_OVERRIDE");
+    const overrideHistory = overrideLogs.map((l) => ({
+      previousDecision: (l.data as any)?.previousDecision || (l.data as any)?.previousAction || "ALLOW_COD",
+      newDecision: (l.data as any)?.newDecision || (l.data as any)?.overriddenAction || "MANUAL",
+      reason: (l.data as any)?.reason || l.message || "Manual override",
+      actor: (l.data as any)?.actor || "MERCHANT",
+      timestamp: l.createdAt.toISOString(),
+    }));
+
+    // 3. Compute domain intelligence values via Canonical Economics
+    const riskScore = order.riskScore ?? (order.isCOD ? 35 : 5);
+    const riskLevel =
+      order.riskLevel ||
+      (riskScore >= 70 ? "CRITICAL" : riskScore >= 50 ? "HIGH" : riskScore >= 30 ? "MEDIUM" : "LOW");
     const riskReasons = (order.riskReasons as Array<{ reason: string; impact: number }>) || [];
-    const decision = order.merchantRecommendation || (order.isCOD ? (riskScore > 50 ? "OTP_VERIFY" : "ALLOW_COD") : "ALLOW_COD");
+    const decision =
+      order.merchantRecommendation || (order.isCOD ? (riskScore > 50 ? "OTP_VERIFY" : "ALLOW_COD") : "ALLOW_COD");
 
-    const hasRealCogs = order.cogsAtTimeOfOrder != null;
-    const defaultCogsPct = ((settings?.defaultCOGSPct ?? 35) / 100);
-    const cogsUsed = order.cogsAtTimeOfOrder ?? (order.totalPrice * defaultCogsPct);
-    const forwardShipping = settings?.defaultForwardShipping ?? 60;
-    const returnShipping = settings?.defaultReturnShipping ?? 70;
+    const econResult = CanonicalEconomicsCalculator.calculate({
+      isCOD: order.isCOD,
+      grossOrderValue: order.totalPrice,
+      customerPaidShipping: order.shippingPrice,
+      totalTax: order.totalTax,
+      actualSkuCogs: order.cogsAtTimeOfOrder,
+      defaultCogsPct: settings.defaultCOGSPct,
+      weightGrams: order.totalWeight,
+      shippingSlabs: settings.shippingSlabs,
+      actualShippingCost: order.actualShippingCost,
+      defaultForwardShipping: settings.defaultForwardShipping,
+      defaultReturnShipping: settings.defaultReturnShipping,
+      defaultPackagingCost: settings.defaultPackaging,
+      defaultCodHandlingFee: settings.defaultCODHandling,
+      defaultGatewayFeePct: settings.defaultGatewayFeePct,
+      gatewayFixedFee: settings.gatewayFixedFee,
+      shopifyPlanName: settings.shopifyPlanName,
+      rtoProbability: riskScore / 100,
+    });
 
-    const parsedSettings = ProfitService.getSettings(settings);
-    const { profit: calculatedProfit } = ProfitService.calculateOrderProfit(order, cogsUsed, parsedSettings);
-    const profitIfDelivered = calculatedProfit;
-    const lossIfRto = ProfitService.calculateRTOLoss(order, parsedSettings);
-    const pRto = riskScore / 100;
-    const expectedValue = (profitIfDelivered * (1 - pRto)) - (lossIfRto * pRto);
+    const hasRealCogs = econResult.cogs.state === "ACTUAL";
+    const cogsUsed = econResult.cogs.value;
+    const forwardShipping = econResult.forwardShipping.value;
+    const returnShipping = econResult.returnShipping.value;
+    const profitIfDelivered = econResult.deliveredProfit.value;
+    const lossIfRto = econResult.rtoLossExposure.value;
+    const expectedValue = econResult.expectedValue.value;
+    const pRto = econResult.rtoProbability;
 
     // Compute evidence confidence score
     const evidenceQuality = Math.round(
@@ -124,7 +211,7 @@ export class OrderDetailApplicationService {
         hasCustomerId: !!order.customerId,
         pincodeSampleSize: 0,
         hasRegionalHistory: false,
-        shippingSource: "MERCHANT_DEFAULT",
+        shippingSource: econResult.forwardShipping.state === "ACTUAL" ? "ACTUAL" : "MERCHANT_DEFAULT",
         adCostSource: "UNAVAILABLE",
         features: {
           pincode: order.pincode,
@@ -139,9 +226,11 @@ export class OrderDetailApplicationService {
     if (decision === "ALLOW_COD") {
       economicJustification = `Positive expected payoff of ₹${Math.round(expectedValue)}. The estimated delivered profit (₹${Math.round(profitIfDelivered)}) comfortably exceeds expected RTO exposure (₹${Math.round(lossIfRto * pRto)}).`;
     } else if (decision === "OTP_VERIFY") {
-      economicJustification = `Elevated RTO probability of ${riskScore}% creates an expected loss exposure of ₹${Math.round(lossIfRto * pRto)}. OTP verification costs ~₹10 to protect ₹${Math.round(lossIfRto)} in reverse logistics loss.`;
+      economicJustification = `Elevated RTO risk (${Math.round(pRto * 100)}%) creates ₹${Math.round(lossIfRto * pRto)} expected loss. Low-cost OTP verification is economically justified to confirm buyer intent.`;
+    } else if (decision === "PREPAID_ONLY" || decision === "BLOCK_COD") {
+      economicJustification = `Negative expected value (₹${Math.round(expectedValue)}). High RTO probability (${Math.round(pRto * 100)}%) exposes store to ₹${Math.round(lossIfRto)} freight and damage loss.`;
     } else {
-      economicJustification = `High RTO risk of ${riskScore}% creates a negative expected value (-₹${Math.round(Math.abs(expectedValue))}). Restricting COD protects against ₹${Math.round(lossIfRto)} in guaranteed return transit fees.`;
+      economicJustification = `Order risk evaluated at ${Math.round(pRto * 100)}% with expected value of ₹${Math.round(expectedValue)}.`;
     }
 
     return {
@@ -168,7 +257,9 @@ export class OrderDetailApplicationService {
         riskScore,
         riskLevel,
         riskReasons,
-        merchantRecommendation: order.merchantRecommendation,
+        merchantRecommendation: decision,
+        protectionMode,
+        executionStatus,
         lineItems: (order.lineItems || []).map((li) => ({
           id: li.id,
           shopifyLineItemId: li.shopifyLineItemId,
@@ -193,6 +284,18 @@ export class OrderDetailApplicationService {
         lossIfRto,
         evidenceQuality,
         economicJustification,
+        protectionMode,
+        executionStatus,
+      },
+      economics: econResult,
+      evidence: {
+        addressScore: evidenceQuality,
+        hasRealCogs,
+        cogsSource: econResult.cogs.source,
+        shippingSource: econResult.forwardShipping.source,
+        pincode: order.pincode,
+        province: order.province,
+        city: order.city,
       },
       executionLogs: executionLogs.map((log) => ({
         id: log.id,
@@ -201,6 +304,7 @@ export class OrderDetailApplicationService {
         message: log.message,
         createdAt: log.createdAt.toISOString(),
       })),
+      overrideHistory,
       learningRecords: learningRecords.map((rec) => ({
         id: rec.id,
         predictedRto: rec.predictedRto,

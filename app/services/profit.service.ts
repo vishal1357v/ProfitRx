@@ -2,6 +2,8 @@
 import prisma from "../db.server";
 import { resolveEffectiveCOGS } from "../utils/cogs";
 import { roundMoney, addMoney, subtractMoney } from "../utils/money";
+import { ShippingCalculator } from "./shipping/shipping.calculator";
+import { CanonicalEconomicsCalculator } from "./economics/canonical-economics.calculator";
 
 export interface ProfitOrder {
   orderId: string;
@@ -114,12 +116,7 @@ export class ProfitService {
    * Basic = 2.0%, Shopify/Grow = 1.0%, Advanced = 0.6%, Plus = 0.15%
    */
   static getShopifySurchargeRate(planName?: string | null): number {
-    if (!planName) return 0.02;
-    const name = planName.toLowerCase();
-    if (name.includes("plus")) return 0.0015;
-    if (name.includes("advanced")) return 0.006;
-    if (name.includes("shopify") || name.includes("grow")) return 0.01;
-    return 0.02; // Default Basic / Starter 2.0%
+    return CanonicalEconomicsCalculator.getShopifySurchargeRate(planName);
   }
 
   /**
@@ -163,27 +160,15 @@ export class ProfitService {
     defaultForward: number,
     defaultReturn: number
   ): { forward: number; returnShip: number } {
-    if (!weightGrams || weightGrams <= 0 || !slabs || !Array.isArray(slabs) || slabs.length === 0) {
-      return { forward: defaultForward, returnShip: defaultReturn };
-    }
-    const sorted = [...slabs].sort((a, b) => (Number(a.maxWeightGrams) || 0) - (Number(b.maxWeightGrams) || 0));
-    for (const slab of sorted) {
-      const maxWeight = Number(slab.maxWeightGrams) || 0;
-      if (weightGrams <= maxWeight) {
-        const forward = Number(slab.forwardCost);
-        const returnShip = Number(slab.returnCost);
-        return {
-          forward: Number.isFinite(forward) ? forward : defaultForward,
-          returnShip: Number.isFinite(returnShip) ? returnShip : defaultReturn,
-        };
-      }
-    }
-    const heaviest = sorted[sorted.length - 1];
-    const forward = Number(heaviest.forwardCost);
-    const returnShip = Number(heaviest.returnCost);
+    const result = ShippingCalculator.calculate({
+      weightGrams,
+      shippingSlabs: slabs,
+      defaultForwardShipping: defaultForward,
+      defaultReturnShipping: defaultReturn,
+    });
     return {
-      forward: Number.isFinite(forward) ? forward : defaultForward,
-      returnShip: Number.isFinite(returnShip) ? returnShip : defaultReturn,
+      forward: result.forwardShippingCost,
+      returnShip: result.returnShippingCost,
     };
   }
 
@@ -193,62 +178,58 @@ export class ProfitService {
     settings: { defaultGatewayFeePct: number; defaultCODHandling: number; defaultForwardShipping: number; defaultReturnShipping?: number; gatewayFixedFee?: number; defaultPackaging?: number; shopifyPlanName?: string; shippingSlabs?: any[] | null }
   ): { profit: number; fees: number; margin: number; shippingProfit: number; shippingLoss: number } {
     const isRto = isRtoStatus(order.fulfillmentStatus);
-    const totalPrice = isRto ? 0 : roundMoney(order.totalPrice);
-    const totalTax = isRto ? 0 : roundMoney(order.totalTax);
-    const effectiveCogs = isRto ? 0 : ((order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder)) ? roundMoney(order.cogsAtTimeOfOrder) : roundMoney(cogs));
-    const gatewayFixed = roundMoney(settings.gatewayFixedFee);
-    const packaging = roundMoney(settings.defaultPackaging);
-    
-    // Shipping logic (Task 1 & Task 2)
-    const customerPaidShipping = isRto ? 0 : roundMoney(order.shippingPrice);
-    let forwardShipping = 0;
-    let returnShip = 0;
-
-    if (order.actualShippingCost !== null && order.actualShippingCost !== undefined) {
-      forwardShipping = roundMoney(order.actualShippingCost);
-      returnShip = roundMoney(settings.defaultReturnShipping || 70); // Fallback for return if actual is forward only
-    } else {
-      const defaultForward = roundMoney(settings.defaultForwardShipping || 60);
-      const defaultReturn = roundMoney(settings.defaultReturnShipping || 70);
-      const slabsCost = this.getSlabShippingCosts(
-        order.totalWeight,
-        settings.shippingSlabs,
-        defaultForward,
-        defaultReturn
-      );
-      forwardShipping = slabsCost.forward;
-      returnShip = slabsCost.returnShip;
-    }
-
-    const logisticsCost = forwardShipping;
-    const shippingProfit = Math.max(0, subtractMoney(customerPaidShipping, logisticsCost));
-    const shippingLoss = Math.max(0, subtractMoney(logisticsCost, customerPaidShipping));
-
-    const codHandling = roundMoney(settings.defaultCODHandling || 50);
     const isCod = isCodOrder(order);
+    const effectiveCogs = (order.cogsAtTimeOfOrder !== null && order.cogsAtTimeOfOrder !== undefined && !isNaN(order.cogsAtTimeOfOrder))
+      ? roundMoney(order.cogsAtTimeOfOrder)
+      : roundMoney(cogs);
 
-    let gatewayFee = 0;
-    let codFee = 0;
+    const econResult = CanonicalEconomicsCalculator.calculate({
+      isCOD: isCod,
+      grossOrderValue: order.totalPrice || 0,
+      customerPaidShipping: order.shippingPrice || 0,
+      totalTax: order.totalTax || 0,
+      actualSkuCogs: effectiveCogs,
+      weightGrams: order.totalWeight,
+      shippingSlabs: settings.shippingSlabs,
+      actualShippingCost: order.actualShippingCost,
+      defaultForwardShipping: settings.defaultForwardShipping,
+      defaultReturnShipping: settings.defaultReturnShipping,
+      defaultPackagingCost: settings.defaultPackaging,
+      defaultCodHandlingFee: settings.defaultCODHandling,
+      defaultGatewayFeePct: settings.defaultGatewayFeePct,
+      gatewayFixedFee: settings.gatewayFixedFee,
+      shopifyPlanName: settings.shopifyPlanName,
+    });
 
-    if (isCod) {
-      gatewayFee = 0; // Strictly 0 gateway fee for COD orders
-      codFee = isRto ? 0 : codHandling; // COD fee is only charged on successful delivery
-    } else {
-      // Prepaid orders always incur gateway fees, even if they are returned/RTO
-      // We must use the original order price, not the zeroed out RTO price
-      const basePrice = (order.totalPrice !== undefined && order.totalPrice !== null && !isNaN(order.totalPrice)) ? roundMoney(order.totalPrice) : 0;
-      const razorpayRate = (Number(settings.defaultGatewayFeePct) || 2) / 100;
-      const shopifySurchargeRate = this.getShopifySurchargeRate(settings.shopifyPlanName);
-      const rawGatewayFee = (basePrice * razorpayRate) + (basePrice * shopifySurchargeRate) + gatewayFixed;
-      gatewayFee = roundMoney(rawGatewayFee * 1.18); // Apply 18% GST to payment gateway fees
+    const customerPaidShipping = isRto ? 0 : roundMoney(order.shippingPrice);
+    const forwardShipping = econResult.forwardShipping.value;
+    const shippingProfit = Math.max(0, subtractMoney(customerPaidShipping, forwardShipping));
+    const shippingLoss = Math.max(0, subtractMoney(forwardShipping, customerPaidShipping));
+
+    if (isRto) {
+      // In RTO state, profit is negative of the logistics + packaging freight loss
+      const packaging = Number.isFinite(Number(settings.defaultPackaging)) ? roundMoney(Number(settings.defaultPackaging)) : 10;
+      const returnShipping = econResult.returnShipping.value;
+      const rtoFreightAndPackaging = addMoney(forwardShipping, returnShipping, packaging);
+      return {
+        profit: -rtoFreightAndPackaging,
+        fees: rtoFreightAndPackaging,
+        margin: -100,
+        shippingProfit: 0,
+        shippingLoss: addMoney(forwardShipping, returnShipping),
+      };
     }
 
-    const returnShipping = isRto ? returnShip : 0;
-    // We use logisticsCost in fees, but customerPaidShipping is already part of totalPrice.
-    // So profit = (totalPrice - totalTax) - effectiveCogs - logisticsCost - gatewayFee - codFee - packaging
-    // which implicitly means customerPaidShipping - logisticsCost is accounted for.
-    const fees = addMoney(totalTax, logisticsCost, returnShipping, gatewayFee, codFee, packaging);
-    const profit = subtractMoney(totalPrice, effectiveCogs, fees);
+    const fees = addMoney(
+      econResult.tax.value,
+      econResult.forwardShipping.value,
+      econResult.packaging.value,
+      econResult.gatewayFee.value,
+      econResult.codFee.value
+    );
+
+    const profit = econResult.deliveredProfit.value;
+    const totalPrice = econResult.revenue.value;
     const margin = totalPrice > 0 ? roundMoney((profit / totalPrice) * 100) : 0;
 
     return {
@@ -427,6 +408,9 @@ export class ProfitService {
         const eff = resolveEffectiveCOGS(r, r.shopifyNative);
         if (eff !== null) {
           cogsDict[r.productId] = eff;
+          const cleanId = String(r.productId).replace("gid://shopify/Product/", "");
+          cogsDict[cleanId] = eff;
+          cogsDict[`gid://shopify/Product/${cleanId}`] = eff;
         }
       });
       return cogsDict;

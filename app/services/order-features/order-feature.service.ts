@@ -25,10 +25,26 @@ export class OrderFeatureService {
   }): Promise<OrderFeatureResult> {
     const { shop, orderId } = params;
     
-    // 1. Load Order Context
-    const order = await prisma.order.findUnique({
-      where: { id: orderId }
-    });
+    // 1. Load Order Context with multi-format ID support & shop isolation
+    const decodedId = decodeURIComponent(orderId);
+    const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
+    const rawId = decodedId.replace("gid://shopify/Order/", "");
+
+    let order = null;
+    if (typeof prisma.order?.findFirst === "function") {
+      order = await prisma.order.findFirst({
+        where: {
+          shop,
+          id: { in: [orderId, gid, rawId, decodedId] },
+        },
+      });
+    }
+
+    if (!order && typeof prisma.order?.findUnique === "function") {
+      order = await prisma.order.findUnique({
+        where: { id: orderId },
+      });
+    }
 
     if (!order || order.shop !== shop) {
       throw new Error(`Order ${orderId} not found or does not belong to shop ${shop}`);

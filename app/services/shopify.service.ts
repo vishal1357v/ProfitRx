@@ -1546,7 +1546,7 @@ export class ShopifyService {
           }
 
           if (updates.length > 0) {
-            await prisma.$transaction(updates);
+            await Promise.all(updates);
           }
         }
         console.log(`[refreshHistoricalCOGS] Successfully processed ${updatedCount} orders for ${shop}`);

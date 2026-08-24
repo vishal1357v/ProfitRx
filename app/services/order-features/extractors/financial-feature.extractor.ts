@@ -3,6 +3,7 @@ import { FinancialFeatureResult, FeatureWarning, OrderFeatureSources } from "../
 import { ProfitService } from "../../profit.service";
 import { resolveEffectiveCOGS } from "../../../utils/cogs";
 import { roundMoney } from "../../../utils/money";
+import { ShippingCalculator } from "../../shipping/shipping.calculator";
 
 export class FinancialFeatureExtractor {
   static extract(params: {
@@ -59,22 +60,25 @@ export class FinancialFeatureExtractor {
     }
 
     // Determine Shipping Cost and its source
-    let forwardShippingCost = 0;
-    let returnShippingCost = settings.defaultReturnShipping;
+    const shippingCalcResult = ShippingCalculator.calculate({
+      weightGrams: order.totalWeight,
+      shippingSlabs: settings.shippingSlabs as any,
+      defaultForwardShipping: settings.defaultForwardShipping,
+      defaultReturnShipping: settings.defaultReturnShipping,
+      actualShippingCost: order.actualShippingCost,
+    });
+
+    const forwardShippingCost = shippingCalcResult.forwardShippingCost;
+    const returnShippingCost = shippingCalcResult.returnShippingCost;
     let shippingSource: OrderFeatureSources["shipping"] = "MERCHANT_DEFAULT";
 
-    if (order.actualShippingCost !== null && order.actualShippingCost > 0) {
-      forwardShippingCost = order.actualShippingCost;
+    if (shippingCalcResult.source === "MERCHANT_CONFIGURED") {
       shippingSource = "ACTUAL";
     } else if (order.totalWeight !== null && order.totalWeight > 0) {
-      const slabs: any[] = []; // Pass empty or fetch slabs if needed, but getSlabShippingCosts defaults to fallback
-      const slabCosts = ProfitService.getSlabShippingCosts(order.totalWeight, slabs, settings.defaultForwardShipping, settings.defaultReturnShipping);
-      forwardShippingCost = slabCosts.forward;
-      returnShippingCost = slabCosts.returnShip;
       shippingSource = "WEIGHT_SLAB";
       warnings.push("ESTIMATED_SHIPPING");
     } else {
-      forwardShippingCost = settings.defaultForwardShipping;
+      shippingSource = "MERCHANT_DEFAULT";
       warnings.push("ESTIMATED_SHIPPING");
     }
 

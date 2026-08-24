@@ -17,7 +17,7 @@ export class Pipeline<TContext = any> {
     let currentData = initialData;
 
     // Resolve matching Order ID to respect foreign key constraint
-    let targetOrderId = executionContext.orderId;
+    let targetOrderId = executionContext.orderId ? String(executionContext.orderId) : null;
     if (targetOrderId) {
       const rawId = targetOrderId.replace("gid://shopify/Order/", "");
       const gid = targetOrderId.startsWith("gid://") ? targetOrderId : `gid://shopify/Order/${targetOrderId}`;

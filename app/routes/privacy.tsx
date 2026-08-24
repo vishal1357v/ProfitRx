@@ -4,14 +4,82 @@ export const headers = () => ({
 
 export default function PrivacyRoute() {
   return (
-    <div style={{ maxWidth: 800, margin: "40px auto", padding: 24, fontFamily: "sans-serif", background: "#fff", borderRadius: 16 }}>
-      <h1>Privacy Policy — ProfitRx SaaS</h1>
-      <p><strong>Effective Date:</strong> July 4, 2026</p>
-      <p>ProfitRx provides profit tracking, COD rules, and GST compliance reporting for Shopify merchants. We comply with the Indian Information Technology Act 2000 and GDPR.</p>
-      <h2>Data We Collect</h2>
-      <p>Store orders, line item COGS, shipping zip codes for RTO detection, and account owner emails.</p>
-      <h2>Data Protection</h2>
-      <p>All data is stored in encrypted PostgreSQL database clusters. For requests or data deletion, contact xlr8.jpeg@gmail.com.</p>
+    <div style={{ maxWidth: 850, margin: "40px auto", padding: "32px 40px", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", background: "#ffffff", color: "#1a1a1a", lineHeight: 1.6, borderRadius: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "8px", color: "#0f172a" }}>Privacy Policy — ProfitRx</h1>
+      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "24px" }}>
+        <strong>Effective Date:</strong> August 24, 2026 | <strong>Last Updated:</strong> August 24, 2026
+      </p>
+
+      <section style={{ marginBottom: "24px" }}>
+        <p>
+          <strong>ProfitRx</strong> (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) provides real-time profit analytics, Cash on Delivery (COD) fraud protection, and Return-to-Origin (RTO) risk management solutions for Shopify merchants. We are committed to protecting the privacy of merchants and their customers in strict compliance with the European General Data Protection Regulation (GDPR), California Consumer Privacy Act (CCPA), and India Information Technology Act 2000.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>1. Information We Collect</h2>
+        <p>When you install and use ProfitRx, we access and process data strictly necessary to provide our services:</p>
+        <ul style={{ paddingLeft: "20px" }}>
+          <li><strong>Merchant &amp; Store Data:</strong> Store domain, merchant email, shop currency, primary location state, and active Shopify subscription plan.</li>
+          <li><strong>Order &amp; Transaction Data:</strong> Order IDs, gross order values, item line item titles/variants, quantities, shipping fee paid, tax breakdown (CGST/SGST/IGST), fulfillment status, and payment gateway method (COD vs. Prepaid).</li>
+          <li><strong>Customer Contact &amp; Shipping Data:</strong> Customer name, masked phone number, delivery city, province, and pincode/postal code (utilized exclusively for regional RTO risk scoring and OTP delivery verification).</li>
+          <li><strong>Product Cost of Goods Sold (COGS):</strong> SKU identifiers and unit costs configured manually or synced from Shopify inventory.</li>
+          <li><strong>Advertising Metadata (Optional):</strong> Aggregated daily campaign ad spend totals from connected Meta Ads or Google Ads accounts.</li>
+        </ul>
+      </section>
+
+      <section style={{ marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>2. Purpose of Processing</h2>
+        <p>We process collected information solely for the following legitimate business purposes:</p>
+        <ul style={{ paddingLeft: "20px" }}>
+          <li>Calculating True Net Pocket Profit, blended ROAS, and SKU margin contributions per order.</li>
+          <li>Evaluating probabilistic RTO risk scores based on regional pincode delivery performance.</li>
+          <li>Delivering automated WhatsApp/SMS OTP challenges to customers to confirm high-risk COD orders.</li>
+          <li>Generating statutory GST and financial audit reports for merchant accounting.</li>
+          <li>Enforcing merchant-configured COD protection policies via Shopify WebAssembly Functions.</li>
+        </ul>
+      </section>
+
+      <section style={{ marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>3. Data Storage &amp; Security</h2>
+        <p>
+          All data processed by ProfitRx is stored in secured, encrypted-at-rest PostgreSQL databases with strict multi-tenant schema isolation. All network transmissions are strictly encrypted via TLS 1.3 (HTTPS). Access tokens and external API credentials are encrypted with AES-256-GCM. We never sell, rent, or monetize merchant or customer personal data under any circumstances.
+        </p>
+      </section>
+
+      <section style={{ marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>4. GDPR &amp; Data Subject Rights (Access &amp; Erasure)</h2>
+        <p>
+          We fully implement Shopify&#39;s mandatory privacy compliance webhooks:
+        </p>
+        <ul style={{ paddingLeft: "20px" }}>
+          <li><strong>Customer Data Request (<code>customers/data_request</code>):</strong> Upon receipt of a verified request, we compile and deliver all stored data associated with the requested customer ID.</li>
+          <li><strong>Customer Data Erasure (<code>customers/redact</code>):</strong> We permanently delete or pseudonymize customer personal identifying details (name, email, phone) within 48 hours of notice.</li>
+          <li><strong>Shop Data Erasure (<code>shop/redact</code>):</strong> When an app is uninstalled and a store redact webhook is received, all associated store records, settings, and historical logs are permanently purged from our databases within 30 days.</li>
+        </ul>
+      </section>
+
+      <section style={{ marginBottom: "24px" }}>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>5. Third-Party Service Providers</h2>
+        <p>ProfitRx integrates with the following vetted infrastructure sub-processors:</p>
+        <ul style={{ paddingLeft: "20px" }}>
+          <li><strong>Shopify API:</strong> Platform runtime, authentication, and order synchronization.</li>
+          <li><strong>PostgreSQL (Neon):</strong> Managed encrypted database infrastructure.</li>
+          <li><strong>Resend / Twilio / Meta Cloud API:</strong> Transactional email alerts and customer OTP delivery.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>6. Contact Us</h2>
+        <p>
+          If you have questions regarding this Privacy Policy, wish to exercise your data rights, or need technical support, please contact our Data Protection Officer:
+        </p>
+        <p style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+          <strong>ProfitRx Support &amp; Privacy Team</strong><br />
+          Email: <a href="mailto:xlr8.jpeg@gmail.com" style={{ color: "#2563eb", textDecoration: "none" }}>xlr8.jpeg@gmail.com</a><br />
+          Website: <a href="https://greek-god-saas.vercel.app" style={{ color: "#2563eb", textDecoration: "none" }}>https://greek-god-saas.vercel.app</a>
+        </p>
+      </section>
     </div>
   );
 }

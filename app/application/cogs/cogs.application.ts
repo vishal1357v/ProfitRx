@@ -1,3 +1,4 @@
+import prisma from "../../db.server";
 import { CogsRepository, ProductCOGSRecord } from "../../infrastructure/repositories/cogs.repository";
 import { ShopifyService } from "../../services/shopify.service";
 import { resolveEffectiveCOGS } from "../../utils/cogs";
@@ -20,17 +21,52 @@ export class CogsApplicationService {
   /**
    * Loads the complete COGS catalog with Shopify products and database COGS records.
    */
-  static async getCogsCatalog(shop: string, admin: any, alertEmail = ""): Promise<CogsCatalogDTO> {
-    // 1. Fetch products from Shopify
+  static async getCogsCatalog(shop: string, admin?: any, alertEmail = ""): Promise<CogsCatalogDTO> {
+    // 1. Fetch products from Shopify if admin client available
     let products: any[] = [];
-    try {
-      products = await ShopifyService.getProducts(admin);
-    } catch (err) {
-      console.error("[CogsApplicationService] Failed to load products from Shopify:", err);
+    if (admin) {
+      try {
+        products = await ShopifyService.getProducts(admin);
+      } catch (err) {
+        console.error("[CogsApplicationService] Failed to load products from Shopify:", err);
+      }
     }
 
     // 2. Fetch existing COGS records from repository
     const cogsRecords = await CogsRepository.findManyByShop(shop);
+
+    // Fallback: If no Shopify admin products returned (e.g. demo mode / offline), synthesize from database records
+    if (products.length === 0 && cogsRecords.length > 0) {
+      const orderItems = await prisma.orderLineItem.findMany({
+        where: { shop },
+        select: { productId: true, title: true, unitPrice: true },
+        distinct: ["productId"],
+      });
+      const orderProductMap = new Map(orderItems.map((item) => [item.productId, item]));
+
+      const productTitles: Record<string, string> = {
+        "101": "Oversized Heavyweight Graphic Tee",
+        "102": "Premium Fleece Pullover Hoodie",
+        "103": "Tactical Cargo Utility Joggers",
+        "104": "Classic Pure Linen Button-down Shirt",
+        "105": "Handcrafted Leather Chelsea Boots",
+        "106": "Quilted Winter Bomber Jacket",
+      };
+
+      products = cogsRecords.map((r) => {
+        const item = orderProductMap.get(r.productId);
+        const rawId = r.productId.replace(/.*Product\//, "").replace(/.*_/, "");
+        const fallbackTitle = productTitles[rawId] || `Product ${rawId}`;
+        return {
+          id: r.productId,
+          title: item?.title || fallbackTitle,
+          price: item?.unitPrice ? String(item.unitPrice) : "1999",
+          shopifyNativeCost: r.shopifyNative,
+          images: [],
+          variants: [],
+        };
+      });
+    }
 
     // 3. Fetch default settings
     const settings = await CogsRepository.getOrCreateStoreSettings(shop, alertEmail);

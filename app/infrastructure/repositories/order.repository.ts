@@ -61,19 +61,13 @@ export class OrderRepository {
     const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
     const rawId = decodedId.replace("gid://shopify/Order/", "");
 
-    // 1. Try finding by full GID
-    let order = await prisma.order.findUnique({
-      where: { id: gid, shop },
+    const order = await prisma.order.findFirst({
+      where: {
+        shop,
+        id: { in: [orderId, gid, rawId, decodedId] },
+      },
       include: { lineItems: true },
     });
-
-    // 2. If not found by GID, try raw ID
-    if (!order) {
-      order = await prisma.order.findUnique({
-        where: { id: rawId, shop },
-        include: { lineItems: true },
-      });
-    }
 
     return order as OrderWithLineItems | null;
   }

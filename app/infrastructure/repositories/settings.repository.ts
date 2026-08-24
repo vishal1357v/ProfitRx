@@ -1,6 +1,9 @@
 import prisma from "../../db.server";
 
+export type ProtectionMode = "OBSERVE" | "REVIEW" | "ASSISTED" | "AUTOMATED";
+
 export interface MerchantPolicy {
+  protectionMode: ProtectionMode;
   blockCodAboveValue: number;
   blockSpecificPincodes: string[];
   autoRefundThreshold: number;
@@ -20,6 +23,7 @@ export class SettingsRepository {
 
     if (!settings) {
       return {
+        protectionMode: "OBSERVE",
         blockCodAboveValue: 999999,
         blockSpecificPincodes: [],
         autoRefundThreshold: 0,
@@ -29,7 +33,14 @@ export class SettingsRepository {
       };
     }
 
+    const rawMode = (settings.protectionMode || "OBSERVE").toUpperCase();
+    const protectionMode: ProtectionMode =
+      rawMode === "AUTOMATED" || rawMode === "REVIEW" || rawMode === "ASSISTED" || rawMode === "OBSERVE"
+        ? (rawMode as ProtectionMode)
+        : "OBSERVE";
+
     return {
+      protectionMode,
       blockCodAboveValue: settings.rulesRejectCodOver || 999999,
       blockSpecificPincodes: settings.codBlockedPincodes || settings.rulesDisableCodForPincodes || [],
       autoRefundThreshold: 0,
@@ -38,6 +49,7 @@ export class SettingsRepository {
       autoRequireOtp: settings.rulesAutoRequireOtp,
     };
   }
+  
 
   /**
    * Find raw store settings by shop.

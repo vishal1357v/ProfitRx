@@ -1,10 +1,7 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, isRouteErrorResponse, useRouteError, redirect } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-
-export const headers = (headersArgs: any) => boundary.headers(headersArgs);
-
 import {
   Page,
   Layout,
@@ -15,7 +12,6 @@ import {
   Badge,
   Divider,
   Box,
-  Grid,
   Icon,
   EmptyState,
   Banner,
@@ -36,9 +32,12 @@ import {
   PersonIcon,
   AlertBubbleIcon,
   CheckIcon,
+  EditIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { OrderDetailApplicationService } from "../application/order/order-detail.application";
+
+export const headers = (headersArgs: any) => boundary.headers(headersArgs);
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -91,37 +90,72 @@ export default function OrderIntelligenceRoute() {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
-  const { order, intelligence, executionLogs, learningRecords, shop, host } = data;
+  const { order, intelligence, economics, evidence, executionLogs = [], overrideHistory = [], shop, host } = data;
 
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [overrideAction, setOverrideAction] = useState(intelligence.decision || "ALLOW_COD");
   const [overrideReason, setOverrideReason] = useState("");
 
   const riskScore = intelligence.riskScore;
-  let riskTone: "success" | "warning" | "critical" | "info" = "success";
-  if (riskScore > 30) riskTone = "warning";
-
-  if (riskScore > 60) riskTone = "critical";
-
-  const reasons = intelligence.riskReasons || [];
-  const expectedValue = intelligence.expectedValue;
-
-  const handleQuickAction = (actionName: string) => {
-    const formData = new FormData();
-    formData.append("intent", "override_decision");
-    formData.append("action", actionName);
-    formData.append("reason", `Quick merchant action: ${actionName}`);
-    submit(formData, { method: "post" });
-  };
+  let riskTone: "success" | "warning" | "critical" = "success";
+  if (riskScore >= 50) riskTone = "critical";
+  else if (riskScore >= 30) riskTone = "warning";
 
   const handleConfirmOverride = () => {
     const formData = new FormData();
     formData.append("intent", "override_decision");
     formData.append("action", overrideAction);
-    formData.append("reason", overrideReason || "Merchant manual override");
+    formData.append("reason", overrideReason || "Merchant manual review override");
     submit(formData, { method: "post" });
     setIsOverrideModalOpen(false);
   };
+
+  const getRecommendationBadge = (rec: string) => {
+    switch (rec) {
+      case "ALLOW_COD":
+        return <Badge tone="success" size="large">ALLOW COD (Fulfill Normally)</Badge>;
+      case "OTP_VERIFY":
+        return <Badge tone="attention" size="large">OTP VERIFY (Confirm Intent)</Badge>;
+      case "PREPAID_ONLY":
+        return <Badge tone="warning" size="large">REQUIRE PREPAID PAYMENT</Badge>;
+      case "BLOCK_COD":
+        return <Badge tone="critical" size="large">BLOCK COD</Badge>;
+      default:
+        return <Badge size="large">{rec}</Badge>;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "SUCCESS":
+        return <Badge tone="success">Success</Badge>;
+      case "PENDING_MERCHANT_REVIEW":
+        return <Badge tone="warning">Pending Review</Badge>;
+      case "ADVISORY_ONLY":
+        return <Badge tone="info">Advisory Only</Badge>;
+      case "FAILED":
+        return <Badge tone="critical">Failed</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const getStateBadge = (state: string) => {
+    switch (state) {
+      case "ACTUAL":
+        return <Badge tone="success">ACTUAL</Badge>;
+      case "ESTIMATED":
+        return <Badge tone="warning">ESTIMATED</Badge>;
+      case "EXPECTED":
+        return <Badge tone="info">EXPECTED</Badge>;
+      case "INCOMPLETE":
+        return <Badge tone="critical">INCOMPLETE</Badge>;
+      default:
+        return <Badge>{state}</Badge>;
+    }
+  };
+
+  const textRiskTone = riskTone === "warning" ? "caution" : riskTone;
 
   return (
     <Page
@@ -130,475 +164,432 @@ export default function OrderIntelligenceRoute() {
         onAction: () => navigate(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`),
       }}
       title={`Order Intelligence: #${order.orderNumber}`}
-      subtitle="Evaluated by ProfitRx Risk & Economic Decision Engine"
+      subtitle={`Evaluated under Protection Mode: ${order.protectionMode}`}
       compactTitle
       titleMetadata={
         <InlineStack gap="200" blockAlign="center">
           <Badge tone={order.isCOD ? "attention" : "success"}>{order.isCOD ? "COD Order" : "Prepaid"}</Badge>
           <Badge tone={riskTone}>{`${intelligence.riskLevel} RISK`}</Badge>
+          {getStatusBadge(order.executionStatus)}
         </InlineStack>
       }
       primaryAction={{
         content: "Override Decision",
+        icon: EditIcon,
         onAction: () => setIsOverrideModalOpen(true),
       }}
     >
-      <Layout>
-        {/* Action feedback banner */}
-        {actionData?.success && (
-          <Layout.Section>
-            <Banner tone="success" title="Decision Updated" onDismiss={() => {}}>
-              <p>{actionData.message || "Order decision updated successfully."}</p>
-            </Banner>
-          </Layout.Section>
+      <BlockStack gap="400">
+        {actionData?.message && (
+          <Banner tone={actionData.success ? "success" : "critical"}>
+            <p>{actionData.message}</p>
+          </Banner>
         )}
 
-        {/* Main Intelligence & Decision Section */}
-        <Layout.Section>
-          <BlockStack gap="400">
-            {/* Top Engine Decision Banner & Quick Actions */}
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <InlineStack gap="200" blockAlign="center">
-                    <Icon source={ShieldCheckMarkIcon} tone="primary" />
+        {/* Override History Banner if Overridden */}
+        {overrideHistory.length > 0 && (
+          <Banner tone="info" title="Merchant Decision Override Active">
+            <BlockStack gap="100">
+              {overrideHistory.map((h, i) => (
+                <Text variant="bodySm" as="p" key={i}>
+                  Overridden from <strong>{h.previousDecision}</strong> to <strong>{h.newDecision}</strong> by {h.actor} on{" "}
+                  {new Date(h.timestamp).toLocaleString()} — <em>"{h.reason}"</em>
+                </Text>
+              ))}
+            </BlockStack>
+          </Banner>
+        )}
+
+        {/* Data Quality Notice */}
+        {(!economics.dataCompleteness.hasActualCogs || !economics.dataCompleteness.hasActualShipping) && (
+          <Banner tone="warning">
+            <InlineStack gap="150" blockAlign="center">
+              <Icon source={InfoIcon} tone="warning" />
+              <Text variant="bodySm" as="p">
+                <strong>Data Quality Notice:</strong>{" "}
+                {!economics.dataCompleteness.hasActualCogs &&
+                  "Profit is calculated using store default COGS % because this SKU has no custom cost configured. "}
+                {!economics.dataCompleteness.hasActualShipping &&
+                  "Shipping cost is based on store default freight rates."}
+              </Text>
+            </InlineStack>
+          </Banner>
+        )}
+
+        <Layout>
+          {/* Main Left Column (70%) */}
+          <Layout.Section>
+            <BlockStack gap="400">
+              {/* SECTION 1: DECISION SUMMARY */}
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
                     <Text variant="headingMd" as="h2">
-                      {`Engine Recommendation: ${intelligence.decision}`}
+                      ProfitRx Recommendation
                     </Text>
+                    {getRecommendationBadge(intelligence.decision)}
                   </InlineStack>
-                  <Badge tone={expectedValue >= 0 ? "success" : "critical"}>
-                    {`EV: ${expectedValue >= 0 ? "+" : ""}₹${Math.round(expectedValue)}`}
-                  </Badge>
-                </InlineStack>
 
-                <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-                  <Text as="p" variant="bodyMd">
-                    <strong>Economic Justification:</strong> {intelligence.economicJustification}
-                  </Text>
-                </Box>
-
-                {/* Quick 1-Click Action Controls */}
-                <Divider />
-                <BlockStack gap="200">
-                  <Text variant="headingSm" as="h3">
-                    Merchant Action Controls
-                  </Text>
-                  <InlineStack gap="200" wrap>
-                    <Button
-                      variant={intelligence.decision === "ALLOW_COD" ? "primary" : "secondary"}
-                      tone={intelligence.decision === "ALLOW_COD" ? "success" : undefined}
-                      disabled={isSubmitting}
-                      onClick={() => handleQuickAction("ALLOW_COD")}
-                    >
-                      ✓ Allow COD
-                    </Button>
-                    <Button
-                      variant={intelligence.decision === "OTP_VERIFY" ? "primary" : "secondary"}
-                      disabled={isSubmitting}
-                      onClick={() => handleQuickAction("OTP_VERIFY")}
-                    >
-                      📱 Send OTP Verification
-                    </Button>
-                    <Button
-                      variant={intelligence.decision === "PREPAID_ONLY" ? "primary" : "secondary"}
-                      disabled={isSubmitting}
-                      onClick={() => handleQuickAction("PREPAID_ONLY")}
-                    >
-                      💳 Require Prepaid
-                    </Button>
-                    <Button
-                      variant={intelligence.decision === "BLOCK_COD" ? "primary" : "secondary"}
-                      tone="critical"
-                      disabled={isSubmitting}
-                      onClick={() => handleQuickAction("BLOCK_COD")}
-                    >
-                      🛑 Block COD
-                    </Button>
-                  </InlineStack>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-
-            {/* Risk & Value Grid */}
-            <Card>
-              <BlockStack gap="400">
-                <Text variant="headingMd" as="h2">
-                  Risk & Evidence Calibration
-                </Text>
-                <Grid>
-                  {/* Risk Score */}
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 4 }}>
-                    <BlockStack gap="100">
-                      <InlineStack gap="100" blockAlign="center">
-                        <Text variant="headingSm" as="h3" tone="subdued">
-                          RTO Risk Score
-                        </Text>
-                        <Tooltip content="Estimated probability of customer return based on address completeness, pincode delivery history, and order size.">
-                          <Icon source={InfoIcon} tone="subdued" />
-                        </Tooltip>
-                      </InlineStack>
-                      <InlineStack align="start" blockAlign="end" gap="200">
-                        <Text
-                          variant="heading3xl"
-                          as="p"
-                          tone={riskTone === "critical" ? "critical" : riskTone === "warning" ? "caution" : "success"}
-                        >
-                          {riskScore}%
-                        </Text>
-                        <Badge tone={riskTone}>{intelligence.riskLevel}</Badge>
-                      </InlineStack>
-                    </BlockStack>
-                  </Grid.Cell>
-
-                  {/* Evidence Quality */}
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 4 }}>
-                    <BlockStack gap="100">
-                      <InlineStack gap="100" blockAlign="center">
-                        <Text variant="headingSm" as="h3" tone="subdued">
-                          Evidence Quality
-                        </Text>
-                        <Tooltip content="Completeness of historical data for this order. Low confidence (e.g. 25%) reflects a brand new customer or pincode with no prior store order history.">
-                          <Icon source={InfoIcon} tone="subdued" />
-                        </Tooltip>
-                      </InlineStack>
-                      <InlineStack align="start" blockAlign="center" gap="200">
-                        <Text variant="heading3xl" as="p">
-                          {intelligence.evidenceQuality}%
-                        </Text>
-                        <Badge tone={intelligence.evidenceQuality < 50 ? "info" : "success"}>
-                          {intelligence.evidenceQuality < 50 ? "Cold-Start" : "High Confidence"}
-                        </Badge>
-                      </InlineStack>
-                      <Text variant="bodyXs" as="p" tone="subdued">
-                        {intelligence.evidenceQuality < 50
-                          ? "Grows as store accumulates repeat customer orders"
-                          : "Backed by historical delivery data"}
-                      </Text>
-                    </BlockStack>
-                  </Grid.Cell>
-
-                  {/* Unit Economics */}
-                  <Grid.Cell columnSpan={{ xs: 6, sm: 6, md: 6, lg: 4 }}>
-                    <BlockStack gap="100">
-                      <Text variant="headingSm" as="h3" tone="subdued">
-                        Unit Profit Arbitrage
-                      </Text>
-                      <BlockStack gap="050">
-                        <InlineStack align="space-between">
-                          <Text variant="bodySm" as="span" tone="subdued">
-                            Delivered Profit:
-                          </Text>
-                          <Text variant="bodySm" as="span" fontWeight="bold" tone="success">
-                            +₹{Math.round(intelligence.profitIfDelivered)}
-                          </Text>
-                        </InlineStack>
-                        <InlineStack align="space-between">
-                          <Text variant="bodySm" as="span" tone="subdued">
-                            RTO Freight Loss:
-                          </Text>
-                          <Text variant="bodySm" as="span" fontWeight="bold" tone="critical">
-                            -₹{Math.round(intelligence.lossIfRto)}
-                          </Text>
-                        </InlineStack>
-                        <InlineStack align="space-between">
-                          <Text variant="bodySm" as="span" tone="subdued">
-                            COGS Source:
-                          </Text>
-                          <Badge tone={intelligence.hasRealCogs ? "success" : "warning"}>
-                            {intelligence.hasRealCogs ? "Actual SKU COGS" : "Default % Estimate"}
-                          </Badge>
-                        </InlineStack>
-                      </BlockStack>
-                    </BlockStack>
-                  </Grid.Cell>
-                </Grid>
-
-                <Divider />
-
-                {/* Detailed Unit Economics Table */}
-                <Text variant="headingSm" as="h3">
-                  Unit Economics Accounting Breakdown
-                </Text>
-                <DataTable
-                  columnContentTypes={["text", "text", "numeric"]}
-                  headings={["Cost Component", "Source / Basis", "Amount (₹)"]}
-                  rows={[
-                    ["Gross Order Revenue", "Customer checkout price", `₹${order.totalPrice.toLocaleString("en-IN")}`],
-                    ["Product COGS", intelligence.hasRealCogs ? "Actual SKU Cost" : "Store Default %", `-₹${Math.round(intelligence.cogsUsed).toLocaleString("en-IN")}`],
-                    ["Forward Courier Freight", "Configured shipping rate", `-₹${Math.round(intelligence.forwardShipping).toLocaleString("en-IN")}`],
-                    ["COD Handling & Fee", order.isCOD ? "Gateway / Handling" : "N/A (Prepaid)", `-₹${order.isCOD ? 20 : 0}`],
-                    ["Packaging & Dispatch", "Configured store default", "-₹10"],
-                    [
-                      "Estimated Delivered Profit",
-                      "Revenue - (COGS + Shipping + Fees)",
-                      `+₹${Math.round(intelligence.profitIfDelivered).toLocaleString("en-IN")}`
-                    ],
-                    [
-                      "Potential RTO Return Loss",
-                      "Forward + Return Shipping + Packaging",
-                      `-₹${Math.round(intelligence.lossIfRto).toLocaleString("en-IN")}`
-                    ],
-                    [
-                      "Net Expected Value (EV)",
-                      `(Profit × P(Del)) - (Loss × P(RTO))`,
-                      `${expectedValue >= 0 ? "+" : ""}₹${Math.round(expectedValue).toLocaleString("en-IN")}`
-                    ],
-                  ]}
-                />
-
-
-                <Divider />
-
-                {/* Risk Reasons Breakdown */}
-                <Text variant="headingSm" as="h3">
-                  Detected Risk Factors
-                </Text>
-                {reasons.length > 0 ? (
-                  <BlockStack gap="200">
-                    {reasons.map((r: any, i: number) => (
-                      <InlineStack key={i} align="space-between">
-                        <Text as="span">{r.reason}</Text>
-                        <Text as="span" tone={r.impact > 0 ? "critical" : "success"} fontWeight="bold">
-                          {r.impact > 0 ? "+" : ""}
-                          {r.impact}% Risk
-                        </Text>
-                      </InlineStack>
-                    ))}
-                  </BlockStack>
-
-                ) : (
-                  <Box padding="300" background="bg-surface-secondary" borderRadius="100">
-                    <Text as="p" tone="subdued">
-                      No adverse risk factors identified. Address formatting and customer parameters appear normal.
+                  <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <Text variant="bodyMd" as="p" fontWeight="medium">
+                      {intelligence.economicJustification}
                     </Text>
                   </Box>
-                )}
-              </BlockStack>
-            </Card>
 
-            {/* Decision & Pipeline Timeline */}
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  Decision & Execution Audit Trail
-                </Text>
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px", paddingLeft: "8px" }}>
-                  {/* Order Ingested Event */}
-                  <div style={{ display: "flex", gap: "16px" }}>
-                    <div
-                      style={{
-                        width: "2px",
-                        backgroundColor: executionLogs.length > 0 ? "var(--p-color-border-success)" : "transparent",
-                        position: "relative",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "-5px",
-                          top: "0",
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          backgroundColor: "var(--p-color-bg-surface-success)",
-                          border: "2px solid var(--p-color-border-success)",
-                        }}
-                      />
-                    </div>
-                    <BlockStack gap="050">
-                      <Text variant="bodyMd" as="span" fontWeight="bold">
-                        Order Ingested via Shopify Webhook
-                      </Text>
-                      <Text variant="bodySm" as="span" tone="subdued">
-                        {new Date(order.createdAt).toLocaleString()}
-                      </Text>
-                    </BlockStack>
-                  </div>
+                  <Divider />
 
-                  {executionLogs.length === 0 && (
-                    <Box padding="300" background="bg-surface-secondary" borderRadius="100">
-                      <Text as="p" tone="subdued">
-                        No execution logs recorded for this order yet.
-                      </Text>
-                    </Box>
-                  )}
-
-                  {executionLogs.map((log: any, index: number) => {
-                    const isLast = index === executionLogs.length - 1;
-                    const isSuccess = log.status === "SUCCESS";
-                    const isFailed = log.status === "FAILED";
-                    const color = isFailed ? "critical" : isSuccess ? "success" : "info";
-                    const bgColor = `var(--p-color-bg-surface-${color === "critical" ? "critical" : color === "success" ? "success" : "info"})`;
-                    const borderColor = `var(--p-color-border-${color === "critical" ? "critical" : color === "success" ? "success" : "info"})`;
-
-                    return (
-                      <div key={log.id} style={{ display: "flex", gap: "16px" }}>
-                        <div style={{ width: "2px", backgroundColor: isLast ? "transparent" : borderColor, position: "relative" }}>
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: "-5px",
-                              top: "0",
-                              width: "12px",
-                              height: "12px",
-                              borderRadius: "50%",
-                              backgroundColor: bgColor,
-                              border: `2px solid ${borderColor}`,
-                            }}
-                          />
-                        </div>
-                        <BlockStack gap="050">
-                          <InlineStack gap="200" blockAlign="center">
-                            <Text variant="bodyMd" as="span" fontWeight="bold">
-                              {log.step === "FeatureExtraction"
-                                ? "Features Extracted"
-                                : log.step === "RtoRiskScoring"
-                                ? "Risk Score & Confidence Calculated"
-                                : log.step === "ExpectedValueCalculation"
-                                ? "Expected Value Arbitrage Evaluated"
-                                : log.step === "PolicyDecision"
-                                ? "Decision Matrix Applied"
-                                : log.step === "ExecutionEngine"
-                                ? "Action Executed"
-                                : log.step}
-                            </Text>
-                            <Badge tone={isFailed ? "critical" : isSuccess ? "success" : "info"}>{log.status}</Badge>
-                          </InlineStack>
-                          <Text variant="bodySm" as="span" tone="subdued">
-                            {new Date(log.createdAt).toLocaleString()}
-                          </Text>
-                          {log.message && (
-                            <Text variant="bodySm" as="p">
-                              {log.message}
-                            </Text>
-                          )}
-                        </BlockStack>
-                      </div>
-                    );
-                  })}
-                </div>
-              </BlockStack>
-            </Card>
-
-            {/* Line Items Table */}
-            <Card>
-              <BlockStack gap="300">
-                <Text variant="headingMd" as="h2">
-                  Line Items ({order.lineItems.length})
-                </Text>
-                <BlockStack gap="200">
-                  {order.lineItems.map((item: any) => (
-                    <InlineStack key={item.id} align="space-between" blockAlign="center">
+                  {/* 4-Key Metrics Grid with Explicit Precision Badges */}
+                  <InlineStack align="space-between" wrap>
+                    <Box minWidth="140px">
                       <BlockStack gap="050">
-                        <Text variant="bodyMd" as="span" fontWeight="bold">
-                          {item.title}
+                        <Text variant="bodyXs" tone="subdued" as="span">
+                          RTO Risk Probability
                         </Text>
-                        {item.variantTitle && (
-                          <Text variant="bodySm" as="span" tone="subdued">
-                            Variant: {item.variantTitle}
-                          </Text>
-                        )}
+                        <Text variant="headingLg" tone={textRiskTone} as="p">
+                          {Math.round(riskScore)}%
+                        </Text>
+                        <Badge tone={riskTone}>{intelligence.riskLevel}</Badge>
                       </BlockStack>
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text variant="bodySm" as="span">
-                          Qty: {item.quantity}
+                    </Box>
+
+                    <Box minWidth="140px">
+                      <BlockStack gap="050">
+                        <Text variant="bodyXs" tone="subdued" as="span">
+                          Expected Value ($EV$)
                         </Text>
-                        <Text variant="bodyMd" as="span" fontWeight="bold">
-                          ₹{item.unitPrice * item.quantity}
+                        <Text
+                          variant="headingLg"
+                          tone={economics.expectedValue.value >= 0 ? "success" : "critical"}
+                          as="p"
+                        >
+                          {economics.expectedValue.value >= 0
+                            ? `+₹${Math.round(economics.expectedValue.value)}`
+                            : `-₹${Math.abs(Math.round(economics.expectedValue.value))}`}
+                        </Text>
+                        {getStateBadge(economics.expectedValue.state)}
+                      </BlockStack>
+                    </Box>
+
+                    <Box minWidth="140px">
+                      <BlockStack gap="050">
+                        <Text variant="bodyXs" tone="subdued" as="span">
+                          Delivered Profit
+                        </Text>
+                        <Text
+                          variant="headingLg"
+                          tone={economics.deliveredProfit.value >= 0 ? "success" : "critical"}
+                          as="p"
+                        >
+                          +₹{Math.round(economics.deliveredProfit.value)}
+                        </Text>
+                        {getStateBadge(economics.deliveredProfit.state)}
+                      </BlockStack>
+                    </Box>
+
+                    <Box minWidth="140px">
+                      <BlockStack gap="050">
+                        <Text variant="bodyXs" tone="subdued" as="span">
+                          RTO Loss Exposure
+                        </Text>
+                        <Text variant="headingLg" tone="critical" as="p">
+                          -₹{Math.round(economics.rtoLossExposure.value)}
+                        </Text>
+                        {getStateBadge(economics.rtoLossExposure.state)}
+                      </BlockStack>
+                    </Box>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+
+              {/* SECTION 2: RISK EVIDENCE & FACTORS */}
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd" as="h2">
+                      Risk Evidence & Context
+                    </Text>
+                    <Badge tone="info">{`Evidence Quality: ${intelligence.evidenceQuality}%`}</Badge>
+                  </InlineStack>
+
+                  <Text variant="bodySm" tone="subdued" as="p">
+                    Deterministic risk signals extracted at the time of order creation:
+                  </Text>
+
+                  <BlockStack gap="200">
+                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
+                      <InlineStack align="space-between">
+                        <Text variant="bodySm" fontWeight="semibold" as="span">
+                          Payment Method Risk
+                        </Text>
+                        <Badge tone={order.isCOD ? "attention" : "success"}>
+                          {order.isCOD ? "COD (+30% Baseline RTO)" : "Prepaid (Zero Remittance Risk)"}
+                        </Badge>
+                      </InlineStack>
+                    </Box>
+
+                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
+                      <InlineStack align="space-between">
+                        <Text variant="bodySm" fontWeight="semibold" as="span">
+                          Destination Pincode
+                        </Text>
+                        <Text variant="bodySm" as="span">
+                          {order.pincode ? `${order.pincode} (${order.city || "Region"}, ${order.province || ""})` : "Missing Pincode"}
                         </Text>
                       </InlineStack>
-                    </InlineStack>
+                    </Box>
+
+                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
+                      <InlineStack align="space-between">
+                        <Text variant="bodySm" fontWeight="semibold" as="span">
+                          COGS Source Quality
+                        </Text>
+                        <Badge tone={economics.cogs.state === "ACTUAL" ? "success" : "warning"}>
+                          {economics.cogs.source}
+                        </Badge>
+                      </InlineStack>
+                    </Box>
+
+                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
+                      <InlineStack align="space-between">
+                        <Text variant="bodySm" fontWeight="semibold" as="span">
+                          Shipping Cost Basis
+                        </Text>
+                        <Badge tone={economics.forwardShipping.state === "ACTUAL" ? "success" : "warning"}>
+                          {economics.forwardShipping.source}
+                        </Badge>
+                      </InlineStack>
+                    </Box>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+
+              {/* SECTION 3: CANONICAL UNIT ECONOMICS BREAKDOWN */}
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd" as="h2">
+                      Canonical Unit Economics
+                    </Text>
+                    <Badge tone="info">No Double Counting Guaranteed</Badge>
+                  </InlineStack>
+
+                  <Text variant="bodySm" tone="subdued" as="p">
+                    Standardized financial breakdown if delivered vs if returned (RTO):
+                  </Text>
+
+                  <DataTable
+                    columnContentTypes={["text", "numeric", "text"]}
+                    headings={["Financial Component", "Amount", "Data Precision"]}
+                    rows={[
+                      [
+                        "Gross Order Revenue",
+                        `+₹${Math.round(economics.revenue.value).toLocaleString("en-IN")}`,
+                        <Badge tone="success" key="rev">ACTUAL</Badge>,
+                      ],
+                      [
+                        "Customer Paid Shipping",
+                        `+₹${Math.round(economics.customerPaidShipping.value)}`,
+                        <Badge tone="success" key="cps">ACTUAL</Badge>,
+                      ],
+                      [
+                        "Product COGS",
+                        `-₹${Math.round(economics.cogs.value).toLocaleString("en-IN")}`,
+                        getStateBadge(economics.cogs.state),
+                      ],
+                      [
+                        "Forward Shipping Freight",
+                        `-₹${Math.round(economics.forwardShipping.value)}`,
+                        getStateBadge(economics.forwardShipping.state),
+                      ],
+                      [
+                        "Packaging & Materials",
+                        `-₹${Math.round(economics.packaging.value)}`,
+                        getStateBadge(economics.packaging.state),
+                      ],
+                      order.isCOD
+                        ? [
+                            "COD Handling Fee",
+                            `-₹${Math.round(economics.codFee.value)}`,
+                            getStateBadge(economics.codFee.state),
+                          ]
+                        : [
+                            "Gateway Fee + 18% GST",
+                            `-₹${Math.round(economics.gatewayFee.value)}`,
+                            getStateBadge(economics.gatewayFee.state),
+                          ],
+                      [
+                        <Text variant="bodyMd" fontWeight="bold" as="span" key="del-lbl">
+                          = Delivered Contribution Margin
+                        </Text>,
+                        <Text variant="bodyMd" fontWeight="bold" tone="success" as="span" key="del-val">
+                          +₹{Math.round(economics.deliveredProfit.value).toLocaleString("en-IN")}
+                        </Text>,
+                        getStateBadge(economics.deliveredProfit.state),
+                      ],
+                    ]}
+                  />
+
+                  <Divider />
+
+                  <Text variant="headingSm" as="h3">
+                    Reverse Logistics Loss (If RTO Occurs)
+                  </Text>
+
+                  <DataTable
+                    columnContentTypes={["text", "numeric", "text"]}
+                    headings={["RTO Loss Component", "Loss Exposure", "Basis"]}
+                    rows={[
+                      ["Forward Shipping (Lost)", `-₹${Math.round(economics.forwardShipping.value)}`, "Freight"],
+                      ["Return Reverse Freight", `-₹${Math.round(economics.returnShipping.value)}`, "Courier"],
+                      ["Packaging Material Lost", `-₹${Math.round(economics.packaging.value)}`, "Damage"],
+                      [
+                        <Text variant="bodyMd" fontWeight="bold" as="span" key="rto-lbl">
+                          = Total RTO Loss Exposure
+                        </Text>,
+                        <Text variant="bodyMd" fontWeight="bold" tone="critical" as="span" key="rto-val">
+                          -₹{Math.round(economics.rtoLossExposure.value).toLocaleString("en-IN")}
+                        </Text>,
+                        <Badge tone="critical" key="rto-b">EXPOSURE</Badge>,
+                      ],
+                    ]}
+                  />
+                </BlockStack>
+              </Card>
+
+              {/* SECTION 5: TRUTHFUL EXECUTION TIMELINE */}
+              <Card>
+                <BlockStack gap="300">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd" as="h2">
+                      Truthful Execution Timeline
+                    </Text>
+                    <Badge>{`${executionLogs.length} Events Persisted`}</Badge>
+                  </InlineStack>
+
+                  {executionLogs.length === 0 ? (
+                    <EmptyState
+                      heading="No execution logs for this order"
+                      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                    >
+                      <p>Pipeline logs will appear here when webhook evaluation triggers.</p>
+                    </EmptyState>
+                  ) : (
+                    <BlockStack gap="200">
+                      {executionLogs.map((log) => (
+                        <Box
+                          key={log.id}
+                          padding="300"
+                          background="bg-surface-secondary"
+                          borderRadius="150"
+                        >
+                          <InlineStack align="space-between" blockAlign="center">
+                            <BlockStack gap="050">
+                              <InlineStack gap="150" blockAlign="center">
+                                <Text variant="bodySm" fontWeight="bold" as="span">
+                                  {log.step}
+                                </Text>
+                                {getStatusBadge(log.status)}
+                              </InlineStack>
+                              <Text variant="bodySm" tone="subdued" as="p">
+                                {log.message || "Step processed"}
+                              </Text>
+                            </BlockStack>
+                            <Text variant="bodyXs" tone="subdued" as="span">
+                              {new Date(log.createdAt).toLocaleTimeString()}
+                            </Text>
+                          </InlineStack>
+                        </Box>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Card>
+            </BlockStack>
+          </Layout.Section>
+
+          {/* Right Sidebar (30%) */}
+          <Layout.Section variant="oneThird">
+            <BlockStack gap="400">
+              {/* Order Info Card */}
+              <Card>
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h3">
+                    Order Details
+                  </Text>
+                  <Divider />
+                  <InlineStack align="space-between">
+                    <Text variant="bodyXs" tone="subdued" as="span">Order #</Text>
+                    <Text variant="bodySm" fontWeight="bold" as="span">#{order.orderNumber}</Text>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text variant="bodyXs" tone="subdued" as="span">Customer</Text>
+                    <Text variant="bodySm" as="span">{order.customerName || "N/A"}</Text>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text variant="bodyXs" tone="subdued" as="span">Payment</Text>
+                    <Badge tone={order.isCOD ? "attention" : "info"}>{order.gateway || (order.isCOD ? "COD" : "Prepaid")}</Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text variant="bodyXs" tone="subdued" as="span">Created</Text>
+                    <Text variant="bodySm" as="span">{new Date(order.createdAt).toLocaleDateString()}</Text>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+
+              {/* Line Items Card */}
+              <Card>
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h3">
+                    Line Items ({order.lineItems.length})
+                  </Text>
+                  <Divider />
+                  {order.lineItems.map((item) => (
+                    <Box key={item.id} padding="100">
+                      <InlineStack align="space-between">
+                        <BlockStack gap="025">
+                          <Text variant="bodySm" fontWeight="semibold" as="span">
+                            {item.title}
+                          </Text>
+                          <Text variant="bodyXs" tone="subdued" as="span">
+                            Qty: {item.quantity} × ₹{item.unitPrice}
+                          </Text>
+                        </BlockStack>
+                        <Text variant="bodySm" fontWeight="bold" as="span">
+                          ₹{Math.round(item.quantity * item.unitPrice).toLocaleString("en-IN")}
+                        </Text>
+                      </InlineStack>
+                    </Box>
                   ))}
                 </BlockStack>
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
+              </Card>
 
-        {/* Sidebar Order & Customer Context */}
-        <Layout.Section variant="oneThird">
-          <BlockStack gap="400">
-            {/* Customer Card */}
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={PersonIcon} tone="base" />
-                  <Text variant="headingMd" as="h2">
-                    Customer Profile
+              {/* Actions Card */}
+              <Card>
+                <BlockStack gap="200">
+                  <Text variant="headingSm" as="h3">
+                    Merchant Actions
                   </Text>
-                </InlineStack>
-                <BlockStack gap="100">
-                  <Text as="p" fontWeight="bold">
-                    {order.customerName || "Guest Customer"}
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    {order.customerEmail || "No email on order"}
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    {order.city ? `${order.city}, ` : ""}
-                    {order.province ? `${order.province} ` : ""}
-                    {order.pincode || "No Pincode"}
-                  </Text>
+                  <Divider />
+                  <Button fullWidth onClick={() => setIsOverrideModalOpen(true)}>
+                    Override Recommendation
+                  </Button>
+                  <Button fullWidth variant="plain" onClick={() => navigate(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`)}>
+                    Back to Operations Queue
+                  </Button>
                 </BlockStack>
-              </BlockStack>
-            </Card>
+              </Card>
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </BlockStack>
 
-            {/* Financial Summary Card */}
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={CashDollarIcon} tone="base" />
-                  <Text variant="headingMd" as="h2">
-                    Financial Summary
-                  </Text>
-                </InlineStack>
-                <BlockStack gap="150">
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">
-                      Total Order Value
-                    </Text>
-                    <Text as="span" fontWeight="bold">
-                      ₹{order.totalPrice}
-                    </Text>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">
-                      Payment Gateway
-                    </Text>
-                    <Badge tone={order.isCOD ? "attention" : "success"}>{order.gateway || (order.isCOD ? "COD" : "Prepaid")}</Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">
-                      Financial Status
-                    </Text>
-                    <Badge>{order.financialStatus}</Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">
-                      Fulfillment Status
-                    </Text>
-                    <Badge>{order.fulfillmentStatus}</Badge>
-                  </InlineStack>
-                  <InlineStack align="space-between">
-                    <Text as="span" tone="subdued">
-                      Channel Source
-                    </Text>
-                    <Badge>{order.channelAttribution || "Direct Online Store"}</Badge>
-                  </InlineStack>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-
-      {/* Manual Override Modal */}
+      {/* Override Modal */}
       <Modal
         open={isOverrideModalOpen}
         onClose={() => setIsOverrideModalOpen(false)}
-        title="Override Decision Engine Recommendation"
+        title={`Override Decision for #${order.orderNumber}`}
         primaryAction={{
-          content: "Save Override Decision",
+          content: "Save Override",
           onAction: handleConfirmOverride,
           loading: isSubmitting,
         }}
@@ -611,66 +602,36 @@ export default function OrderIntelligenceRoute() {
       >
         <Modal.Section>
           <BlockStack gap="400">
-            <Banner tone="info">
-              <p>
-                Manual overrides update the decision status for this order and help calibrate future AI recommendations.
-              </p>
+            <Banner tone="warning">
+              <Text variant="bodySm" as="p">
+                Original ProfitRx Recommendation: <strong>{intelligence.decision}</strong>.
+                Manual overrides are recorded in the audit trail and used for learning model refinement.
+              </Text>
             </Banner>
+
             <Select
-              label="Select Decision"
+              label="New Decision"
               options={[
-                { label: "✓ Allow COD (Fulfill unverified)", value: "ALLOW_COD" },
-                { label: "📱 OTP Verification (Require customer OTP)", value: "OTP_VERIFY" },
-                { label: "💳 Require Prepaid (Convert to prepaid)", value: "PREPAID_ONLY" },
-                { label: "🛑 Block COD (Cancel / reject COD)", value: "BLOCK_COD" },
+                { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
+                { label: "Require OTP Verification", value: "OTP_VERIFY" },
+                { label: "Require Prepaid Payment", value: "PREPAID_ONLY" },
+                { label: "Block COD (Tag Order)", value: "BLOCK_COD" },
               ]}
               value={overrideAction}
-              onChange={(val) => setOverrideAction(val)}
+              onChange={setOverrideAction}
             />
+
             <TextField
               label="Reason for Override"
               value={overrideReason}
-              onChange={(val) => setOverrideReason(val)}
-              placeholder="e.g. VIP returning customer, spoke on WhatsApp, high risk address"
+              onChange={setOverrideReason}
+              placeholder="e.g. Customer verified address and intent via phone call"
               autoComplete="off"
               multiline={3}
             />
           </BlockStack>
         </Modal.Section>
       </Modal>
-    </Page>
-  );
-}
-
-
-export function ErrorBoundary() {
-  const error = useRouteError();
-  const navigate = useNavigate();
-
-  if (isRouteErrorResponse(error) && error.status === 404) {
-    return (
-      <Page title="Order Not Found">
-        <EmptyState
-          heading="We couldn't find this order"
-          action={{ content: "Back to Operations", onAction: () => navigate("/app/operations") }}
-          image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-        >
-          <p>The order you are looking for does not exist in the database or belongs to another store.</p>
-        </EmptyState>
-      </Page>
-    );
-  }
-
-  return (
-    <Page title="Error Loading Order">
-      <Card>
-        <BlockStack gap="400">
-          <Text variant="headingMd" as="h2" tone="critical">
-            Something went wrong
-          </Text>
-          <Text as="p">{(error as any)?.message || "An unexpected error occurred while loading this order."}</Text>
-        </BlockStack>
-      </Card>
     </Page>
   );
 }

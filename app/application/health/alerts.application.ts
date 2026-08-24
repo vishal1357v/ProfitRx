@@ -65,7 +65,7 @@ export class AlertsApplicationService {
    * Resolve an alert.
    */
   static async resolveAlert(shop: string, alertId: string): Promise<void> {
-    await AlertService.resolveAlert(shop, alertId);
+    await AlertRepository.resolveAlert(shop, alertId);
   }
 
   /**

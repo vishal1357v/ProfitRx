@@ -13,6 +13,6 @@ export interface OrderPipelineData {
   expectedValueResult?: ExpectedValueResult;
   finalDecision?: ActionType;
   decisionResult?: DecisionResult;
-  executionStatus?: "PENDING" | "SUCCESS" | "FAILED";
+  executionStatus?: "PENDING" | "SUCCESS" | "FAILED" | "ADVISORY_ONLY" | "PENDING_MERCHANT_REVIEW";
 }
 

@@ -514,6 +514,8 @@ model StoreSettings {
   gatewayFixedFee        Float    @default(0)
   shopifyPlanName        String?  // e.g. "Basic", "Shopify", "Advanced", "Plus"
   shippingSlabs          Json?    // Array of weight slabs: { maxWeightGrams: number, forwardCost: number, returnCost: number }
+  // Protection Engine Modes (Beta Gate #5)
+  protectionMode         String   @default("OBSERVE") // "OBSERVE" | "REVIEW" | "ASSISTED" | "AUTOMATED"
   // Merchant Rules Engine (Phase 3)
   rulesRejectCodOver     Float?
   rulesRequirePrepaidAbove Float?
