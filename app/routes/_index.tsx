@@ -45,7 +45,7 @@ export default function IndexRoute() {
   const { isInstalled } = useLoaderData<typeof loader>();
   const [shopInput, setShopInput] = useState("");
   const [activeTab, setActiveTab] = useState<"profit" | "cod" | "heatmap" | "roas">("profit");
-  const [monthlyOrders, setMonthlyOrders] = useState(1500);
+
   const [faqOpen, setFaqOpen] = useState<Record<number, boolean>>({ 0: true });
 
   const handleConnectShop = (e?: React.FormEvent) => {
@@ -73,8 +73,7 @@ export default function IndexRoute() {
     setFaqOpen((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
-  // Estimated RTO savings calculation based on merchant numbers
-  const estimatedRtoLossSaved = Math.round(monthlyOrders * 0.3 * 130 * 0.45);
+
 
   return (
     <PolarisProvider i18n={enTranslations}>
@@ -402,59 +401,7 @@ export default function IndexRoute() {
               </Card>
             </Layout.Section>
 
-            {/* Savings Calculator */}
-            <Layout.Section>
-              <Card>
-                <Box padding="600">
-                  <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                    <Grid.Cell>
-                      <BlockStack gap="400">
-                        <Text variant="headingLg" as="h2">RTO Loss Estimator</Text>
-                        <Text variant="bodyMd" as="p" tone="subdued">
-                          Calculate estimated courier losses based on your monthly order volume and COD ratio.
-                        </Text>
-                        <BlockStack gap="200">
-                          <Text variant="bodySm" as="span" fontWeight="bold">
-                            Monthly Orders: {monthlyOrders.toLocaleString()}
-                          </Text>
-                          <input
-                            type="range"
-                            min="200"
-                            max="10000"
-                            step="100"
-                            value={monthlyOrders}
-                            onChange={(e) => setMonthlyOrders(Number(e.target.value))}
-                            style={{ width: "100%", accentColor: "#008060", cursor: "pointer" }}
-                          />
-                          <InlineStack align="space-between">
-                            <Text variant="bodyXs" as="span" tone="subdued">200 / mo</Text>
-                            <Text variant="bodyXs" as="span" tone="subdued">10,000 / mo</Text>
-                          </InlineStack>
-                        </BlockStack>
-                      </BlockStack>
-                    </Grid.Cell>
 
-                    <Grid.Cell>
-                      <Card>
-                        <Box padding="400">
-                          <BlockStack gap="300" inlineAlign="center">
-                            <Text variant="bodySm" as="p" tone="subdued">
-                              Estimated Monthly RTO Freight Savings
-                            </Text>
-                            <Text variant="heading2xl" as="p" tone="success">
-                              ₹{estimatedRtoLossSaved.toLocaleString()}
-                            </Text>
-                            <Text variant="bodyXs" as="p" tone="subdued" alignment="center">
-                              Based on 30% average COD share, ₹130 forward/return courier loss per RTO, and 45% reduction via COD verification and rules.
-                            </Text>
-                          </BlockStack>
-                        </Box>
-                      </Card>
-                    </Grid.Cell>
-                  </Grid>
-                </Box>
-              </Card>
-            </Layout.Section>
 
             {/* Plans */}
             <Layout.Section>
@@ -493,10 +440,7 @@ export default function IndexRoute() {
                         <Card>
                           <Box padding="400">
                             <BlockStack gap="300">
-                              <InlineStack align="space-between">
-                                <Text variant="headingMd" as="h3">Growth</Text>
-                                <Badge tone="success">Recommended</Badge>
-                              </InlineStack>
+                              <Text variant="headingMd" as="h3">Growth</Text>
                               <Text variant="headingLg" as="p">₹3,999 <Text variant="bodySm" as="span" tone="subdued">/mo</Text></Text>
                               <Badge tone="info">Up to 2,000 orders / month</Badge>
                               <Divider />
@@ -599,7 +543,7 @@ export default function IndexRoute() {
                     <Button variant="plain" url="/privacy">Privacy Policy</Button>
                   </InlineStack>
                   <Text variant="bodyXs" as="p" tone="subdued" alignment="center">
-                    © 2026 ProfitRx Inc. Built exclusively for Shopify merchants.
+                    © 2026 ProfitRx Inc. Built for Shopify.
                   </Text>
                 </BlockStack>
               </Box>
