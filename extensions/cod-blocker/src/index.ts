@@ -1,4 +1,4 @@
-import { cartPaymentMethodsTransformRun } from "./cart_payment_methods_transform_run";
+import { cartPaymentMethodsTransformRun, run } from "./run";
 
-export default cartPaymentMethodsTransformRun;
-export { cartPaymentMethodsTransformRun };
+export default run;
+export { cartPaymentMethodsTransformRun, run };

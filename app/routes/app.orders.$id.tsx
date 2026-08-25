@@ -370,7 +370,7 @@ export default function OrderIntelligenceRoute() {
                     <Text variant="headingMd" as="h2">
                       Canonical Unit Economics
                     </Text>
-                    <Badge tone="info">No Double Counting Guaranteed</Badge>
+                    <Badge tone="info">Deterministic Deduplication</Badge>
                   </InlineStack>
 
                   <Text variant="bodySm" tone="subdued" as="p">

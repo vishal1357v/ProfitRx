@@ -4,9 +4,9 @@ export const headers = () => ({
 
 export default function PrivacyRoute() {
   return (
-    <div style={{ maxWidth: 850, margin: "40px auto", padding: "32px 40px", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", background: "#ffffff", color: "#1a1a1a", lineHeight: 1.6, borderRadius: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
-      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "8px", color: "#0f172a" }}>Privacy Policy — ProfitRx</h1>
-      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "24px" }}>
+    <div style={{ maxWidth: 850, margin: "40px auto", padding: "32px 40px", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", background: "#ffffff", color: "#222222", lineHeight: 1.6, borderRadius: 16, border: "1px solid #e5e7eb" }}>
+      <h1 style={{ fontSize: "28px", fontWeight: 700, marginBottom: "8px", color: "#222f3e" }}>Privacy Policy — ProfitRx</h1>
+      <p style={{ color: "#576574", fontSize: "14px", marginBottom: "24px" }}>
         <strong>Effective Date:</strong> August 24, 2026 | <strong>Last Updated:</strong> August 24, 2026
       </p>
 
@@ -17,7 +17,7 @@ export default function PrivacyRoute() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>1. Information We Collect</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 1: Information We Collect</h2>
         <p>When you install and use ProfitRx, we access and process data strictly necessary to provide our services:</p>
         <ul style={{ paddingLeft: "20px" }}>
           <li><strong>Merchant &amp; Store Data:</strong> Store domain, merchant email, shop currency, primary location state, and active Shopify subscription plan.</li>
@@ -29,7 +29,7 @@ export default function PrivacyRoute() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>2. Purpose of Processing</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 2: Purpose of Processing</h2>
         <p>We process collected information solely for the following legitimate business purposes:</p>
         <ul style={{ paddingLeft: "20px" }}>
           <li>Calculating True Net Pocket Profit, blended ROAS, and SKU margin contributions per order.</li>
@@ -41,14 +41,14 @@ export default function PrivacyRoute() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>3. Data Storage &amp; Security</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 3: Data Storage &amp; Security</h2>
         <p>
           All data processed by ProfitRx is stored in secured, encrypted-at-rest PostgreSQL databases with strict multi-tenant schema isolation. All network transmissions are strictly encrypted via TLS 1.3 (HTTPS). Access tokens and external API credentials are encrypted with AES-256-GCM. We never sell, rent, or monetize merchant or customer personal data under any circumstances.
         </p>
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>4. GDPR &amp; Data Subject Rights (Access &amp; Erasure)</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 4: GDPR &amp; Data Subject Rights (Access &amp; Erasure)</h2>
         <p>
           We fully implement Shopify&#39;s mandatory privacy compliance webhooks:
         </p>
@@ -60,7 +60,7 @@ export default function PrivacyRoute() {
       </section>
 
       <section style={{ marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>5. Third-Party Service Providers</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 5: Third-Party Service Providers</h2>
         <p>ProfitRx integrates with the following vetted infrastructure sub-processors:</p>
         <ul style={{ paddingLeft: "20px" }}>
           <li><strong>Shopify API:</strong> Platform runtime, authentication, and order synchronization.</li>
@@ -70,7 +70,7 @@ export default function PrivacyRoute() {
       </section>
 
       <section>
-        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>6. Contact Us</h2>
+        <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 6: Contact Us</h2>
         <p>
           If you have questions regarding this Privacy Policy, wish to exercise your data rights, or need technical support, please contact our Data Protection Officer:
         </p>

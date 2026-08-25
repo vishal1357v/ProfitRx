@@ -20,7 +20,7 @@ const REPORT_TYPES = [
   { key: "daily-profit", label: "Daily Profit", icon: "📅", description: "Day-by-day profit breakdown", color: "var(--gg-accent-blue)" },
   { key: "weekly-profit", label: "Weekly Profit", icon: "📆", description: "Weekly aggregated performance", color: "var(--gg-accent-purple)" },
   { key: "monthly-profit", label: "Monthly Profit", icon: "📊", description: "Monthly profit rollup", color: "var(--gg-accent-green)" },
-  { key: "top-products", label: "Top Products", icon: "🏆", description: "Best performing products by profit", color: "var(--gg-accent-amber)" },
+  { key: "top-products", label: "Top Products", icon: "🏆", description: "Highest performing products by profit", color: "var(--gg-accent-amber)" },
   { key: "worst-products", label: "Worst Products", icon: "📉", description: "Loss-making products to review", color: "var(--gg-accent-red)" },
   { key: "rto-report", label: "RTO Report", icon: "🔄", description: "Return to Origin analysis", color: "var(--gg-accent-red)" },
   { key: "customer-report", label: "Customer Report", icon: "👥", description: "Customer LTV and behavior", color: "var(--gg-accent-teal)" },
