@@ -219,15 +219,15 @@ export default function IndexRoute() {
             <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
               {[
                 {
-                  name: "Starter", price: "₹1,500/mo", cap: "500 orders/mo",
+                  name: "Starter", price: "$19 USD/mo", cap: "500 orders/mo",
                   features: ["Net profit dashboard", "COGS tracking", "RTO reports", "GSTR export"],
                 },
                 {
-                  name: "Growth", price: "₹3,999/mo", cap: "2,000 orders/mo",
+                  name: "Growth", price: "$39 USD/mo", cap: "2,000 orders/mo",
                   features: ["Everything in Starter", "COD blocker (Shopify Function)", "Pincode heatmap", "Ad spend sync", "WhatsApp OTP"],
                 },
                 {
-                  name: "Scale", price: "₹7,999/mo", cap: "Unlimited",
+                  name: "Pro", price: "$79 USD/mo", cap: "Unlimited",
                   features: ["Everything in Growth", "Custom risk weighting", "API access", "Priority support"],
                 },
               ].map((plan) => (

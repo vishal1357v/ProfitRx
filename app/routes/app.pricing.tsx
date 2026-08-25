@@ -150,7 +150,7 @@ export default function Pricing() {
   const plans = [
     {
       name: "Starter",
-      price: "₹1,500",
+      price: "$19",
       description: "Small & early-stage stores",
       tagline: "Essential profit tracking, COGS management, GST reports, and basic RTO insights.",
       features: [
@@ -166,7 +166,7 @@ export default function Pricing() {
     },
     {
       name: "Growth",
-      price: "₹3,000",
+      price: "$39",
       description: "Growing stores ⭐ Most Popular",
       tagline: "Pincode-level logistics intelligence, COD Risk Shield, and profit leak detection.",
       features: [
@@ -182,7 +182,7 @@ export default function Pricing() {
     },
     {
       name: "Pro",
-      price: "₹6,000",
+      price: "$79",
       description: "Established brands & high-volume stores",
       tagline: "Full enterprise intelligence suite with unlimited order sync, ROAS ad spend, and cohort retention.",
       features: [
@@ -219,7 +219,7 @@ export default function Pricing() {
 
         <Layout.Section>
           <Banner tone="info">
-            <p>Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.</p>
+            <p>All plans include a 14-day free trial. Charges are billed monthly in USD via Shopify App Subscriptions.</p>
           </Banner>
         </Layout.Section>
 
@@ -263,9 +263,7 @@ export default function Pricing() {
                         {plan.popular && (
                           <Badge tone="success">Popular</Badge>
                         )}
-                        {plan.name !== "Free" && (
-                          <Badge tone="attention">14-Day Free Trial</Badge>
-                        )}
+                        <Badge tone="attention">14-Day Free Trial</Badge>
                       </InlineStack>
                     </InlineStack>
 
@@ -292,7 +290,7 @@ export default function Pricing() {
                         fullWidth
                         disabled={currentPlan === plan.name}
                       >
-                        {currentPlan === plan.name ? "Current Plan" : plan.name === "Free" ? "Choose Free Plan" : "Start 14-Day Free Trial"}
+                        {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Free Trial"}
                       </Button>
                     </Form>
 
@@ -324,17 +322,15 @@ export default function Pricing() {
                   <table className="gg-table">
                     <thead>
                       <tr>
-                        <th style={{ width: "28%" }}>Feature</th>
-                        <th style={{ width: "18%" }}>Free</th>
-                        <th style={{ width: "18%" }}>Starter</th>
-                        <th style={{ width: "18%" }}>Growth</th>
-                        <th style={{ width: "18%" }}>Pro</th>
+                        <th style={{ width: "31%" }}>Feature</th>
+                        <th style={{ width: "23%" }}>Starter ($19/mo)</th>
+                        <th style={{ width: "23%" }}>Growth ($39/mo)</th>
+                        <th style={{ width: "23%" }}>Pro ($79/mo)</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
                         <td><strong>Order limit / month</strong></td>
-                        <td>Up to 50 orders</td>
                         <td>Up to 500 orders</td>
                         <td>Up to 2,000 orders</td>
                         <td><strong>Unlimited orders</strong></td>
@@ -344,32 +340,27 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Store Health Score</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Product Cost Tracking (COGS)</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>GST Compliance Reports & Export</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Basic RTO Insights & Alerts</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
@@ -377,13 +368,11 @@ export default function Pricing() {
                       <tr>
                         <td>COD Risk Score & Heatmap</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Profit Leaks & COD Risk Shield</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
@@ -392,19 +381,16 @@ export default function Pricing() {
                         <td>LTV & Cohort Retention Analysis</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>ROAS & Ad Spend Sync</td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Multi-store & API Access</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>

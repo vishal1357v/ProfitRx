@@ -70,29 +70,29 @@ export default function BillingPage() {
   const normalizedPlan = (plan || "").toUpperCase();
   const planInfoMap: Record<string, { name: string; price: string; color: string; includes: string[]; lacks: string[] }> = {
     FREE: {
-      name: "Free Plan",
-      price: "₹0/mo",
+      name: "14-Day Free Trial",
+      price: "$0/mo",
       color: "info",
-      includes: ["Up to 50 orders/mo", "Real Profit Dashboard", "Store Health Score"],
-      lacks: ["Product Cost Tracking (COGS)", "GST Reports", "COD Risk Score", "RTO Heatmap", "Profit Leaks & COD Shield", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "API Access"],
+      includes: ["14-day full access trial", "Real Profit Dashboard", "Store Health Score"],
+      lacks: ["Select a paid plan to lock in subscription features after trial"],
     },
     STARTER: {
       name: "Starter Plan",
-      price: "₹1,500/mo ($19 USD)",
+      price: "$19 USD/mo",
       color: "info",
       includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "GST Compliance Reports", "Basic RTO Insights", "Weekly WhatsApp Digest", "CSV Data Export"],
       lacks: ["COD Risk Score", "RTO Pincode Heatmap", "Profit Leaks & COD Shield", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "API Access"],
     },
     GROWTH: {
       name: "Growth Plan",
-      price: "₹3,000/mo ($39 USD)",
+      price: "$39 USD/mo",
       color: "attention",
       includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "COD Shield & OTP Verification", "Advanced Email Alerts", "AI Profit Recommendations"],
       lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support", "API Access"],
     },
     PRO: {
       name: "Pro Plan",
-      price: "₹6,000/mo ($79 USD)",
+      price: "$79 USD/mo",
       color: "success",
       includes: ["Unlimited orders/mo", "Everything in Growth", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "Customer Intelligence", "Multi-store Support", "API Access for Custom Integrations", "Priority Support & Dedicated Onboarding"],
       lacks: [],
@@ -100,14 +100,14 @@ export default function BillingPage() {
     // Legacy aliases
     BASIC: {
       name: "Starter Plan",
-      price: "₹1,500/mo ($19 USD)",
+      price: "$19 USD/mo",
       color: "info",
       includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "GST Reports", "Basic RTO Insights"],
       lacks: ["COD Risk Score", "RTO Heatmap", "LTV & Cohort Analysis", "ROAS Sync"],
     },
     ADVANCE: {
       name: "Pro Plan",
-      price: "₹6,000/mo ($79 USD)",
+      price: "$79 USD/mo",
       color: "success",
       includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "API Access"],
       lacks: [],
