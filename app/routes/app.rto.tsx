@@ -30,21 +30,27 @@ import { RtoAnalyticsApplicationService } from "../application/analytics/rto-ana
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
-
   const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
   const page = parseInt(url.searchParams.get("page") || "1", 10);
   const pageSize = parseInt(url.searchParams.get("pageSize") || "25", 10);
   const search = url.searchParams.get("search") || undefined;
   const status = url.searchParams.get("status") || undefined;
   const eventType = url.searchParams.get("eventType") || undefined;
 
-  return RtoAnalyticsApplicationService.getRtoAnalytics(shop, admin, {
+  const analyticsData = await RtoAnalyticsApplicationService.getRtoAnalytics(shop, admin, {
     page,
     pageSize,
     search,
     status,
     eventType,
   });
+
+  return {
+    ...analyticsData,
+    shop,
+    host,
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -129,7 +135,7 @@ function RtoTrendChart({ data }: { data: RtoChartItem[] }) {
 }
 
 export default function RtoRoute() {
-  const { orders, rtoEvents, pagination, stats, topProducts, chartData, hasOrders, hasRtoEvents } =
+  const { orders, rtoEvents, pagination, stats, topProducts, chartData, hasOrders, hasRtoEvents, shop, host } =
     useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigation = useNavigation();
@@ -147,7 +153,7 @@ export default function RtoRoute() {
   // Filter States synced with URL SearchParams
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "ALL");
-  const [typeFilter, setTypeFilter] = useState(searchParams.get("eventType") || "ALL");
+  const [eventTypeFilter, setEventTypeFilter] = useState(searchParams.get("eventType") || "ALL");
 
   const applyFilters = (newSearch: string, newStatus: string, newType: string) => {
     const params = new URLSearchParams(searchParams);
@@ -164,42 +170,35 @@ export default function RtoRoute() {
     setSearchParams(params);
   };
 
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setEventTypeFilter("ALL");
+    setSearchParams(new URLSearchParams());
+  };
+
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setActionError(null);
     setActionSuccess(false);
 
-    const parsedOrderNumber = parseInt(orderNumber, 10);
-    const parsedAmount = parseFloat(amount);
-
-    if (isNaN(parsedOrderNumber)) {
-      setActionError("Please enter a valid order number.");
-      return;
-    }
-    if (isNaN(parsedAmount) || parsedAmount < 0) {
-      setActionError("Loss amount must be a non-negative number.");
+    if (!orderNumber || !amount) {
+      setActionError("Please provide an order number and loss amount.");
       return;
     }
 
-    const matchedOrder = orders.find((o: any) => o.orderNumber === parsedOrderNumber);
-    if (!matchedOrder) {
-      setActionError(`Order #${orderNumber} not found. Please sync orders first.`);
-      return;
-    }
-    if (parsedAmount > matchedOrder.totalPrice) {
-      setActionError(`RTO loss amount (₹${parsedAmount}) cannot exceed the order's total price (₹${matchedOrder.totalPrice}).`);
-      return;
-    }
-
-    const fd = new FormData();
-    fd.append("orderNumber", orderNumber);
-    fd.append("amount", amount);
-    fd.append("eventType", eventType);
-    fd.append("status", status);
-    fd.append("reason", reason);
+    const formData = new FormData();
+    formData.append("orderNumber", orderNumber);
+    formData.append("amount", amount);
+    formData.append("eventType", eventType);
+    formData.append("status", status);
+    formData.append("reason", reason);
 
     try {
-      const res = await fetch("", { method: "POST", body: fd });
+      const res = await fetch(`/app/rto?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`, {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       if (res.ok) {
         setActionSuccess(true);
@@ -216,11 +215,12 @@ export default function RtoRoute() {
   };
 
   const rows = rtoEvents.map((event: any) => {
-    const orderParam = encodeURIComponent(event.orderId);
+    const cleanId = String(event.orderId || event.orderNumber).replace("gid://shopify/Order/", "");
+    const orderUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`;
     return [
       <a
         key={`link-${event.id}`}
-        href={`/app/orders/${orderParam}`}
+        href={orderUrl}
         style={{ fontWeight: "bold", color: "var(--p-color-text-link)", textDecoration: "none" }}
       >
         #{event.orderNumber}
@@ -253,11 +253,11 @@ export default function RtoRoute() {
       secondaryActions={[
         {
           content: "Profit Leaks",
-          url: "/app/profit-leaks",
+          url: `/app/profit-leaks?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`,
         },
         {
           content: "Pincode Risk Heatmap",
-          url: "/app/rto-heatmap",
+          url: `/app/rto-heatmap?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`,
         },
       ]}
     >
@@ -291,7 +291,7 @@ export default function RtoRoute() {
                     <Text variant="bodySm" as="p" tone="subdued">
                       Total RTO & COD Losses
                     </Text>
-                    <Button variant="plain" url="/app/profit-leaks">
+                    <Button variant="plain" url={`/app/profit-leaks?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`}>
                       Profit Leaks →
                     </Button>
                   </InlineStack>
@@ -468,7 +468,7 @@ export default function RtoRoute() {
                     value={searchQuery}
                     onChange={(val) => {
                       setSearchQuery(val);
-                      applyFilters(val, statusFilter, typeFilter);
+                      applyFilters(val, statusFilter, eventTypeFilter);
                     }}
                     placeholder="Search order # or reason..."
                     autoComplete="off"
@@ -476,9 +476,9 @@ export default function RtoRoute() {
                   />
                   <Select
                     label="Filter by Event Type"
-                    value={typeFilter}
+                    value={eventTypeFilter}
                     onChange={(val) => {
-                      setTypeFilter(val);
+                      setEventTypeFilter(val);
                       applyFilters(searchQuery, statusFilter, val);
                     }}
                     options={[
@@ -494,7 +494,7 @@ export default function RtoRoute() {
                     value={statusFilter}
                     onChange={(val) => {
                       setStatusFilter(val);
-                      applyFilters(searchQuery, val, typeFilter);
+                      applyFilters(searchQuery, val, eventTypeFilter);
                     }}
                     options={[
                       { label: "All Statuses", value: "ALL" },

@@ -219,10 +219,7 @@ export default function Pricing() {
 
         <Layout.Section>
           <Banner tone="info">
-            <BlockStack gap="100">
-              <Text as="p">Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.</Text>
-              <Text as="p"><strong>WhatsApp / SMS Notice:</strong> Interactive OTP verification and digests leverage your own Meta Cloud API or Twilio account. You will be billed directly by the provider for any message transmission costs.</Text>
-            </BlockStack>
+            <p>Prices are exclusive of 18% GST. Shopify will calculate and add GST at checkout.</p>
           </Banner>
         </Layout.Section>
 

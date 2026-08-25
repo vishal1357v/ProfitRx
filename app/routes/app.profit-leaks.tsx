@@ -51,7 +51,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  return ProfitLeaksApplicationService.getProfitLeaksData(shop);
+  const data = await ProfitLeaksApplicationService.getProfitLeaksData(shop);
+  return { ...data, shop, host };
 };
 
 // ── Donut Chart (SVG) ────────────────────────────────────
@@ -247,7 +248,7 @@ function LeakInsight({
 }
 
 export default function ProfitLeaksRoute() {
-  const { leaks, trend, cogsTransparency, affectedOrders, hasData } = useLoaderData<typeof loader>();
+  const { leaks, trend, cogsTransparency, affectedOrders, hasData, shop, host } = useLoaderData<typeof loader>();
 
   const donutSegments = [
     { value: leaks.rtoLoss, color: "#ef4444", label: "RTO & COD Failure" },
@@ -256,11 +257,12 @@ export default function ProfitLeaksRoute() {
   ].filter((s) => s.value > 0);
 
   const affectedRows = affectedOrders.map((o) => {
-    const orderParam = encodeURIComponent(o.id);
+    const cleanId = String(o.id).replace("gid://shopify/Order/", "");
+    const orderUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`;
     return [
       <a
         key={`affected-${o.id}`}
-        href={`/app/orders/${orderParam}`}
+        href={orderUrl}
         style={{ fontWeight: "bold", color: "var(--p-color-text-link)", textDecoration: "none" }}
       >
         #{o.orderNumber}
