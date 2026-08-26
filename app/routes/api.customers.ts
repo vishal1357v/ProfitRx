@@ -1,9 +1,20 @@
 import { authenticate } from "../shopify.server";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export async function loader({ request }: { request: Request }) {
   try {
     const { admin, session } = await authenticate.admin(request);
+
+    const meta = AuditLogService.extractRequestMeta(request);
+    AuditLogService.logAccess({
+      shop: session.shop,
+      actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+      resource: "CUSTOMER_API_VIEW",
+      action: "VIEW",
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
 
     const response = await admin.graphql(`
       query GetCustomers {

@@ -12,6 +12,10 @@ import { RTORiskResult } from "../app/services/rto-risk/types";
 import { ExpectedValueResult, FinancialAssumptions } from "../app/services/expected-value/types";
 import { MerchantDecisionSettings, MerchantInterventionSettings } from "../app/services/decision-engine/types";
 
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_VERIFICATION_SCRIPT !== "true") {
+  throw new Error("[SECURITY FATAL] Direct token introspection scripts cannot be executed in production environment without explicit ALLOW_VERIFICATION_SCRIPT=true.");
+}
+
 // Load environment variables
 const envPath = path.resolve(process.cwd(), ".env");
 if (fs.existsSync(envPath)) {

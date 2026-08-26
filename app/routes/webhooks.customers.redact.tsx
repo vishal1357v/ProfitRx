@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { safeGdprLogSummary } from "../utils/dlp";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   let authResult;
@@ -14,7 +15,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { payload, shop, topic } = authResult;
 
   console.log(`Received ${topic} webhook for ${shop}`);
-  console.log(`GDPR Customer Redact Payload:`, JSON.stringify(payload));
+  console.log(`[GDPR Customer Redact] Summary:`, safeGdprLogSummary(payload as any));
 
   // Erase customer personal information if stored
   try {

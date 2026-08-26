@@ -17,6 +17,7 @@ import {
   FinanceIcon,
   DeliveryIcon,
   NotificationIcon,
+  ShieldCheckMarkIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { SettingsApplicationService } from "../application/settings/settings.application";
@@ -34,6 +35,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
+
+  if (intent === "accept_dpa") {
+    await SettingsApplicationService.acceptDpa(shop, "1.0");
+    return Response.json({ success: true, dpaAccepted: true });
+  }
 
   if (intent === "save_settings") {
     const defaultForwardShipping = parseFloat(formData.get("defaultForwardShipping") as string) || 0;
@@ -95,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SettingsRoute() {
-  const { shop, settings } = useLoaderData<typeof loader>();
+  const { shop, settings, dpaAcceptedAt, dpaAcceptedVersion } = useLoaderData<any>();
   const navigation = useNavigation();
   const submit = useSubmit();
 
@@ -133,12 +139,22 @@ export default function SettingsRoute() {
   const actionData = useActionData<any>();
 
   const isSaving = navigation.state === "submitting" && navigation.formData?.get("intent") === "save_settings";
+  const isAcceptingDpa = navigation.state === "submitting" && navigation.formData?.get("intent") === "accept_dpa";
+
+  const handleAcceptDpa = () => {
+    const formData = new FormData();
+    formData.append("intent", "accept_dpa");
+    submit(formData, { method: "post" });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
 
   const tabs = [
     { id: "costs-shipping", content: "💰 Costs & Shipping", panelID: "costs-panel" },
     { id: "gst-compliance", content: "🇮🇳 GST Compliance", panelID: "gst-panel" },
     { id: "whatsapp-otp", content: "💬 WhatsApp & OTP", panelID: "whatsapp-panel" },
     { id: "alerts-keywords", content: "🔔 Alerts & Courier", panelID: "alerts-panel" },
+    { id: "data-protection", content: "🛡️ Data Protection (DPA)", panelID: "dpa-panel" },
   ];
 
   const handleSave = () => {
@@ -537,6 +553,78 @@ export default function SettingsRoute() {
                         </Card>
                       </Grid.Cell>
                     </Grid>
+                  )}
+
+                  {/* ── TAB 4: Data Protection (DPA) ───────────── */}
+                  {selectedTab === 4 && (
+                    <Card>
+                      <Box padding="500">
+                        <BlockStack gap="400">
+                          <InlineStack gap="150" blockAlign="center">
+                            <Icon source={ShieldCheckMarkIcon} />
+                            <Text variant="headingMd" as="h2">🛡️ Merchant Data Processing Agreement (DPA)</Text>
+                          </InlineStack>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            To satisfy Shopify Level 2 Protected Customer Data standards and applicable privacy legislation, ProfitRx operates under a legally binding Data Processing Agreement establishing data roles, sub-processors, and technical security controls.
+                          </Text>
+
+                          <Divider />
+
+                          {dpaAcceptedAt ? (
+                            <Banner tone="success" title="Merchant Data Processing Agreement Active">
+                              <BlockStack gap="200">
+                                <Text as="p" variant="bodyMd">
+                                  Version <strong>{dpaAcceptedVersion || "1.0"}</strong> was reviewed and agreed to for <strong>{shop}</strong> on {new Date(dpaAcceptedAt).toLocaleString("en-IN")}.
+                                </Text>
+                                <InlineStack gap="200">
+                                  <Button variant="plain" url="/dpa" target="_blank">
+                                    View Full DPA Document (Opens in new tab)
+                                  </Button>
+                                </InlineStack>
+                              </BlockStack>
+                            </Banner>
+                          ) : (
+                            <Banner tone="warning" title="Action Required: Review &amp; Accept DPA">
+                              <BlockStack gap="200">
+                                <Text as="p" variant="bodyMd">
+                                  To complete your store compliance setup under Shopify Level 2 Protected Customer Data requirements, please review and record your acceptance of our Merchant Data Processing Agreement.
+                                </Text>
+                                <InlineStack gap="300" blockAlign="center">
+                                  <Button variant="secondary" url="/dpa" target="_blank">
+                                    Review Agreement (v1.0)
+                                  </Button>
+                                  <Button variant="primary" onClick={handleAcceptDpa} loading={isAcceptingDpa}>
+                                    Accept DPA (Version 1.0)
+                                  </Button>
+                                </InlineStack>
+                              </BlockStack>
+                            </Banner>
+                          )}
+
+                          <BlockStack gap="200">
+                            <Text variant="headingSm" as="h3">Summary of Key Data Protection Safeguards</Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Controller vs. Processor:</strong> You remain the Data Controller; ProfitRx processes customer personal data solely on your documented instructions.
+                            </Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Scope:</strong> Personal data (customer name, email, phone, postal code) is processed strictly for fraud risk assessment, OTP verification, and profit analytics.
+                            </Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Zero Data Sale:</strong> Customer information is never sold, shared with advertising brokers, or cross-profiled across stores.
+                            </Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Encryption:</strong> AES-256 encryption at rest (PostgreSQL/Neon), TLS 1.3 encryption in transit, and AES-256-GCM application token encryption.
+                            </Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Automated Retention:</strong> Verification OTPs purged within 48 hours; access logs automatically rotated after 180 days.
+                            </Text>
+                            <Text variant="bodySm" as="p">
+                              &bull; <strong>Incident Notification:</strong> Guaranteed 72-hour notification commitment in the event of any confirmed personal data breach.
+                            </Text>
+                          </BlockStack>
+                        </BlockStack>
+                      </Box>
+                    </Card>
                   )}
 
                 </BlockStack>

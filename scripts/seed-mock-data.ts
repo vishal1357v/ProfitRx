@@ -4,8 +4,33 @@ const DEFAULT_SHOP = process.env.TARGET_SHOP || "demo-profitrx.myshopify.com";
 
 export async function seedAllFeaturesMockData(customShop?: string) {
   const SHOP = customShop || DEFAULT_SHOP;
+
+  // ---------------------------------------------------------------------------
+  // HARD RUNTIME GUARDS: Test/Production & Tenant Separation (Level 2 PCD)
+  // ---------------------------------------------------------------------------
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("[SECURITY FATAL] Cannot execute synthetic data seeding in NODE_ENV=production.");
+  }
+  if (process.env.VERCEL_ENV === "production" || process.env.VERCEL === "1") {
+    throw new Error("[SECURITY FATAL] Cannot execute synthetic data seeding within Vercel production environment.");
+  }
+
+  // Tenant Guard: Demo scripts must NEVER touch live merchant stores
+  const isDemoOrSandbox = 
+    SHOP.startsWith("demo-") || 
+    SHOP.includes("-test-") || 
+    SHOP.endsWith("-test.myshopify.com") || 
+    SHOP.includes("-mock") || 
+    SHOP.includes("-sandbox");
+  
+  if (!isDemoOrSandbox) {
+    throw new Error(
+      `[SECURITY FATAL] Tenant guard violation: Target store '${SHOP}' is not a recognized demo or sandbox tenant. Mock data seeding is strictly prohibited on real stores.`
+    );
+  }
+
   console.log("================================================================================");
-  console.log(`SEEDING COMPREHENSIVE MOCK DATA FOR: ${SHOP}`);
+  console.log(`[TEST ENVIRONMENT VERIFIED] SEEDING MOCK DATA FOR TENANT: ${SHOP}`);
   console.log("================================================================================\n");
 
   // ---------------------------------------------------------------------------

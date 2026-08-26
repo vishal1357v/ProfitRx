@@ -58,7 +58,20 @@ const isCodGateway = (gateway: string | null) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
   const { DashboardApplicationService } = await import("../application/dashboard/dashboard.application");
+  const { AuditLogService } = await import("../services/compliance/audit-log.service");
+  
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop: session.shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "DASHBOARD_VIEW",
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
+
   return DashboardApplicationService.getDashboardData(request);
 };
 

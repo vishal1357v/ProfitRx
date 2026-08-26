@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { ProfitService } from "../services/profit.service";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -15,6 +16,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (session.shop !== shop) {
     return Response.json({ error: "Unauthorized cross-shop access" }, { status: 403 });
   }
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "REPORT_EXPORT",
+    resourceId: `gst-summary-${format}`,
+    action: "EXPORT",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
 
   const gstData = await ProfitService.getGSTSummary(shop);
 

@@ -5,6 +5,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { Page, Layout, Card, Text, BlockStack, InlineStack, Button, DataTable, Banner, Box, Badge, TextField } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ReportsApplicationService } from "../application/reports/reports.application";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 import { SectionHeader } from "../components/SectionHeader";
 import { EmptyStateCard } from "../components/EmptyState";
 
@@ -18,6 +19,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const type = params.type || "daily-profit";
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "REPORT_VIEW",
+    resourceId: type,
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
 
   const { reportTitle, reportData } = await ReportsApplicationService.getReportDetails(shop, type);
 

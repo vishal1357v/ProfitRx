@@ -19,6 +19,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { CustomerAnalyticsApplicationService } from "../application/analytics/customer-analytics.application";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -51,6 +52,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       console.warn("[Customers Billing Guard Warning]:", error);
     }
   }
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "CUSTOMER_LIST_VIEW",
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
 
   return CustomerAnalyticsApplicationService.getCustomerAnalytics(shop, host);
 };

@@ -2,6 +2,10 @@ import prisma from "../app/db.server";
 import { encryptToken, isEncryptedToken } from "../app/services/token-encryption.server";
 
 async function migrateTokens() {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_TOKEN_MIGRATION !== "true") {
+    throw new Error("[SECURITY FATAL] Token migration script requires explicit ALLOW_TOKEN_MIGRATION=true.");
+  }
+
   const [sessions, adConnections] = await Promise.all([
     prisma.session.findMany({ select: { id: true, accessToken: true, refreshToken: true } }),
     prisma.adSpend.findMany({ select: { id: true, accessToken: true, refreshToken: true } }),

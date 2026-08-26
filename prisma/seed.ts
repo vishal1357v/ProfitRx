@@ -2,7 +2,17 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const shop = 'greek-god-wvwt8ptt.myshopify.com';
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+    throw new Error("[SECURITY FATAL] Cannot run seed script in production environment.");
+  }
+
+  const shop = process.env.DEMO_SHOP || 'demo-sandbox.myshopify.com';
+
+  if (!shop.includes("demo") && !shop.includes("test") && !shop.includes("sandbox")) {
+    throw new Error(`[SECURITY FATAL] Target store '${shop}' is not a permitted test/demo store.`);
+  }
+
+  console.log(`[SEED GUARD PASSED] Seeding test database for: ${shop}`);
 
   // Clear existing test data
   await prisma.order.deleteMany({ where: { shop } });

@@ -527,10 +527,31 @@ model StoreSettings {
   // Phase 4: Onboarding
   onboardingStep         Int      @default(0)
   onboardingCompleted    Boolean  @default(false)
+  // Phase 5: Data Protection Compliance
+  dpaAcceptedAt          DateTime?
+  dpaAcceptedVersion     String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
   @@map("store_settings")
+}
+
+// ============================================
+// CUSTOMER DATA ACCESS LOG - PCD Compliance Audit Trail
+// ============================================
+model CustomerDataAccessLog {
+  id         String   @id @default(cuid())
+  shop       String
+  actor      String   // "merchant_admin" | "system_sync" | "webhook"
+  resource   String   // "ORDER_DETAIL_VIEW" | "CUSTOMER_LIST_VIEW" etc.
+  resourceId String?  // Order/customer ID reference — NOT PII
+  action     String   // "VIEW" | "EXPORT" | "SEARCH"
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@map("customer_data_access_logs")
 }
 
 // ============================================

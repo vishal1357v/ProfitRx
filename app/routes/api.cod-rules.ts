@@ -3,6 +3,7 @@ import * as crypto from "crypto";
 import { CODManagementService } from "../services/cod-management.service";
 import { CodOrderRepository } from "../infrastructure/repositories/cod-order.repository";
 import { getCorsHeaders } from "../utils/security.server";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 function corsResponse(request: Request, data: any, status = 200) {
   return Response.json(data, {
@@ -41,6 +42,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (orderId) {
     const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+    const meta = AuditLogService.extractRequestMeta(request);
+    AuditLogService.logAccess({
+      shop,
+      actor: "storefront_client",
+      resource: "COD_RULES_VIEW",
+      resourceId: cleanOrderId,
+      action: "VIEW",
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
     const record = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
     if (!record) {
       return corsResponse(request, {

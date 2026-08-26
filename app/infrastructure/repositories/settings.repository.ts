@@ -115,6 +115,24 @@ export class SettingsRepository {
   }
 
   /**
+   * Records explicit merchant acceptance of the Data Processing Agreement (DPA).
+   */
+  static async acceptDpa(shopId: string, version = "1.0"): Promise<any> {
+    return (prisma as any).storeSettings.upsert({
+      where: { shop: shopId },
+      update: {
+        dpaAcceptedAt: new Date(),
+        dpaAcceptedVersion: version,
+      },
+      create: {
+        shop: shopId,
+        dpaAcceptedAt: new Date(),
+        dpaAcceptedVersion: version,
+      },
+    });
+  }
+
+  /**
    * Update COD Rules fields with shop isolation.
    */
   static async updateCodRules(shopId: string, rules: any): Promise<void> {

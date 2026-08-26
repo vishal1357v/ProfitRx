@@ -32,6 +32,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { OperationsApplicationService, OperationOrderDTO } from "../application/operations/operations.application";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const headers: HeadersFunction = (headersArgs) => boundary.headers(headersArgs);
 
@@ -39,6 +40,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop: session.shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "OPERATIONS_VIEW",
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
+
   const data = await OperationsApplicationService.getOperationsData(session.shop);
   return { shop: session.shop, host, ...data };
 };

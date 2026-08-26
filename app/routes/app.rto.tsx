@@ -26,6 +26,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { RtoAnalyticsApplicationService } from "../application/analytics/rto-analytics.application";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -37,6 +38,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const search = url.searchParams.get("search") || undefined;
   const status = url.searchParams.get("status") || undefined;
   const eventType = url.searchParams.get("eventType") || undefined;
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "RTO_VIEW",
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
 
   const analyticsData = await RtoAnalyticsApplicationService.getRtoAnalytics(shop, admin, {
     page,

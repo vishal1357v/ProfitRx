@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { safeGdprLogSummary } from "../utils/dlp";
 
 function logGdprAudit(shop: string, action: string, details: string) {
   console.log(`[GDPR-AUDIT] ${new Date().toISOString()} SHOP: ${shop} | ${action} | ${details}`);
@@ -18,7 +19,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { payload, shop, topic } = authResult;
 
   console.log(`Received ${topic} webhook for ${shop}`);
-  console.log(`GDPR Shop Redact Payload:`, JSON.stringify(payload));
+  console.log(`[GDPR Shop Redact] Summary:`, safeGdprLogSummary(payload as any));
 
   const shopName = payload.shop_domain || shop;
 

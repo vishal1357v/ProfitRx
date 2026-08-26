@@ -36,6 +36,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { OrderDetailApplicationService } from "../application/order/order-detail.application";
+import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const headers = (headersArgs: any) => boundary.headers(headersArgs);
 
@@ -49,6 +50,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!orderId) {
     return redirect(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
   }
+
+  const meta = AuditLogService.extractRequestMeta(request);
+  AuditLogService.logAccess({
+    shop,
+    actor: (session as any).accountOwner ? "merchant_owner" : "merchant_staff",
+    resource: "ORDER_DETAIL_VIEW",
+    resourceId: orderId,
+    action: "VIEW",
+    ipAddress: meta.ipAddress,
+    userAgent: meta.userAgent,
+  });
 
   const data = await OrderDetailApplicationService.getOrderDetail(shop, orderId);
 

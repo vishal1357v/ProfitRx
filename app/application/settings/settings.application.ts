@@ -31,7 +31,20 @@ export class SettingsApplicationService {
   static async getSettingsData(shop: string, email = "") {
     const rawSettings = await SettingsRepository.getOrCreate(shop, email);
     const settings = ProfitService.getSettings(rawSettings);
-    return { shop, settings };
+    return {
+      shop,
+      settings,
+      dpaAcceptedAt: rawSettings.dpaAcceptedAt ? new Date(rawSettings.dpaAcceptedAt).toISOString() : null,
+      dpaAcceptedVersion: rawSettings.dpaAcceptedVersion || null,
+    };
+  }
+
+  /**
+   * Records merchant acceptance of the Data Processing Agreement (DPA).
+   */
+  static async acceptDpa(shop: string, version = "1.0"): Promise<{ success: boolean }> {
+    await SettingsRepository.acceptDpa(shop, version);
+    return { success: true };
   }
 
   /**
