@@ -218,13 +218,13 @@ export default function RtoRoute() {
     const cleanId = String(event.orderId || event.orderNumber).replace("gid://shopify/Order/", "");
     const orderUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`;
     return [
-      <a
+      <Link
         key={`link-${event.id}`}
-        href={orderUrl}
+        to={orderUrl}
         style={{ fontWeight: "bold", color: "var(--p-color-text-link)", textDecoration: "none" }}
       >
         #{event.orderNumber}
-      </a>,
+      </Link>,
       <Badge key={event.id} tone={event.eventType === "RTO" ? "critical" : "warning"}>
         {event.eventType}
       </Badge>,

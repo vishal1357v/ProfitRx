@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, redirect } from "react-router";
+import { useLoaderData, redirect, Link } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -260,13 +260,13 @@ export default function ProfitLeaksRoute() {
     const cleanId = String(o.id).replace("gid://shopify/Order/", "");
     const orderUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`;
     return [
-      <a
+      <Link
         key={`affected-${o.id}`}
-        href={orderUrl}
+        to={orderUrl}
         style={{ fontWeight: "bold", color: "var(--p-color-text-link)", textDecoration: "none" }}
       >
         #{o.orderNumber}
-      </a>,
+      </Link>,
       `₹${o.totalPrice.toLocaleString("en-IN")}`,
       <Badge
         key={`badge-${o.id}`}

@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { Page, Layout, Card, Text, BlockStack, InlineStack, Grid, Box, Icon, Badge } from "@shopify/polaris";
 import { ChartLineIcon, ChartVerticalIcon, PersonIcon, DeliveryIcon } from "@shopify/polaris-icons";
@@ -37,8 +37,8 @@ export default function ReportsHub() {
           <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4 }}>
             {REPORT_TYPES.map((report) => (
               <Grid.Cell key={report.key}>
-                <a
-                  href={`/app/reports/${report.key}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                <Link
+                  to={`/app/reports/${report.key}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                   style={{ textDecoration: "none", color: "inherit", display: "block", height: "100%" }}
                   data-tour={report.key === "daily-profit" ? "reports" : undefined}
                 >
@@ -67,7 +67,7 @@ export default function ReportsHub() {
                       </BlockStack>
                     </Box>
                   </Card>
-                </a>
+                </Link>
               </Grid.Cell>
             ))}
           </Grid>

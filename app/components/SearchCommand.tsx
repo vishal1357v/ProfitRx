@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router";
 import { Icon, Text, Badge } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
 
@@ -25,6 +26,7 @@ interface SearchCommandProps {
 }
 
 export function SearchCommand({ shop, host }: SearchCommandProps) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -96,13 +98,13 @@ export function SearchCommand({ shop, host }: SearchCommandProps) {
       e.preventDefault();
       setSelectedIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter" && results[selectedIndex]) {
-      window.location.href = results[selectedIndex].url;
+      navigate(results[selectedIndex].url);
       setOpen(false);
     }
   };
 
   const handleNavigate = (url: string) => {
-    window.location.href = url;
+    navigate(url);
     setOpen(false);
   };
 
