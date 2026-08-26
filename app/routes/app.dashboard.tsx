@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLoaderData, useRevalidator, redirect } from "react-router";
+import { useLoaderData, useRevalidator, redirect, Link } from "react-router";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -717,7 +717,7 @@ export default function DashboardRoute() {
         {isTrialActive && (
           <Layout.Section>
             <Banner tone="info" title="🎉 Your 14-Day Free Trial is Active!">
-              <p>Maximize your profits! Your free trial ends in <strong>{trialDaysRemaining} days</strong> ({data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleDateString() : ""}). Check your <a href={`/app/billing?shop=${data.shop}&host=${data.host}`}>Billing Page</a> to view plan usage limits.</p>
+              <p>Maximize your profits! Your free trial ends in <strong>{trialDaysRemaining} days</strong> ({data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleDateString() : ""}). Check your <Link to={`/app/billing?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Billing Page</Link> to view plan usage limits.</p>
             </Banner>
           </Layout.Section>
         )}
@@ -771,18 +771,34 @@ export default function DashboardRoute() {
 
         {data.missingCogsCount > 0 && (
           <Layout.Section>
-            <Banner tone="warning">
-              ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS.
-              Please <a href={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</a> to include them in calculations.
+            <Banner
+              tone="warning"
+              title="Products Missing COGS"
+              action={{
+                content: "Configure COGS Catalog",
+                url: `/app/cogs?shop=${data.shop}&host=${data.host}`,
+              }}
+            >
+              <p>
+                ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS. Please <Link to={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</Link> to include them in calculations.
+              </p>
             </Banner>
           </Layout.Section>
         )}
 
         {data.hasZeroLogisticsDefaults && (
           <Layout.Section>
-            <Banner tone="warning">
-              ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0.
-              Please <a href={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in Settings</a> to get accurate RTO loss figures.
+            <Banner
+              tone="warning"
+              title="Logistics Defaults Not Configured"
+              action={{
+                content: "Configure in Settings",
+                url: `/app/settings?shop=${data.shop}&host=${data.host}`,
+              }}
+            >
+              <p>
+                ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0. Please <Link to={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in Settings</Link> to get accurate RTO loss figures.
+              </p>
             </Banner>
           </Layout.Section>
         )}
@@ -828,7 +844,7 @@ export default function DashboardRoute() {
                               <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
                               <Badge tone={a.severity === 'CRITICAL' ? 'critical' : a.severity === 'WARNING' ? 'warning' : 'info'}>Alert</Badge>,
                               <span style={{ fontWeight: 500 }}>{a.message}</span>,
-                              <a href={`/app/alerts?shop=${data.shop}&host=${data.host}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>View</a>
+                              <Link to={`/app/alerts?shop=${data.shop}&host=${data.host}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>View</Link>
                             ]
                           })),
                           ...(data.recentDecisions || []).map((d: any) => {
@@ -841,7 +857,7 @@ export default function DashboardRoute() {
                                 <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
                                 <Badge tone="success">Decision</Badge>,
                                 <span>Order #{orderNum} evaluated. Risk: <Badge tone={riskLevel === 'HIGH' || riskLevel === 'CRITICAL' ? 'critical' : riskLevel === 'MEDIUM' ? 'warning' : 'success'}>{riskLevel}</Badge></span>,
-                                <a href={`/app/orders/${encodeURIComponent(cleanOrderId)}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</a>
+                                <Link to={`/app/orders/${encodeURIComponent(cleanOrderId)}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</Link>
                               ]
                             };
                           })
