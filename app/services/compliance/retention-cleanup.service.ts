@@ -15,20 +15,35 @@ export class RetentionCleanupService {
   static async purgeExpiredOtps(maxAgeHours: number = 48): Promise<number> {
     const cutoffDate = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
 
-    const result = await (prisma as any).cODOrder.updateMany({
-      where: {
-        otp: { not: null },
-        OR: [
-          { otpVerified: true },
-          { createdAt: { lt: cutoffDate } },
-        ],
-      },
-      data: {
-        otp: null,
-      },
-    });
+    try {
+      const result = await (prisma as any).cODOrder.updateMany({
+        where: {
+          otp: { not: null },
+          OR: [
+            { otpVerified: true },
+            { createdAt: { lt: cutoffDate } },
+          ],
+        },
+        data: {
+          otp: null,
+        },
+      });
 
-    return result.count;
+      return result.count;
+    } catch (err: any) {
+      // In Neon HTTP mode, Prisma wraps updateMany in an unsupported transaction.
+      // Fall back to parameterized Prisma SQL which is fully supported over HTTP.
+      if (err?.message?.includes("Transactions are not supported") || err?.message?.includes("HTTP mode")) {
+        const count = await prisma.$executeRaw`
+          UPDATE "cod_orders"
+          SET otp = NULL
+          WHERE otp IS NOT NULL
+            AND ("otpVerified" = TRUE OR "createdAt" < ${cutoffDate})
+        `;
+        return Number(count);
+      }
+      throw err;
+    }
   }
 
   /**
@@ -68,11 +83,10 @@ export class RetentionCleanupService {
    * Safe and idempotent. Can be executed on a scheduled basis.
    */
   static async runScheduledCleanup(): Promise<RetentionCleanupResult> {
-    const [otpsPurged, executionLogsPurged, accessLogsPurged] = await Promise.all([
-      this.purgeExpiredOtps(48),
-      this.purgeOldExecutionLogs(90),
-      this.purgeOldAccessLogs(180),
-    ]);
+    // Run sequentially to prevent connection multiplexing issues in Neon HTTP mode
+    const otpsPurged = await this.purgeExpiredOtps(48);
+    const executionLogsPurged = await this.purgeOldExecutionLogs(90);
+    const accessLogsPurged = await this.purgeOldAccessLogs(180);
 
     return {
       otpsPurged,
