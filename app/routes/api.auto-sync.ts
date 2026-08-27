@@ -3,6 +3,7 @@ import prisma from "../db.server";
 import { ShopifyService } from "../services/shopify.service";
 import { AdSpendService } from "../services/ad-spend.service";
 import { WhatsAppService } from "../services/whatsapp.service";
+import { RetentionCleanupService } from "../services/compliance/retention-cleanup.service";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   // Verify Bearer Token
@@ -82,7 +83,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
       );
     }
 
-    return Response.json({ success: true, results });
+    // 5. Scheduled Data Protection Retention Cleanup (Shopify PCD Level 2 compliance)
+    let retentionCleanupResult: any = null;
+    try {
+      retentionCleanupResult = await RetentionCleanupService.runScheduledCleanup();
+      console.log("[Auto-Sync Cron] Retention cleanup completed successfully:", retentionCleanupResult);
+    } catch (cleanupErr: any) {
+      console.error("[Auto-Sync Cron] Retention cleanup failed:", cleanupErr);
+      retentionCleanupResult = {
+        success: false,
+        error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+      };
+    }
+
+    return Response.json({ success: true, results, retentionCleanup: retentionCleanupResult });
   } catch (error) {
     console.error("[Auto-Sync Cron] Critical failure:", error);
     return Response.json(

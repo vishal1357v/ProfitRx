@@ -24,10 +24,6 @@
     {
       "path": "/api/auto-sync",
       "schedule": "30 20 * * *"
-    },
-    {
-      "path": "/api/cron/retention-cleanup",
-      "schedule": "0 3 * * *"
     }
   ]
 }
