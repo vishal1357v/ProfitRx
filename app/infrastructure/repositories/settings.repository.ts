@@ -136,13 +136,17 @@ export class SettingsRepository {
    * Update COD Rules fields with shop isolation.
    */
   static async updateCodRules(shopId: string, rules: any): Promise<void> {
-    const updateData = {
+    const updateData: any = {
       rulesRejectCodOver: rules.rulesRejectCodOver,
       rulesRequirePrepaidAbove: rules.rulesRequirePrepaidAbove,
       rulesDisableCodForPincodes: rules.rulesDisableCodForPincodes,
       rulesAutoFlagRepeatOffenders: rules.rulesAutoFlagRepeatOffenders,
       rulesAutoRequireOtp: rules.rulesAutoRequireOtp,
     };
+
+    if (rules.codBlockingEnabled !== undefined) {
+      updateData.codBlockingEnabled = rules.codBlockingEnabled;
+    }
 
     const existing = await prisma.storeSettings.findUnique({
       where: { shop: shopId },

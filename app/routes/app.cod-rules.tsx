@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useNavigation, redirect } from "react-router";
+import { useLoaderData, useSubmit, useNavigation, useActionData, redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -19,9 +19,10 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { CodRulesApplicationService } from "../application/protection/cod-rules.application";
+import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { session, billing, admin } = await authenticate.admin(request);
   const shop = session.shop;
   const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
@@ -30,12 +31,73 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  // Enforce billing if not bypassed
-  if (process.env.BYPASS_BILLING !== "true") {
+  // ── Detect Partner Development / Review Stores ──────────────────
+  // Primary: query Shopify GraphQL for shop.plan metadata
+  // Secondary: fall back to persisted shopifyPlanName + domain heuristics
+  let isDevStore = process.env.NODE_ENV !== "production";
+
+  if (!isDevStore) {
+    const settings = await SettingsRepository.getByShop(shop);
+    const cachedPlan = (settings?.shopifyPlanName || "").toLowerCase();
+
+    // If we don't have a cached plan yet, or it's the default "basic",
+    // query Shopify GraphQL for the real plan metadata
+    let partnerDevelopment = false;
+    let planDisplayName = cachedPlan;
+
+    if (!cachedPlan || cachedPlan === "basic" || cachedPlan === "") {
+      try {
+        const res = await admin.graphql(`
+          query {
+            shop {
+              plan {
+                displayName
+                partnerDevelopment
+                shopifyPlus
+              }
+            }
+          }
+        `);
+        const gqlData = await res.json() as any;
+        const plan = gqlData?.data?.shop?.plan;
+        if (plan) {
+          partnerDevelopment = plan.partnerDevelopment === true;
+          planDisplayName = (plan.displayName || "").toLowerCase();
+          // Persist so we don't re-query every request
+          await SettingsRepository.upsertStoreSettings(shop, {
+            shopifyPlanName: plan.displayName || "Basic",
+          });
+        }
+      } catch (err: any) {
+        console.warn("[CodRules] Failed to query shop plan via GraphQL:", err.message);
+      }
+    } else {
+      // Use cached plan name for heuristic checks
+      planDisplayName = cachedPlan;
+      partnerDevelopment =
+        cachedPlan.includes("developer preview") ||
+        cachedPlan.includes("development") ||
+        cachedPlan.includes("partner_test") ||
+        cachedPlan.includes("partner test");
+    }
+
+    isDevStore =
+      partnerDevelopment ||
+      planDisplayName.includes("develop") ||
+      planDisplayName.includes("partner") ||
+      planDisplayName.includes("affiliate") ||
+      planDisplayName.includes("staff") ||
+      planDisplayName.includes("trial") ||
+      (shop.includes("test") && planDisplayName !== "basic shopify") ||
+      (shop.includes("dev") && planDisplayName !== "basic shopify");
+  }
+
+  // Enforce billing for real production stores only
+  if (process.env.BYPASS_BILLING !== "true" && !isDevStore) {
     try {
       await billing.require({
         plans: ["GROWTH", "PRO"],
-        isTest: process.env.NODE_ENV !== "production",
+        isTest: false,
         onFailure: async () => {
           throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
         },
@@ -51,8 +113,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return CodRulesApplicationService.getCodRulesData(shop);
 };
 
+
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
@@ -62,26 +125,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const rulesRequirePrepaidAbove = parseFloat(formData.get("rulesRequirePrepaidAbove") as string) || 999999;
     const rulesAutoFlagRepeatOffenders = formData.get("rulesAutoFlagRepeatOffenders") === "true";
     const rulesAutoRequireOtp = formData.get("rulesAutoRequireOtp") === "true";
+    const codBlockingEnabled = formData.get("codBlockingEnabled") === "true";
 
     const result = await CodRulesApplicationService.saveMerchantRules(shop, {
       rulesRejectCodOver,
       rulesRequirePrepaidAbove,
       rulesAutoFlagRepeatOffenders,
       rulesAutoRequireOtp,
-    });
+      codBlockingEnabled,
+    }, admin);
 
+    return Response.json(result);
+  }
+
+  if (intent === "toggle_cod_blocking") {
+    const enabled = formData.get("enabled") === "true";
+    const result = await CodRulesApplicationService.toggleCodBlocking(shop, enabled, admin);
     return Response.json(result);
   }
 
   if (intent === "toggle_pincode") {
     const pincode = formData.get("pincode") as string;
-    const res = await CodRulesApplicationService.togglePincode(shop, pincode);
+    const res = await CodRulesApplicationService.togglePincode(shop, pincode, admin);
     return Response.json(res);
   }
 
   if (intent === "bulk_import_pincodes") {
     const rawInput = formData.get("pincodesText") as string;
-    const res = await CodRulesApplicationService.bulkImportPincodes(shop, rawInput);
+    const res = await CodRulesApplicationService.bulkImportPincodes(shop, rawInput, admin);
     return Response.json(res);
   }
 
@@ -90,13 +161,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function CODRulesRoute() {
   const { codSettings, storeSettings, pincodeStats } = useLoaderData<typeof loader>();
+  const actionData = useActionData<any>();
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSaving = navigation.state === "submitting";
 
   const blockedPincodes = codSettings?.codBlockedPincodes || [];
   const [bulkInput, setBulkInput] = useState(blockedPincodes.join(", "));
-  const [saveBanner, setSaveBanner] = useState<string | null>(null);
+  const [bannerState, setBannerState] = useState<{ message: string; tone: "success" | "warning" | "critical" } | null>(null);
 
   // Intent A: High Value Orders
   const [rejectCodOver, setRejectCodOver] = useState((storeSettings?.rulesRejectCodOver || 999999).toString());
@@ -106,6 +178,23 @@ export default function CODRulesRoute() {
   const [flagRepeat, setFlagRepeat] = useState(storeSettings?.rulesAutoFlagRepeatOffenders ?? false);
   const [requireOtpRepeat, setRequireOtpRepeat] = useState(storeSettings?.rulesAutoRequireOtp ?? false);
 
+  // Intent C: Checkout Blocking Activation Toggle
+  const [codBlockingEnabled, setCodBlockingEnabled] = useState(codSettings?.codBlockingEnabled ?? false);
+
+  useEffect(() => {
+    setCodBlockingEnabled(codSettings?.codBlockingEnabled ?? false);
+  }, [codSettings?.codBlockingEnabled]);
+
+  useEffect(() => {
+    if (actionData?.message) {
+      const isWarn = actionData.syncResult && !actionData.syncResult.success;
+      setBannerState({
+        message: actionData.message,
+        tone: isWarn ? "warning" : actionData.success ? "success" : "critical",
+      });
+    }
+  }, [actionData]);
+
   const handleSaveRules = () => {
     const fd = new FormData();
     fd.append("intent", "save_merchant_rules");
@@ -113,9 +202,17 @@ export default function CODRulesRoute() {
     fd.append("rulesRequirePrepaidAbove", requirePrepaidAbove);
     fd.append("rulesAutoFlagRepeatOffenders", flagRepeat.toString());
     fd.append("rulesAutoRequireOtp", requireOtpRepeat.toString());
+    fd.append("codBlockingEnabled", codBlockingEnabled.toString());
     
     submit(fd, { method: "POST" });
-    setSaveBanner("Rules saved successfully!");
+  };
+
+  const handleToggleCodBlocking = (enabled: boolean) => {
+    setCodBlockingEnabled(enabled);
+    const fd = new FormData();
+    fd.append("intent", "toggle_cod_blocking");
+    fd.append("enabled", enabled.toString());
+    submit(fd, { method: "POST" });
   };
 
   const handleTogglePincode = (pincode: string) => {
@@ -130,7 +227,6 @@ export default function CODRulesRoute() {
     fd.append("intent", "bulk_import_pincodes");
     fd.append("pincodesText", bulkInput);
     submit(fd, { method: "POST" });
-    setSaveBanner("Bulk blocked pincodes updated!");
   };
 
   const blockedSet = new Set(blockedPincodes);
@@ -168,10 +264,10 @@ export default function CODRulesRoute() {
       }}
     >
       <Layout>
-        {saveBanner && (
+        {bannerState && (
           <Layout.Section>
-            <Banner tone="success" onDismiss={() => setSaveBanner(null)}>
-              {saveBanner}
+            <Banner tone={bannerState.tone} onDismiss={() => setBannerState(null)}>
+              {bannerState.message}
             </Banner>
           </Layout.Section>
         )}
@@ -269,6 +365,33 @@ export default function CODRulesRoute() {
                 <Text variant="bodySm" as="p" tone="subdued">
                   Disable COD entirely for selected high-risk pincodes.
                 </Text>
+
+                {/* ── Activation Toggle Card ── */}
+                <Box
+                  padding="400"
+                  background="bg-surface-secondary"
+                  borderRadius="200"
+                  borderWidth="025"
+                  borderColor="border"
+                >
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Checkbox
+                        label="Enable COD Checkout Blocking (Shopify Function)"
+                        checked={codBlockingEnabled}
+                        onChange={(newVal) => handleToggleCodBlocking(newVal)}
+                      />
+                      <Badge tone={codBlockingEnabled ? "success" : undefined}>
+                        {codBlockingEnabled ? "Active at Checkout" : "Inactive (Monitoring Only)"}
+                      </Badge>
+                    </InlineStack>
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      {codBlockingEnabled
+                        ? "ProfitRx automatically hides Cash on Delivery at your checkout whenever a customer enters any of your blocked pincodes below."
+                        : "Pincode rules and analytics are recorded in ProfitRx, but Cash on Delivery will remain available for all pincodes at checkout."}
+                    </Text>
+                  </BlockStack>
+                </Box>
 
                 <BlockStack gap="300">
                   <Text variant="headingSm" as="h3">Bulk Pincode Import / Export</Text>

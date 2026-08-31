@@ -151,24 +151,24 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
   const gridLines = [0, 0.25, 0.5, 0.75, 1];
 
   return (
-    <div style={{ width: "high", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
         <defs>
           <linearGradient id="grad-rev" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-            <stop offset="high" stopColor="#2563eb" stopOpacity="0.01" />
+            <stop offset="100%" stopColor="#2563eb" stopOpacity="0.01" />
           </linearGradient>
           <linearGradient id="grad-profit" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="top-rated0b981" stopOpacity="0.22" />
-            <stop offset="high" stopColor="top-rated0b981" stopOpacity="0.01" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
           </linearGradient>
           <linearGradient id="line-rev" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#7c3aed" />
-            <stop offset="high" stopColor="#2563eb" />
+            <stop offset="100%" stopColor="#2563eb" />
           </linearGradient>
           <linearGradient id="line-profit" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="top-rated0b981" />
-            <stop offset="high" stopColor="#06b6d4" />
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#06b6d4" />
           </linearGradient>
         </defs>
 
@@ -216,7 +216,7 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
               <circle cx={getX(index)} cy={getY(d.revenue)} r="3.5"
                 fill="#2563eb" stroke="rgba(37,99,235,0.3)" strokeWidth="4" />
               <circle cx={getX(index)} cy={getY(d.profit)} r="3.5"
-                fill="top-rated0b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
+                fill="#10b981" stroke="rgba(16,185,129,0.3)" strokeWidth="4" />
             </g>
           );
         })}
@@ -226,7 +226,7 @@ function ProfitTrendChart({ data }: { data: ChartItem[] }) {
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
           { color: "#2563eb", label: "Revenue (₹)" },
-          { color: "top-rated0b981", label: "Net Profit (₹)" },
+          { color: "#10b981", label: "Net Profit (₹)" },
         ].map((leg) => (
           <div key={leg.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 24, height: 3, backgroundColor: leg.color, borderRadius: 2 }} />
@@ -265,21 +265,21 @@ function ChannelBarChart({ data }: { data: any[] }) {
 
   const CHANNEL_COLORS: Record<string, { rev: string; profit: string }> = {
     ChatGPT: { rev: "#7c3aed", profit: "#5b21b6" },
-    Gemini: { rev: "#2563eb", profit: "top-ratedd4ed8" },
+    Gemini: { rev: "#2563eb", profit: "#1d4ed8" },
     Copilot: { rev: "#f59e0b", profit: "#d97706" },
     Website: { rev: "#475569", profit: "#334155" },
   };
 
   return (
-    <div style={{ width: "high", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
         <defs>
           {data.map((d) => {
             const c = CHANNEL_COLORS[d.name] || CHANNEL_COLORS.Website;
             return (
               <linearGradient key={`gr-${d.name}`} id={`bar-rev-${d.name}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={c.rev} stopOpacity="0.95" />
-                <stop offset="high" stopColor={c.rev} stopOpacity="0.5" />
+                <stop offset="100%" stopColor={c.rev} stopOpacity="0.5" />
               </linearGradient>
             );
           })}
@@ -326,7 +326,7 @@ function ChannelBarChart({ data }: { data: any[] }) {
       <div style={{ display: "flex", justifyContent: "center", gap: 20, marginTop: 8 }}>
         {[
           { color: "#7c3aed", label: "Revenue (₹)" },
-          { color: "top-rated0b981", label: "Profit (₹)" },
+          { color: "#10b981", label: "Profit (₹)" },
         ].map((leg) => (
           <div key={leg.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <div style={{ width: 12, height: 12, backgroundColor: leg.color, borderRadius: 3 }} />
@@ -443,20 +443,20 @@ function LeakTrendChart({ data }: { data: TrendItem[] }) {
   };
 
   return (
-    <div style={{ width: "high", overflowX: "auto" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} width="high" height={height}>
+    <div style={{ width: "100%", overflowX: "auto" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height}>
         <defs>
           <linearGradient id="rto-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#ef4444" stopOpacity="0.35" />
-            <stop offset="high" stopColor="#ef4444" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="#ef4444" stopOpacity="0.03" />
           </linearGradient>
           <linearGradient id="ship-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
-            <stop offset="high" stopColor="#f59e0b" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.03" />
           </linearGradient>
           <linearGradient id="disc-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.3" />
-            <stop offset="high" stopColor="#7c3aed" stopOpacity="0.03" />
+            <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.03" />
           </linearGradient>
         </defs>
 
@@ -535,7 +535,7 @@ function LeakInsight({ icon, title, amount, trend, detail, tone }: {
 
 // ── Channel icon map ──────────────────────────────────────
 const CHANNEL_META: Record<string, { icon: string; color: string }> = {
-  ChatGPT: { icon: "🤖", color: "top-rated0b981" },
+  ChatGPT: { icon: "🤖", color: "#10b981" },
   Gemini: { icon: "✨", color: "#3b82f6" },
   Copilot: { icon: "🔷", color: "#f59e0b" },
   Website: { icon: "🌐", color: "#64748b" },
@@ -714,16 +714,116 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
-        {/* ── ZERO-ORDER / SYNC WINDOW TRANSPARENCY BANNER ── */}
+        {/* ── ZERO-ORDER GUIDED EMPTY STATE ── */}
         {data.orderCount === 0 && (
           <Layout.Section>
-            <Banner tone="info" title="No Orders Found in Current 60-Day Window">
-              <p>
-                ProfitRx scans your store's orders from <strong>{data.syncWindow?.from || "the last 60 days"}</strong> to <strong>{data.syncWindow?.to || "today"}</strong>.
-                If your Shopify store only contains historical orders older than 60 days, Shopify Admin API requires the <code>read_all_orders</code> permission scope.
-                You can create a new test order in Shopify or click <strong>Sync Orders</strong> above to refresh.
-              </p>
-            </Banner>
+            <Card>
+              <Box padding="600">
+                <BlockStack gap="500" inlineAlign="center">
+                  <BlockStack gap="200" inlineAlign="center">
+                    <span style={{ fontSize: 56 }} aria-hidden="true">🛡️</span>
+                    <Text variant="headingLg" as="h2" alignment="center">
+                      Welcome to ProfitRx
+                    </Text>
+                    <Text variant="bodyMd" as="p" tone="subdued" alignment="center">
+                      No orders found in the current 60-day sync window ({data.syncWindow?.from || "recent"} – {data.syncWindow?.to || "today"}).
+                      Complete the steps below to start protecting your profits.
+                    </Text>
+                  </BlockStack>
+
+                  <Divider />
+
+                  <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
+                    {/* Step 1: Sync Orders */}
+                    <Grid.Cell>
+                      <div style={{
+                        padding: "20px",
+                        borderRadius: "var(--gg-radius-md)",
+                        border: "1px solid rgba(37,99,235,0.25)",
+                        background: "rgba(37,99,235,0.04)",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                      }}>
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <span style={{ fontSize: 28 }}>⟳</span>
+                            <Text variant="headingSm" as="h3">1. Sync Orders</Text>
+                          </InlineStack>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Pull your recent Shopify transactions so ProfitRx can calculate real profit, RTO rates, and risk scores.
+                          </Text>
+                        </BlockStack>
+                        <div style={{ marginTop: "16px" }}>
+                          <Button variant="primary" onClick={handleSyncOrders} loading={syncing} id="empty-state-sync-btn">
+                            Sync Orders Now
+                          </Button>
+                        </div>
+                      </div>
+                    </Grid.Cell>
+
+                    {/* Step 2: Configure COGS */}
+                    <Grid.Cell>
+                      <div style={{
+                        padding: "20px",
+                        borderRadius: "var(--gg-radius-md)",
+                        border: "1px solid rgba(16,185,129,0.25)",
+                        background: "rgba(16,185,129,0.04)",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                      }}>
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <span style={{ fontSize: 28 }}>💸</span>
+                            <Text variant="headingSm" as="h3">2. Configure COGS</Text>
+                          </InlineStack>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Set your product unit costs so ProfitRx can compute true net margins instead of estimates.
+                          </Text>
+                        </BlockStack>
+                        <div style={{ marginTop: "16px" }}>
+                          <Button variant="secondary" url={`/app/cogs?shop=${data.shop}&host=${data.host}`}>
+                            Configure COGS Catalog →
+                          </Button>
+                        </div>
+                      </div>
+                    </Grid.Cell>
+
+                    {/* Step 3: Configure Shipping */}
+                    <Grid.Cell>
+                      <div style={{
+                        padding: "20px",
+                        borderRadius: "var(--gg-radius-md)",
+                        border: "1px solid rgba(245,158,11,0.25)",
+                        background: "rgba(245,158,11,0.04)",
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                      }}>
+                        <BlockStack gap="200">
+                          <InlineStack gap="200" blockAlign="center">
+                            <span style={{ fontSize: 28 }}>🚚</span>
+                            <Text variant="headingSm" as="h3">3. Shipping & Costs</Text>
+                          </InlineStack>
+                          <Text variant="bodySm" as="p" tone="subdued">
+                            Set your forward shipping, return freight, and packaging costs for accurate RTO loss calculations.
+                          </Text>
+                        </BlockStack>
+                        <div style={{ marginTop: "16px" }}>
+                          <Button variant="secondary" url={`/app/settings?shop=${data.shop}&host=${data.host}`}>
+                            Configure Settings →
+                          </Button>
+                        </div>
+                      </div>
+                    </Grid.Cell>
+                  </Grid>
+                </BlockStack>
+              </Box>
+            </Card>
           </Layout.Section>
         )}
 
@@ -1026,7 +1126,7 @@ export default function DashboardRoute() {
               <div style={{
                 padding: "25px",
                 borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(56,189,248,0.1), rgba())",
+                background: "linear-gradient(135deg, rgba(56,189,248,0.1), rgba(59,130,246,0.05))",
                 border: "1px solid rgba(56,189,248,0.25)",
               }}>
                 <InlineStack align="space-between" blockAlign="center">
@@ -1287,7 +1387,7 @@ export default function DashboardRoute() {
                   <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
                     {wizardSteps.map((step, idx) => (
                       <Grid.Cell key={idx}>
-                        <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "high", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                        <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                           <BlockStack gap="200">
                             <InlineStack gap="200" blockAlign="center">
                               <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
@@ -1358,7 +1458,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(239,68,68,0.3)",
                             background: "rgba(239,68,68,0.06)",
-                            height: "high",
+                            height: "100%",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1391,7 +1491,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(245,158,11,0.3)",
                             background: "rgba(245,158,11,0.06)",
-                            height: "high",
+                            height: "100%",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1423,7 +1523,7 @@ export default function DashboardRoute() {
                             borderRadius: "var(--gg-radius-md)",
                             border: "1px solid rgba(56,189,248,0.3)",
                             background: "rgba(56,189,248,0.06)",
-                            height: "high",
+                            height: "100%",
                             display: "flex",
                             flexDirection: "column",
                             justifyContent: "space-between"
@@ -1630,7 +1730,7 @@ export default function DashboardRoute() {
                   <div style={{
                     padding: "20px 24px",
                     borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba())",
+                    background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(124,58,237,0.06))",
                     border: "1px solid rgba(239,68,68,0.2)",
                   }}>
                     <InlineStack align="space-between" blockAlign="center">
@@ -1696,7 +1796,7 @@ export default function DashboardRoute() {
                           />
                         </Grid.Cell>
                         <Grid.Cell>
-                          <div className="gg-kpi-card" style={{ height: "high" }}>
+                          <div className="gg-kpi-card" style={{ height: "100%" }}>
                             <BlockStack gap="200">
                               <InlineStack gap="150" blockAlign="center">
                                 <span style={{ fontSize: 18 }}>💡</span>
@@ -1744,7 +1844,7 @@ export default function DashboardRoute() {
                   <div style={{
                     padding: "20px 24px",
                     borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(168,85,247,0.12), rgba())",
+                    background: "linear-gradient(135deg, rgba(168,85,247,0.12), rgba(59,130,246,0.06))",
                     border: "1px solid rgba(168,85,247,0.2)",
                   }}>
                     <InlineStack align="space-between" blockAlign="center">

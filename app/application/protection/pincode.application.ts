@@ -178,6 +178,6 @@ export class PincodeApplicationService {
    */
   static async bulkBlockHighRisk(shop: string, pincodes: string[]): Promise<{ success: boolean; count: number }> {
     const updated = await CODManagementService.bulkUpdateBlockedPincodes(shop, pincodes);
-    return { success: true, count: updated.length };
+    return { success: true, count: updated.pincodes.length };
   }
 }

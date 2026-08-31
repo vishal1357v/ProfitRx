@@ -116,7 +116,7 @@ export default function ProfitHealthRoute() {
                       border: "1px solid var(--gg-border)",
                       borderRadius: "var(--gg-radius-md)",
                       padding: 20,
-                      height: "high",
+                      height: "100%",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "space-between",
