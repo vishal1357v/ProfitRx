@@ -192,6 +192,13 @@ export default function CODRulesRoute() {
         message: actionData.message,
         tone: isWarn ? "warning" : actionData.success ? "success" : "critical",
       });
+
+      // Revert optimistic toggle if Shopify sync failed — prevents false "Active at Checkout" badge
+      if (isWarn && actionData.enabled !== undefined) {
+        setCodBlockingEnabled(false);
+      } else if (actionData.enabled !== undefined) {
+        setCodBlockingEnabled(actionData.enabled);
+      }
     }
   }, [actionData]);
 

@@ -3,7 +3,7 @@
 > **Canonical Engineering Handbook**  
 > **Repository:** `shopify-apps/greek-god-saas` (ProfitRx RTO & Profit Intelligence)  
 > **Target Audience:** Senior Engineers, Core Maintainers, and AI Coding Agents  
-> **Last Updated:** July 2026  
+> **Last Updated:** September 2026  
 > **App Version:** v1.0.0 (Production Hardened)
 
 ---
@@ -454,12 +454,12 @@ erDiagram
 ### 7.1 Plan Definitions & Quotas
 ProfitRx defines four subscription tiers configured in `shopify.server.ts` and `subscription-sync.service.ts`:
 
-| Plan Tier | Monthly Price (INR) | Trial Period | Order Quota | Core Included Features |
+| Plan Tier | Monthly Price (USD) | Trial Period | Order Quota | Core Included Features |
 | :--- | :--- | :--- | :--- | :--- |
-| **FREE** | ₹0 | N/A | 50 orders/mo | Profit Dashboard, Health Score |
-| **STARTER** | ₹1,500 | 14 Days | 500 orders/mo | All FREE + Product COGS, Basic RTO, GST Reports, Weekly WhatsApp Digest |
-| **GROWTH** | ₹3,000 | 14 Days | 2,000 orders/mo | All STARTER + COD Risk Score, RTO Heatmap, Profit Leaks, COD Shield |
-| **PRO** | ₹6,000 | 14 Days | Unlimited | All GROWTH + LTV Cohorts, Blended ROAS, Priority Support, API Access |
+| **FREE** | $0 | N/A | 50 orders/mo | Profit Dashboard, Health Score |
+| **STARTER** | $19 | 14 Days | 500 orders/mo | All FREE + Product COGS, Basic RTO, GST Reports, Weekly WhatsApp Digest |
+| **GROWTH** | $39 | 14 Days | 2,000 orders/mo | All STARTER + COD Risk Score, RTO Heatmap, Profit Leaks, COD Shield |
+| **PRO** | $79 | 14 Days | Unlimited | All GROWTH + LTV Cohorts, Blended ROAS, Priority Support, API Access |
 
 ### 7.2 Billing Synchronization & Resilience Architecture
 - **5-Minute TTFB Cache:** `syncSubscriptionWithShopify` queries the local `Subscription` table first. If the record was updated within the last 5 minutes, it returns immediately, avoiding unnecessary network overhead to Shopify.

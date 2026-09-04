@@ -154,7 +154,7 @@ export default function BillingPage() {
                 <InlineStack gap="150" blockAlign="center">
                   <Icon source={FinanceIcon} tone="success" />
                   <Text variant="headingLg" as="h2">Value Delivered This Month</Text>
-                  <Badge tone="success">10x ROI Return</Badge>
+                    {totalRtoSavings > 0 && <Badge tone="success">Profit Protected</Badge>}
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
                   Estimated profit saved by blocking high-risk RTO pincodes and optimizing courier costs.
