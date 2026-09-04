@@ -120,8 +120,8 @@ export class CogsApplicationService {
   /**
    * Triggers Shopify native COGS sync.
    */
-  static async syncNativeCogs(request: Request): Promise<any> {
-    return ShopifyService.syncNativeCOGS(request);
+  static async syncNativeCogs(requestOrAdmin: any, shop?: string): Promise<any> {
+    return ShopifyService.syncNativeCOGS(requestOrAdmin, shop);
   }
 
   /**

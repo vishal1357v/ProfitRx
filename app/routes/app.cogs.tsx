@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useActionData, useLoaderData, useNavigation, useSubmit } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -44,35 +44,43 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
-  const formData = await request.formData();
-  const intent = formData.get("intent") as string;
+  try {
+    const { session, admin } = await authenticate.admin(request);
+    const shop = session.shop;
+    const formData = await request.formData();
+    const intent = formData.get("intent") as string;
 
-  if (intent === "sync_native_cogs") {
-    const result = await CogsApplicationService.syncNativeCogs(request);
-    return Response.json({ success: true, ...result });
+    if (intent === "sync_native_cogs") {
+      const result = await CogsApplicationService.syncNativeCogs(admin, shop);
+      return Response.json({ success: true, ...result });
+    }
+
+    if (intent === "refresh_historical_cogs") {
+      const result = await CogsApplicationService.refreshHistoricalCogs(shop);
+      return Response.json({ success: true, ...result });
+    }
+
+    if (intent === "save_cogs") {
+      const cogsDataStr = formData.get("cogsData") as string;
+      const cogsData = JSON.parse(cogsDataStr) as Record<string, number>;
+      await CogsApplicationService.saveCogs(shop, cogsData);
+      return Response.json({ success: true });
+    }
+
+    if (intent === "update_default_cogs") {
+      const defaultCOGSPct = parseFloat(formData.get("defaultCOGSPct") as string) || 40;
+      await CogsApplicationService.updateDefaultCogs(shop, defaultCOGSPct);
+      return Response.json({ success: true });
+    }
+
+    return Response.json({ error: "Invalid Intent" }, { status: 400 });
+  } catch (error: any) {
+    console.error("[app.cogs Action Error]:", error);
+    return Response.json(
+      { success: false, error: error?.message || "Failed to complete COGS action" },
+      { status: 200 }
+    );
   }
-
-  if (intent === "refresh_historical_cogs") {
-    const result = await CogsApplicationService.refreshHistoricalCogs(shop);
-    return Response.json({ success: true, ...result });
-  }
-
-  if (intent === "save_cogs") {
-    const cogsDataStr = formData.get("cogsData") as string;
-    const cogsData = JSON.parse(cogsDataStr) as Record<string, number>;
-    await CogsApplicationService.saveCogs(shop, cogsData);
-    return Response.json({ success: true });
-  }
-
-  if (intent === "update_default_cogs") {
-    const defaultCOGSPct = parseFloat(formData.get("defaultCOGSPct") as string) || 40;
-    await CogsApplicationService.updateDefaultCogs(shop, defaultCOGSPct);
-    return Response.json({ success: true });
-  }
-
-  return Response.json({ error: "Invalid Intent" }, { status: 400 });
 };
 
 type CogsInputProps = {
@@ -150,6 +158,22 @@ export default function COGSPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [csvMessage, setCsvMessage] = useState<string | null>(null);
+  const actionData = useActionData<typeof action>();
+
+  useEffect(() => {
+    if (actionData) {
+      if ((actionData as any).success) {
+        if ((actionData as any).message) {
+          setCsvMessage((actionData as any).message);
+        } else {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 4000);
+        }
+      } else if ((actionData as any).error) {
+        setError((actionData as any).error);
+      }
+    }
+  }, [actionData]);
 
   const handleCogsChange = (productId: string, value: string) => {
     setCogsValues((current) => ({

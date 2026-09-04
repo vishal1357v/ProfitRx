@@ -298,68 +298,146 @@ export class ShopifyService {
     let hasNextPage = true;
     let endCursor: string | null = null;
     const allProducts: any[] = [];
+    let supportsInventoryCost = true;
 
     while (hasNextPage) {
-      const response = await admin.graphql(`
-        query GetProducts($cursor: String) {
-          products(first: 250, after: $cursor) {
-            edges {
-              node {
-                id
-                title
-                variants(first: 100) {
-                  edges {
-                    node {
-                      id
-                      price
-                      inventoryItem {
-                        id
-                        unitCost {
-                          amount
+      let data: any = null;
+
+      if (supportsInventoryCost) {
+        try {
+          const response = await admin.graphql(`
+            query GetProductsWithCost($cursor: String) {
+              products(first: 250, after: $cursor) {
+                edges {
+                  node {
+                    id
+                    title
+                    variants(first: 100) {
+                      edges {
+                        node {
+                          id
+                          price
+                          inventoryItem {
+                            id
+                            unitCost {
+                              amount
+                            }
+                          }
                         }
                       }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                    metafield(namespace: "greek_god", key: "cogs") {
+                      value
                     }
                   }
-                  pageInfo { hasNextPage endCursor }
                 }
-                metafield(namespace: "greek_god", key: "cogs") {
-                  value
-                }
+                pageInfo { hasNextPage endCursor }
               }
             }
-            pageInfo { hasNextPage endCursor }
+          `, { variables: { cursor: endCursor } });
+
+          data = await response.json() as any;
+          if (data.errors?.length) {
+            console.warn("[ShopifyService] GraphQL error querying unitCost, falling back to basic products:", data.errors[0].message);
+            supportsInventoryCost = false;
+            data = null;
           }
+        } catch (err: any) {
+          console.warn("[ShopifyService] Forbidden (403) or error querying unitCost, falling back to basic products query:", err?.message || err);
+          supportsInventoryCost = false;
+          data = null;
         }
-      `, { variables: { cursor: endCursor } });
+      }
 
-      const data = await response.json() as any;
+      if (!supportsInventoryCost || !data) {
+        try {
+          const response = await admin.graphql(`
+            query GetProductsBasic($cursor: String) {
+              products(first: 250, after: $cursor) {
+                edges {
+                  node {
+                    id
+                    title
+                    variants(first: 100) {
+                      edges {
+                        node {
+                          id
+                          price
+                        }
+                      }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                    metafield(namespace: "greek_god", key: "cogs") {
+                      value
+                    }
+                  }
+                }
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          `, { variables: { cursor: endCursor } });
 
-      if (data.errors?.length) throw new Error(data.errors[0].message);
+          data = await response.json() as any;
+          if (data.errors?.length) throw new Error(data.errors[0].message);
+        } catch (basicErr: any) {
+          console.error("[ShopifyService] Failed to load basic products:", basicErr);
+          throw basicErr;
+        }
+      }
 
-      const edges = data.data.products.edges || [];
+      const edges = data?.data?.products?.edges || [];
       
       for (const edge of edges) {
-        let vHasNext = edge.node.variants.pageInfo?.hasNextPage;
-        let vCursor = edge.node.variants.pageInfo?.endCursor;
+        let vHasNext = edge.node.variants?.pageInfo?.hasNextPage;
+        let vCursor = edge.node.variants?.pageInfo?.endCursor;
         while (vHasNext) {
-          const vResp = await admin.graphql(`
-            query GetVariants($productId: ID!, $cursor: String) {
-              product(id: $productId) {
-                variants(first: 100, after: $cursor) {
-                  edges {
-                    node { id price inventoryItem { id unitCost { amount } } }
+          try {
+            if (supportsInventoryCost) {
+              const vResp = await admin.graphql(`
+                query GetVariantsWithCost($productId: ID!, $cursor: String) {
+                  product(id: $productId) {
+                    variants(first: 100, after: $cursor) {
+                      edges {
+                        node { id price inventoryItem { id unitCost { amount } } }
+                      }
+                      pageInfo { hasNextPage endCursor }
+                    }
                   }
-                  pageInfo { hasNextPage endCursor }
                 }
+              `, { variables: { productId: edge.node.id, cursor: vCursor } });
+              const vData = await vResp.json() as any;
+              if (vData.data?.product?.variants) {
+                edge.node.variants.edges.push(...vData.data.product.variants.edges);
+                vHasNext = vData.data.product.variants.pageInfo?.hasNextPage;
+                vCursor = vData.data.product.variants.pageInfo?.endCursor;
+              } else {
+                vHasNext = false;
+              }
+            } else {
+              const vResp = await admin.graphql(`
+                query GetVariantsBasic($productId: ID!, $cursor: String) {
+                  product(id: $productId) {
+                    variants(first: 100, after: $cursor) {
+                      edges {
+                        node { id price }
+                      }
+                      pageInfo { hasNextPage endCursor }
+                    }
+                  }
+                }
+              `, { variables: { productId: edge.node.id, cursor: vCursor } });
+              const vData = await vResp.json() as any;
+              if (vData.data?.product?.variants) {
+                edge.node.variants.edges.push(...vData.data.product.variants.edges);
+                vHasNext = vData.data.product.variants.pageInfo?.hasNextPage;
+                vCursor = vData.data.product.variants.pageInfo?.endCursor;
+              } else {
+                vHasNext = false;
               }
             }
-          `, { variables: { productId: edge.node.id, cursor: vCursor } });
-          const vData = await vResp.json() as any;
-          if (vData.data?.product?.variants) {
-            edge.node.variants.edges.push(...vData.data.product.variants.edges);
-            vHasNext = vData.data.product.variants.pageInfo.hasNextPage;
-            vCursor = vData.data.product.variants.pageInfo.endCursor;
-          } else {
+          } catch (vErr) {
+            console.warn("[ShopifyService] Error paging variants for", edge.node.id, vErr);
             vHasNext = false;
           }
         }
@@ -370,7 +448,7 @@ export class ShopifyService {
           id: edge.node.id.split("/").pop() || "",
           title: edge.node.title,
           cogsFromMetafield: edge.node.metafield?.value ? parseFloat(edge.node.metafield.value) : null,
-          variants: edge.node.variants.edges.map((ve: any) => ({
+          variants: (edge.node.variants?.edges || []).map((ve: any) => ({
             id: ve.node.id.split("/").pop(),
             price: ve.node.price,
             shopifyNativeCost: ve.node.inventoryItem?.unitCost?.amount ? parseFloat(ve.node.inventoryItem.unitCost.amount) : null
@@ -378,10 +456,10 @@ export class ShopifyService {
         };
       }));
 
-      hasNextPage = data.data.products.pageInfo?.hasNextPage || false;
-      endCursor = data.data.products.pageInfo?.endCursor || null;
+      hasNextPage = data?.data?.products?.pageInfo?.hasNextPage || false;
+      endCursor = data?.data?.products?.pageInfo?.endCursor || null;
 
-      const cost = data.extensions?.cost;
+      const cost = data?.extensions?.cost;
       if (cost && cost.throttleStatus?.currentlyAvailable < 1000) {
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
