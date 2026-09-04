@@ -15,7 +15,7 @@ const DEFAULT_APP_URL = rawAppUrl || "https://greek-god-saas.vercel.app";
 const DEFAULT_API_KEY = (process.env.SHOPIFY_API_KEY || "").trim();
 const DEFAULT_SCOPES = process.env.SCOPES
   ? process.env.SCOPES.split(",").map((s) => s.trim())
-  : ["read_products","write_products","read_orders","write_orders","read_customers","read_fulfillments","write_payment_customizations"];
+  : ["read_products","write_products","read_orders","write_orders","read_customers","read_fulfillments","read_inventory","write_payment_customizations"];
 
 let apiSecretKey = (process.env.SHOPIFY_API_SECRET || "").trim();
 if (apiSecretKey.startsWith("<") && apiSecretKey.endsWith(">")) {
