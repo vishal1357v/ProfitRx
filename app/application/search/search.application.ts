@@ -176,10 +176,11 @@ export class SearchApplicationService {
     });
 
     riskOrders.forEach((o) => {
-      if (!results.find((r) => r.id === o.id)) {
+      const riskId = `risk_${o.id}`;
+      if (!results.find((r) => r.id === riskId)) {
         const cleanId = String(o.id).replace("gid://shopify/Order/", "");
         results.push({
-          id: o.id,
+          id: riskId,
           title: `Risk Order #${o.orderNumber}`,
           subtitle: `${o.riskLevel} risk (score: ${o.riskScore}) · ${o.customerName || "Guest"}`,
           category: "risk",

@@ -137,8 +137,8 @@ export class OrderDetailApplicationService {
 
     // 2. Fetch associated Logs, Learnings, and Store Settings in parallel
     const [executionLogs, learningRecords, rawSettings, policy] = await Promise.all([
-      ExecutionLogRepository.findByOrderId(shop, orderId),
-      LearningRecordRepository.findByOrderId(shop, orderId),
+      ExecutionLogRepository.findByOrderId(shop, order.id),
+      LearningRecordRepository.findByOrderId(shop, order.id),
       SettingsRepository.getByShop(shop),
       SettingsRepository.getMerchantPolicy(shop),
     ]);

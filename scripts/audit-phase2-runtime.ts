@@ -89,13 +89,14 @@ async function runAudit() {
     console.log("\n--- 2. Testing Pincode Protection & Multi-Tenant Scoping ---");
 
     // Seed Pincode Stats
-    await prisma.pincodeStats.createMany({
-      data: [
-        { shop: SHOP_A, pincode: "110001", city: "New Delhi", province: "Delhi", totalOrders: 20, codOrders: 15, rtoCount: 6, totalLoss: 1200, rtoRate: 40.0, riskLevel: "CRITICAL" },
-        { shop: SHOP_A, pincode: "560001", city: "Bengaluru", province: "Karnataka", totalOrders: 30, codOrders: 10, rtoCount: 1, totalLoss: 180, rtoRate: 10.0, riskLevel: "LOW" },
-        { shop: SHOP_B, pincode: "110001", city: "New Delhi", province: "Delhi", totalOrders: 5, codOrders: 5, rtoCount: 0, totalLoss: 0, rtoRate: 0.0, riskLevel: "LOW" },
-      ],
-    });
+    const pincodesToSeed = [
+      { shop: SHOP_A, pincode: "110001", city: "New Delhi", province: "Delhi", totalOrders: 20, codOrders: 15, rtoCount: 6, totalLoss: 1200, rtoRate: 40.0, riskLevel: "CRITICAL" },
+      { shop: SHOP_A, pincode: "560001", city: "Bengaluru", province: "Karnataka", totalOrders: 30, codOrders: 10, rtoCount: 1, totalLoss: 180, rtoRate: 10.0, riskLevel: "LOW" },
+      { shop: SHOP_B, pincode: "110001", city: "New Delhi", province: "Delhi", totalOrders: 5, codOrders: 5, rtoCount: 0, totalLoss: 0, rtoRate: 0.0, riskLevel: "LOW" },
+    ];
+    for (const p of pincodesToSeed) {
+      await prisma.pincodeStats.create({ data: p });
+    }
 
     // Toggle Block on Pincode '110001' for Shop A
     const toggleBlock1 = await CodRulesApplicationService.togglePincode(SHOP_A, "110001");
@@ -149,12 +150,13 @@ async function runAudit() {
     }
 
     // Seed RTO events
-    await prisma.rTOEvent.createMany({
-      data: [
-        { shop: SHOP_A, orderId: "gid://shopify/Order/101", orderNumber: 101, eventType: "RTO", amount: 200, status: "CONFIRMED" },
-        { shop: SHOP_A, orderId: "gid://shopify/Order/102", orderNumber: 102, eventType: "RTO", amount: 180, status: "CONFIRMED" },
-      ],
-    });
+    const rtoEventsToSeed = [
+      { shop: SHOP_A, orderId: "gid://shopify/Order/101", orderNumber: 101, eventType: "RTO", amount: 200, status: "CONFIRMED" },
+      { shop: SHOP_A, orderId: "gid://shopify/Order/102", orderNumber: 102, eventType: "RTO", amount: 180, status: "CONFIRMED" },
+    ];
+    for (const r of rtoEventsToSeed) {
+      await prisma.rTOEvent.create({ data: r });
+    }
 
     const heatmapData = await PincodeApplicationService.getPincodeHeatmapData(SHOP_A, "admin.shopify.com/store/audit-merchant-alpha");
 

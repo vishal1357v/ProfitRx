@@ -83,12 +83,13 @@ async function runPhase3Audit() {
     }
 
     // Seed RTO Events for Shop A (Order 201 & 202)
-    await prisma.rTOEvent.createMany({
-      data: [
-        { shop: SHOP_A, orderId: "gid://shopify/Order/201", orderNumber: 201, eventType: "RTO", amount: 250, status: "CONFIRMED", reason: "Customer not available", createdAt: now },
-        { shop: SHOP_A, orderId: "gid://shopify/Order/202", orderNumber: 202, eventType: "RTO", amount: 180, status: "CONFIRMED", reason: "Refused at doorstep", createdAt: now },
-      ],
-    });
+    const rtoEventsToSeed = [
+      { shop: SHOP_A, orderId: "gid://shopify/Order/201", orderNumber: 201, eventType: "RTO", amount: 250, status: "CONFIRMED", reason: "Customer not available", createdAt: now },
+      { shop: SHOP_A, orderId: "gid://shopify/Order/202", orderNumber: 202, eventType: "RTO", amount: 180, status: "CONFIRMED", reason: "Refused at doorstep", createdAt: now },
+    ];
+    for (const r of rtoEventsToSeed) {
+      await prisma.rTOEvent.create({ data: r });
+    }
 
     // ─────────────────────────────────────────────────────────────
     // PART 1: RTO Analytics Tests

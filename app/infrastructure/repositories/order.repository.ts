@@ -60,11 +60,17 @@ export class OrderRepository {
     const decodedId = decodeURIComponent(orderId);
     const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
     const rawId = decodedId.replace("gid://shopify/Order/", "");
+    const shopPrefix = shop.replace(/[^a-zA-Z0-9]/g, "_");
+    const scopedId = `${shopPrefix}_${rawId}`;
+    const orderNum = parseInt(rawId.replace(/^ord-/, ""), 10);
 
     const order = await prisma.order.findFirst({
       where: {
         shop,
-        id: { in: [orderId, gid, rawId, decodedId] },
+        OR: [
+          { id: { in: [orderId, gid, rawId, decodedId, scopedId] } },
+          ...(isNaN(orderNum) ? [] : [{ orderNumber: orderNum }]),
+        ],
       },
       include: { lineItems: true },
     });

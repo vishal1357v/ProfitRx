@@ -57,58 +57,59 @@ async function runPhase4Audit() {
     console.log("\n--- 1. Testing Customer Intelligence & Cohort Analytics ---");
 
     // Seed Customer Profiles for Shop A
-    await prisma.customerProfile.createMany({
-      data: [
-        {
-          shop: SHOP_A,
-          customerId: "cust-1",
-          customerName: "Aarav Sharma",
-          customerEmail: "aarav@example.com",
-          orderCount: 3,
-          totalRevenue: 6000,
-          totalProfit: 2400,
-          ltv: 6000,
-          aov: 2000,
-          repeatRate: 66.7,
-          cohortMonth: "2025-01",
-          channelSource: "ChatGPT",
-          firstOrderDate: new Date("2025-01-10"),
-          lastOrderDate: new Date("2025-02-15"),
-        },
-        {
-          shop: SHOP_A,
-          customerId: "cust-2",
-          customerName: "Priya Patel",
-          customerEmail: "priya@example.com",
-          orderCount: 1,
-          totalRevenue: 1500,
-          totalProfit: 600,
-          ltv: 1500,
-          aov: 1500,
-          repeatRate: 0,
-          cohortMonth: "2025-01",
-          channelSource: "Website",
-          firstOrderDate: new Date("2025-01-20"),
-          lastOrderDate: new Date("2025-01-20"),
-        },
-        {
-          shop: SHOP_A,
-          customerId: "cust-3",
-          customerName: "Rohan Verma",
-          customerEmail: "rohan@example.com",
-          orderCount: 2,
-          totalRevenue: 4000,
-          totalProfit: 1600,
-          ltv: 4000,
-          aov: 2000,
-          repeatRate: 50.0,
-          cohortMonth: "2025-02",
-          channelSource: "Gemini",
-          firstOrderDate: new Date("2025-02-05"),
-          lastOrderDate: new Date("2025-03-01"),
-        },
-      ],
-    });
+    const profilesToSeed = [
+      {
+        shop: SHOP_A,
+        customerId: "cust-1",
+        customerName: "Aarav Sharma",
+        customerEmail: "aarav@example.com",
+        orderCount: 3,
+        totalRevenue: 6000,
+        totalProfit: 2400,
+        ltv: 6000,
+        aov: 2000,
+        repeatRate: 66.7,
+        cohortMonth: "2025-01",
+        channelSource: "ChatGPT",
+        firstOrderDate: new Date("2025-01-10"),
+        lastOrderDate: new Date("2025-02-15"),
+      },
+      {
+        shop: SHOP_A,
+        customerId: "cust-2",
+        customerName: "Priya Patel",
+        customerEmail: "priya@example.com",
+        orderCount: 1,
+        totalRevenue: 1500,
+        totalProfit: 600,
+        ltv: 1500,
+        aov: 1500,
+        repeatRate: 0,
+        cohortMonth: "2025-01",
+        channelSource: "Website",
+        firstOrderDate: new Date("2025-01-20"),
+        lastOrderDate: new Date("2025-01-20"),
+      },
+      {
+        shop: SHOP_A,
+        customerId: "cust-3",
+        customerName: "Rohan Verma",
+        customerEmail: "rohan@example.com",
+        orderCount: 2,
+        totalRevenue: 4000,
+        totalProfit: 1600,
+        ltv: 4000,
+        aov: 2000,
+        repeatRate: 50.0,
+        cohortMonth: "2025-02",
+        channelSource: "Gemini",
+        firstOrderDate: new Date("2025-02-05"),
+        lastOrderDate: new Date("2025-03-01"),
+      },
+    ];
+    for (const p of profilesToSeed) {
+      await prisma.customerProfile.create({ data: p });
+    }
 
     const customerData = await CustomerAnalyticsApplicationService.getCustomerAnalytics(SHOP_A, "host-a");
     assert(customerData.hasAccess === true, "Customer analytics has access");
@@ -126,12 +127,13 @@ async function runPhase4Audit() {
     console.log("\n--- 2. Testing Marketing ROAS & Ad Spend Management ---");
 
     // Seed Orders for Shop A (Total Revenue = 15,000)
-    await prisma.order.createMany({
-      data: [
-        { id: "gid://shopify/Order/301", shop: SHOP_A, orderNumber: 301, totalPrice: 5000, subtotalPrice: 4500, totalTax: 500, shippingPrice: 0, isCOD: false, gateway: "Razorpay", financialStatus: "paid", fulfillmentStatus: "fulfilled", createdAt: now, processedAt: now },
-        { id: "gid://shopify/Order/302", shop: SHOP_A, orderNumber: 302, totalPrice: 10000, subtotalPrice: 9000, totalTax: 1000, shippingPrice: 0, isCOD: false, gateway: "Shopify Payments", financialStatus: "paid", fulfillmentStatus: "fulfilled", createdAt: now, processedAt: now },
-      ],
-    });
+    const ordersToSeed = [
+      { id: "gid://shopify/Order/301", shop: SHOP_A, orderNumber: 301, totalPrice: 5000, subtotalPrice: 4500, totalTax: 500, shippingPrice: 0, isCOD: false, gateway: "Razorpay", financialStatus: "paid", fulfillmentStatus: "fulfilled", createdAt: now, processedAt: now },
+      { id: "gid://shopify/Order/302", shop: SHOP_A, orderNumber: 302, totalPrice: 10000, subtotalPrice: 9000, totalTax: 1000, shippingPrice: 0, isCOD: false, gateway: "Shopify Payments", financialStatus: "paid", fulfillmentStatus: "fulfilled", createdAt: now, processedAt: now },
+    ];
+    for (const o of ordersToSeed) {
+      await prisma.order.create({ data: o });
+    }
 
     // Save Manual Ad Spend
     const saveMeta = await RoasAnalyticsApplicationService.saveAdSpend(SHOP_A, {

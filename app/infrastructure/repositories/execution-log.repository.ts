@@ -22,11 +22,13 @@ export class ExecutionLogRepository {
     const decodedId = decodeURIComponent(orderId);
     const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
     const rawId = decodedId.replace("gid://shopify/Order/", "");
+    const shopPrefix = shop.replace(/[^a-zA-Z0-9]/g, "_");
+    const scopedId = `${shopPrefix}_${rawId}`;
 
     return prisma.executionLog.findMany({
       where: {
         shop,
-        orderId: { in: [gid, rawId, decodedId] },
+        orderId: { in: [gid, rawId, decodedId, orderId, scopedId] },
       },
       orderBy: { createdAt: "asc" },
     });
