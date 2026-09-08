@@ -10,9 +10,7 @@ import {
   InlineStack,
   Text,
   Button,
-  TextField,
   Badge,
-  Banner,
   Divider,
   List,
   Box,
@@ -28,31 +26,28 @@ import {
 } from "@shopify/polaris-icons";
 import enTranslations from "@shopify/polaris/locales/en.json";
 
+/**
+ * Configuration constant for the canonical Shopify App Store listing URL.
+ * Set SHOPIFY_APP_STORE_URL in the environment or update this constant
+ * with the verified app listing URL once published by Shopify.
+ */
+export const SHOPIFY_APP_STORE_URL =
+  process.env.SHOPIFY_APP_STORE_URL || "https://apps.shopify.com";
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   if (shop) {
     throw redirect(`/app?${url.searchParams.toString()}`);
   }
-  return { showBanner: false };
+  return {
+    appStoreUrl: SHOPIFY_APP_STORE_URL,
+  };
 };
 
 export default function IndexRoute() {
-  const { showBanner } = useLoaderData<typeof loader>();
-  const [shop, setShop] = useState("");
+  const { appStoreUrl } = useLoaderData<typeof loader>();
   const [faqOpen, setFaqOpen] = useState<Record<number, boolean>>({});
-
-  const handleInstall = () => {
-    let d = shop.trim().toLowerCase();
-    if (!d) return;
-    if (!d.includes(".")) d = `${d}.myshopify.com`;
-    if (!d.startsWith("http")) d = `https://${d}`;
-    try {
-      window.location.href = `/auth/login?shop=${encodeURIComponent(new URL(d).hostname)}`;
-    } catch {
-      window.location.href = `/auth/login?shop=${encodeURIComponent(shop.trim())}`;
-    }
-  };
 
   const faqs = [
     {
@@ -89,7 +84,7 @@ export default function IndexRoute() {
                 <Text variant="bodyXs" as="span" tone="subdued">COD risk management &amp; profit tracking for Shopify</Text>
               </BlockStack>
             </InlineStack>
-            <Button variant="primary" url="/auth/login">Install app</Button>
+            <Button variant="primary" url={appStoreUrl} target="_top">Install app</Button>
           </InlineStack>
 
           <Divider />
@@ -109,21 +104,22 @@ export default function IndexRoute() {
             <Layout.Section variant="oneThird">
               <Card>
                 <BlockStack gap="400">
-                  <Text variant="headingSm" as="h3">Connect your store</Text>
-                  <TextField
-                    label="Store URL"
-                    value={shop}
-                    onChange={setShop}
-                    placeholder="your-store.myshopify.com"
-                    autoComplete="off"
-                  />
-                  <Button variant="primary" fullWidth onClick={handleInstall}>
-                    Install ProfitRx
+                  <Text variant="headingSm" as="h3">Install on Shopify</Text>
+                  <Text variant="bodySm" as="p" tone="subdued">
+                    Install ProfitRx directly through the official Shopify App Store for verified, one-click authorization.
+                  </Text>
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    url={appStoreUrl}
+                    target="_top"
+                  >
+                    Install from Shopify App Store
                   </Button>
                   <InlineStack gap="300" align="center">
                     <InlineStack gap="100" blockAlign="center">
                       <Icon source={LockIcon} tone="subdued" />
-                      <Text variant="bodyXs" as="span" tone="subdued">OAuth</Text>
+                      <Text variant="bodyXs" as="span" tone="subdued">Official App</Text>
                     </InlineStack>
                     <Text variant="bodyXs" as="span" tone="subdued">·</Text>
                     <Text variant="bodyXs" as="span" tone="subdued">14-day trial</Text>
@@ -242,7 +238,7 @@ export default function IndexRoute() {
                         <List.Item key={f}>{f}</List.Item>
                       ))}
                     </List>
-                    <Button fullWidth url="/auth/login">Start trial</Button>
+                    <Button fullWidth url={appStoreUrl} target="_top">Start trial</Button>
                   </BlockStack>
                 </Card>
               ))}
