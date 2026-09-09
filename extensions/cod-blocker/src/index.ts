@@ -1,4 +1,8 @@
-import { cartPaymentMethodsTransformRun, run } from "./run";
+import { cartPaymentMethodsTransformRun, run as originalRun } from "./run";
+
+export function run(input: any) {
+  return originalRun(input);
+}
 
 export default run;
-export { cartPaymentMethodsTransformRun, run };
+export { cartPaymentMethodsTransformRun };

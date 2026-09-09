@@ -308,7 +308,7 @@ export default function ProfitLeaksRoute() {
             >
               <p>
                 {cogsTransparency.estimationReason ||
-                  "Some margins are estimated using default store percentage. Add exact product costs in the COGS Catalog for 100% precision."}
+                  "Some margins are estimated using default store percentage. Add exact product costs in the COGS Catalog for exact precision."}
               </p>
             </Banner>
           </Layout.Section>
