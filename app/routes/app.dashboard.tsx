@@ -61,7 +61,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const { DashboardApplicationService } = await import("../application/dashboard/dashboard.application");
   const { AuditLogService } = await import("../services/compliance/audit-log.service");
-  
+
   const meta = AuditLogService.extractRequestMeta(request);
   AuditLogService.logAccess({
     shop: session.shop,
@@ -563,7 +563,6 @@ export default function DashboardRoute() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
-  const [whatsappSubscribed, setWhatsappSubscribed] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
@@ -1137,7 +1136,7 @@ export default function DashboardRoute() {
                       <Badge tone="success">Active Moat Engine</Badge>
                     </InlineStack>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      ProfitRx combines real COD management (pincode blocking, OTP verification, deposit fees) with true COD profit tracking.
+                      ProfitRx combines real COD management (pincode blocking, high-risk detection) with true COD profit tracking.
                     </Text>
                   </BlockStack>
                   <InlineStack gap="200">
@@ -1929,71 +1928,6 @@ export default function DashboardRoute() {
           </Tabs>
         </Layout.Section>
 
-        {data.settings.whatsappEnabled && data.settings.whatsappPhone && (
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="300">
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <Text variant="headingMd" as="h2">💬 Weekly WhatsApp Profit Digest</Text>
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      Get weekly summaries and actionable optimizations delivered to your WhatsApp.
-                    </Text>
-                  </BlockStack>
-                  <Button
-                    variant={whatsappSubscribed ? "secondary" : "primary"}
-                    onClick={() => {
-                      setWhatsappSubscribed(!whatsappSubscribed);
-                      setSyncMessage(`Weekly WhatsApp Digest ${!whatsappSubscribed ? "Subscribed!" : "Unsubscribed"}`);
-                      setSyncSuccess(true);
-                    }}
-                  >
-                    {whatsappSubscribed ? "✓ Subscribed" : "Enable WhatsApp Digest"}
-                  </Button>
-                </InlineStack>
-
-                {/* WhatsApp Chat Preview Bubble */}
-                <div style={{
-                  background: "#e5ddd5",
-                  borderRadius: "8px",
-                  padding: "16px",
-                  fontFamily: "sans-serif",
-                  position: "relative",
-                  border: "1px solid rgba(0,0,0,0.1)"
-                }}>
-                  <div style={{
-                    background: "#fff",
-                    borderRadius: "7px",
-                    padding: "10px 14px",
-                    maxWidth: "85%",
-                    boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
-                    fontSize: "13px",
-                    lineHeight: "1.4",
-                    position: "relative",
-                    color: "#303030"
-                  }}>
-                    <div style={{ fontWeight: "bold", color: "#075e54", marginBottom: "4px" }}> PROFITRX PROFIT DIGEST</div>
-                    <div>📅 <strong>Monday Morning Summary:</strong></div>
-                    <div style={{ marginBlock: "6px" }}>
-                      • <strong>True Profit:</strong> ₹{Math.round(data.netProfit).toLocaleString("en-IN")} <br />
-                      • <strong>Net Margin:</strong> {data.netMargin}% <br />
-                      • <strong>RTO Loss:</strong> ₹{Math.round(data.leaks.rtoLoss).toLocaleString("en-IN")}
-                    </div>
-                    <div style={{ borderTop: "1px solid #f0f0f0", paddingBlockStart: "6px", marginTop: "6px" }}>
-                      🎯 <strong>Live Protection Status:</strong>
-                    </div>
-                    <div style={{ marginTop: "4px" }}>
-                      • <strong>Real-Time Screening:</strong> Active on all incoming orders.<br />
-                      • <strong>RTO Prevention:</strong> Automated verification & risk scoring enabled.<br />
-                    </div>
-                    <span style={{ fontSize: "9px", color: "#a0a0a0", float: "right", marginTop: "4px" }}>09:00 AM ✓✓</span>
-                    <div style={{ clear: "both" }} />
-                  </div>
-                </div>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        )}
       </Layout>
     </Page>
   );

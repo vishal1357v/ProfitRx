@@ -199,7 +199,7 @@ export default function IndexRoute() {
                   </InlineStack>
                   <InlineStack align="space-between">
                     <Text variant="bodySm" as="span">800001 (Patna)</Text>
-                    <Badge tone="warning">OTP required</Badge>
+                    <Badge tone="warning">Prepaid required</Badge>
                   </InlineStack>
                 </BlockStack>
               </Card>

@@ -424,7 +424,7 @@ export default function ProfitLeaksRoute() {
                         {[
                           "Block high-RTO pincodes for COD",
                           "Add prepaid discount (₹50 off)",
-                          "Verify COD orders >₹2000 by OTP",
+                          "Require prepaid for orders >₹2000",
                           "Set max discount cap of 10%",
                           "Negotiate ₹45/order bulk shipping",
                         ].map((action, idx) => (
