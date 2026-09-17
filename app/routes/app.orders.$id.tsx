@@ -105,7 +105,8 @@ export default function OrderIntelligenceRoute() {
   const { order, intelligence, economics, evidence, executionLogs = [], overrideHistory = [], shop, host } = data;
 
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
-  const [overrideAction, setOverrideAction] = useState(intelligence.decision || "ALLOW_COD");
+  const initialOverride = intelligence.decision === "OTP_VERIFY" ? "BLOCK_COD" : (intelligence.decision || "ALLOW_COD");
+  const [overrideAction, setOverrideAction] = useState(initialOverride);
   const [overrideReason, setOverrideReason] = useState("");
 
   const riskScore = intelligence.riskScore;
@@ -604,6 +605,7 @@ export default function OrderIntelligenceRoute() {
           content: "Save Override",
           onAction: handleConfirmOverride,
           loading: isSubmitting,
+          disabled: overrideAction === "OTP_VERIFY",
         }}
         secondaryActions={[
           {
@@ -625,12 +627,13 @@ export default function OrderIntelligenceRoute() {
               label="New Decision"
               options={[
                 { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                { label: "Require OTP Verification", value: "OTP_VERIFY" },
+                { label: "Require OTP Verification (Unavailable - Gateway Required)", value: "OTP_VERIFY", disabled: true },
                 { label: "Require Prepaid Payment", value: "PREPAID_ONLY" },
                 { label: "Block COD (Tag Order)", value: "BLOCK_COD" },
               ]}
               value={overrideAction}
               onChange={setOverrideAction}
+              helpText={overrideAction === "OTP_VERIFY" ? "OTP Verification is currently unavailable." : undefined}
             />
 
             <TextField

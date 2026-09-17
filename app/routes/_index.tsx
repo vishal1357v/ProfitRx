@@ -220,7 +220,7 @@ export default function IndexRoute() {
                 },
                 {
                   name: "Growth", price: "$39 USD/mo", cap: "2,000 orders/mo",
-                  features: ["Everything in Starter", "COD blocker (Shopify Function)", "Pincode heatmap", "Ad spend sync", "WhatsApp OTP"],
+                  features: ["Everything in Starter", "COD blocker (Shopify Function)", "Pincode heatmap", "Ad spend sync"],
                 },
                 {
                   name: "Pro", price: "$79 USD/mo", cap: "Unlimited",

@@ -176,7 +176,7 @@ export default function CODRulesRoute() {
   
   // Intent B: Repeat Offenders
   const [flagRepeat, setFlagRepeat] = useState(storeSettings?.rulesAutoFlagRepeatOffenders ?? false);
-  const [requireOtpRepeat, setRequireOtpRepeat] = useState(storeSettings?.rulesAutoRequireOtp ?? false);
+  const [requireOtpRepeat, setRequireOtpRepeat] = useState(false);
 
   // Intent C: Checkout Blocking Activation Toggle
   const [codBlockingEnabled, setCodBlockingEnabled] = useState(codSettings?.codBlockingEnabled ?? false);
@@ -345,11 +345,12 @@ export default function CODRulesRoute() {
                       <Select
                         label="Action to take"
                         options={[
-                          { label: "Require OTP Verification", value: "otp" },
-                          { label: "Block COD (Prepaid Only)", value: "block" }
+                          { label: "Block COD (Prepaid Only)", value: "block" },
+                          { label: "Require OTP Verification (Unavailable - Coming Soon)", value: "otp", disabled: true },
                         ]}
-                        value={requireOtpRepeat ? "otp" : "block"}
+                        value="block"
                         onChange={(val) => setRequireOtpRepeat(val === "otp")}
+                        helpText="OTP Verification is currently unavailable. Repeat offenders are protected by requiring prepaid payment."
                       />
                     </Box>
                   )}

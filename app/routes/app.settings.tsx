@@ -133,7 +133,7 @@ export default function SettingsRoute() {
   const [isGstReg, setIsGstReg] = useState(settings.isGstRegistered);
   const [gstRate, setGstRate] = useState(settings.gstRate.toString());
   const [waPhone, setWaPhone] = useState(settings.whatsappPhone || "");
-  const [waEnabled, setWaEnabled] = useState(settings.whatsappEnabled);
+  const [waEnabled, setWaEnabled] = useState(false);
   const [saved, setSaved] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
   const actionData = useActionData<any>();
@@ -152,7 +152,7 @@ export default function SettingsRoute() {
   const tabs = [
     { id: "costs-shipping", content: "💰 Costs & Shipping", panelID: "costs-panel" },
     { id: "gst-compliance", content: "🇮🇳 GST Compliance", panelID: "gst-panel" },
-    { id: "whatsapp-otp", content: "💬 WhatsApp & OTP", panelID: "whatsapp-panel" },
+    { id: "notifications", content: "💬 Notifications", panelID: "notifications-panel" },
     { id: "alerts-keywords", content: "🔔 Alerts & Courier", panelID: "alerts-panel" },
     { id: "data-protection", content: "🛡️ Data Protection (DPA)", panelID: "dpa-panel" },
   ];
@@ -438,21 +438,22 @@ export default function SettingsRoute() {
                     </Card>
                   )}
 
-                  {/* ── TAB 2: WhatsApp & OTP ───────────────────── */}
+                  {/* ── TAB 2: Notifications (Coming Soon) ─────── */}
                   {selectedTab === 2 && (
                     <Card>
                       <Box padding="500">
                         <BlockStack gap="400">
-                          <InlineStack gap="150" blockAlign="center">
+                          <InlineStack gap="200" blockAlign="center">
                             <Icon source={NotificationIcon} />
-                            <Text variant="headingMd" as="h2">💬 WhatsApp Alert & OTP Setup</Text>
+                            <Text variant="headingMd" as="h2">💬 Notifications & Customer Alerts</Text>
+                            <Badge tone="attention">Coming Soon</Badge>
                           </InlineStack>
                           <Text variant="bodySm" as="p" tone="subdued">
-                            Configure your business phone number to send order confirmation OTP codes via WhatsApp to customers and receive weekly digests.
+                            Automated WhatsApp and SMS order confirmations, OTP verification, and weekly profit digests are planned for an upcoming release.
                           </Text>
 
-                          <Banner tone="warning" title="Messaging Provider Pricing Disclaimer">
-                            <p>Note: ProfitRx integrates with your own Meta Cloud API or Twilio WhatsApp account. You will be billed directly and separately by your messaging provider for SMS/WhatsApp API transmission fees.</p>
+                          <Banner tone="info" title="Feature Currently Unavailable">
+                            <p>Automated WhatsApp notifications and OTP verification are currently in development and not yet available. These capabilities will be enabled in an upcoming release following direct messaging gateway integrations. No customer messages or OTPs are currently transmitted.</p>
                           </Banner>
                           
                           {actionData?.error && (
@@ -464,7 +465,7 @@ export default function SettingsRoute() {
                           <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
                             <Grid.Cell>
                               <TextField
-                                label="WhatsApp Phone Number"
+                                label="Notification Phone Number (Optional)"
                                 value={waPhone}
                                 onChange={setWaPhone}
                                 placeholder="e.g. +919876543210"
@@ -474,14 +475,13 @@ export default function SettingsRoute() {
                             </Grid.Cell>
                             <Grid.Cell>
                               <BlockStack gap="200">
-                                <Text variant="bodySm" as="span" fontWeight="bold">WhatsApp OTP Status</Text>
-                                <Button
-                                  variant={waEnabled ? "primary" : "secondary"}
-                                  tone={waEnabled ? "success" : undefined}
-                                  onClick={() => setWaEnabled(!waEnabled)}
-                                >
-                                  {waEnabled ? "✓ WhatsApp OTP Enabled" : "Enable WhatsApp OTP"}
-                                </Button>
+                                <Text variant="bodySm" as="span" fontWeight="bold">Notification Service Status</Text>
+                                <InlineStack gap="200" blockAlign="center">
+                                  <Badge>Unavailable — Coming Soon</Badge>
+                                </InlineStack>
+                                <Text variant="bodyXs" as="p" tone="subdued">
+                                  WhatsApp and OTP verification controls are disabled until carrier gateway integration is released.
+                                </Text>
                               </BlockStack>
                             </Grid.Cell>
                           </Grid>

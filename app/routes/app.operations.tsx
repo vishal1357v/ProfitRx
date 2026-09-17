@@ -130,7 +130,10 @@ export default function OperationsRoute() {
 
   const handleOpenActionModal = (order: OperationOrderDTO, defaultAction?: string) => {
     setActiveModalOrder(order);
-    setSelectedAction(defaultAction || order.merchantRecommendation || "ALLOW_COD");
+    const initialAction = (defaultAction && defaultAction !== "OTP_VERIFY")
+      ? defaultAction
+      : (order.merchantRecommendation && order.merchantRecommendation !== "OTP_VERIFY" ? order.merchantRecommendation : "ALLOW_COD");
+    setSelectedAction(initialAction);
     setActionReason("");
   };
 
@@ -652,6 +655,7 @@ export default function OperationsRoute() {
           content: "Apply Decision",
           onAction: handleConfirmAction,
           loading: isSubmitting,
+          disabled: selectedAction === "OTP_VERIFY",
         }}
         secondaryActions={[
           {
@@ -675,12 +679,13 @@ export default function OperationsRoute() {
                 label="Selected Decision"
                 options={[
                   { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                  { label: "Require OTP Verification", value: "OTP_VERIFY" },
+                  { label: "Require OTP Verification (Unavailable - Gateway Required)", value: "OTP_VERIFY", disabled: true },
                   { label: "Require Prepaid Payment", value: "PREPAID_ONLY" },
                   { label: "Block COD (Tag Order)", value: "BLOCK_COD" },
                 ]}
                 value={selectedAction}
                 onChange={setSelectedAction}
+                helpText={selectedAction === "OTP_VERIFY" ? "OTP Verification is currently unavailable." : undefined}
               />
 
               <TextField

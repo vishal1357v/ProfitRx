@@ -231,7 +231,6 @@ export default function OnboardingRoute() {
                     "✅ COD risk scoring with pincode-level intelligence",
                     "✅ Automated ad spend tracking (Meta, Google, TikTok)",
                     "✅ GST compliance with GSTR-1 exports",
-                    "✅ Weekly WhatsApp profit digests",
                   ].map((item) => (
                     <Text key={item} variant="bodyMd" as="p">{item}</Text>
                   ))}

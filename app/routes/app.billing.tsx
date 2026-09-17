@@ -80,14 +80,14 @@ export default function BillingPage() {
       name: "Starter Plan",
       price: "$19 USD/mo",
       color: "info",
-      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "GST Compliance Reports", "Basic RTO Insights", "Weekly WhatsApp Digest", "CSV Data Export"],
+      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Product Cost Tracking (COGS)", "GST Compliance Reports", "Basic RTO Insights", "CSV Data Export"],
       lacks: ["COD Risk Score", "RTO Pincode Heatmap", "Profit Leaks & COD Shield", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "API Access"],
     },
     GROWTH: {
       name: "Growth Plan",
       price: "$39 USD/mo",
       color: "attention",
-      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "COD Shield & OTP Verification", "Advanced Email Alerts", "AI Profit Recommendations"],
+      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "COD Shield (Pincode Blocking)", "Advanced Email Alerts", "AI Profit Recommendations"],
       lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support", "API Access"],
     },
     PRO: {
