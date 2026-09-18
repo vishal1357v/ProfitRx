@@ -605,7 +605,6 @@ export default function OrderIntelligenceRoute() {
           content: "Save Override",
           onAction: handleConfirmOverride,
           loading: isSubmitting,
-          disabled: overrideAction === "OTP_VERIFY",
         }}
         secondaryActions={[
           {
@@ -627,13 +626,20 @@ export default function OrderIntelligenceRoute() {
               label="New Decision"
               options={[
                 { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                { label: "Require OTP Verification (Unavailable - Gateway Required)", value: "OTP_VERIFY", disabled: true },
-                { label: "Require Prepaid Payment", value: "PREPAID_ONLY" },
-                { label: "Block COD (Tag Order)", value: "BLOCK_COD" },
+                { label: "Dispatch WhatsApp/SMS OTP Verification", value: "OTP_VERIFY" },
+                { label: "Require Partial Payment / Upfront Deposit", value: "PARTIAL_PAYMENT" },
+                { label: "Require Full Prepaid Payment", value: "PREPAID_ONLY" },
+                { label: "Block COD (Hold/Cancel Order)", value: "BLOCK_COD" },
               ]}
               value={overrideAction}
               onChange={setOverrideAction}
-              helpText={overrideAction === "OTP_VERIFY" ? "OTP Verification is currently unavailable." : undefined}
+              helpText={
+                overrideAction === "OTP_VERIFY"
+                  ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS."
+                  : overrideAction === "PARTIAL_PAYMENT"
+                  ? "Requires an advance deposit via UPI before fulfillment."
+                  : undefined
+              }
             />
 
             <TextField

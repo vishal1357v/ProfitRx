@@ -655,7 +655,6 @@ export default function OperationsRoute() {
           content: "Apply Decision",
           onAction: handleConfirmAction,
           loading: isSubmitting,
-          disabled: selectedAction === "OTP_VERIFY",
         }}
         secondaryActions={[
           {
@@ -679,13 +678,20 @@ export default function OperationsRoute() {
                 label="Selected Decision"
                 options={[
                   { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                  { label: "Require OTP Verification (Unavailable - Gateway Required)", value: "OTP_VERIFY", disabled: true },
-                  { label: "Require Prepaid Payment", value: "PREPAID_ONLY" },
-                  { label: "Block COD (Tag Order)", value: "BLOCK_COD" },
+                  { label: "Dispatch WhatsApp/SMS OTP Verification", value: "OTP_VERIFY" },
+                  { label: "Require Partial Payment / Upfront Deposit", value: "PARTIAL_PAYMENT" },
+                  { label: "Require Full Prepaid Payment", value: "PREPAID_ONLY" },
+                  { label: "Block COD (Tag/Hold Order)", value: "BLOCK_COD" },
                 ]}
                 value={selectedAction}
                 onChange={setSelectedAction}
-                helpText={selectedAction === "OTP_VERIFY" ? "OTP Verification is currently unavailable." : undefined}
+                helpText={
+                  selectedAction === "OTP_VERIFY"
+                    ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS."
+                    : selectedAction === "PARTIAL_PAYMENT"
+                    ? "Requires an advance deposit via UPI before fulfillment."
+                    : undefined
+                }
               />
 
               <TextField

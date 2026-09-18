@@ -216,11 +216,11 @@ export default function IndexRoute() {
               {[
                 {
                   name: "Starter", price: "$19 USD/mo", cap: "500 orders/mo",
-                  features: ["Net profit dashboard", "COGS tracking", "RTO reports", "GSTR export"],
+                  features: ["Net profit dashboard", "COGS tracking", "RTO reports", "Weekly WhatsApp digest"],
                 },
                 {
                   name: "Growth", price: "$39 USD/mo", cap: "2,000 orders/mo",
-                  features: ["Everything in Starter", "COD blocker (Shopify Function)", "Pincode heatmap", "Ad spend sync"],
+                  features: ["Everything in Starter", "COD blocker (Shopify Function)", "Pincode heatmap", "WhatsApp OTP verification"],
                 },
                 {
                   name: "Pro", price: "$79 USD/mo", cap: "Unlimited",

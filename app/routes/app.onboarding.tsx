@@ -229,6 +229,7 @@ export default function OnboardingRoute() {
                   {[
                     "✅ True profit after COGS, shipping, gateway fees, and RTO losses",
                     "✅ COD risk scoring with pincode-level intelligence",
+                    "✅ Weekly WhatsApp profit digests & OTP verification",
                     "✅ Automated ad spend tracking (Meta, Google, TikTok)",
                     "✅ GST compliance with GSTR-1 exports",
                   ].map((item) => (

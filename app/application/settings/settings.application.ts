@@ -1,5 +1,6 @@
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { ProfitService } from "../../services/profit.service";
+import { WhatsAppService } from "../../services/whatsapp.service";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 export interface SaveSettingsInput {
@@ -19,6 +20,7 @@ export interface SaveSettingsInput {
   gstRate?: number;
   whatsappPhone?: string;
   whatsappEnabled?: boolean;
+  otpVerificationEnabled?: boolean;
   shippingSlabs?: any;
   codBlockedPincodes?: string[];
   rulesDisableCodForPincodes?: string[];
@@ -33,7 +35,15 @@ export class SettingsApplicationService {
     const settings = ProfitService.getSettings(rawSettings);
     return {
       shop,
-      settings,
+      settings: {
+        ...settings,
+        otpVerificationEnabled: Boolean(rawSettings.otpVerificationEnabled),
+        partialPaymentEnabled: Boolean(rawSettings.partialPaymentEnabled),
+        partialPaymentAmount: rawSettings.partialPaymentAmount ?? 50,
+        codFeeEnabled: Boolean(rawSettings.codFeeEnabled),
+        codFeeAmount: rawSettings.codFeeAmount ?? 30,
+        codFeeType: rawSettings.codFeeType || "fixed",
+      },
       dpaAcceptedAt: rawSettings.dpaAcceptedAt ? new Date(rawSettings.dpaAcceptedAt).toISOString() : null,
       dpaAcceptedVersion: rawSettings.dpaAcceptedVersion || null,
     };
@@ -45,6 +55,35 @@ export class SettingsApplicationService {
   static async acceptDpa(shop: string, version = "1.0"): Promise<{ success: boolean }> {
     await SettingsRepository.acceptDpa(shop, version);
     return { success: true };
+  }
+
+  /**
+   * Dispatches a test OTP to verify WhatsApp/SMS gateway integration.
+   */
+  static async testOtpDispatch(shop: string, phone: string): Promise<{ success: boolean; error?: string; provider?: string; message?: string }> {
+    if (!phone) {
+      return { success: false, error: "Please provide a valid phone number with country code (e.g. +919876543210)." };
+    }
+    const phoneNumber = parsePhoneNumberFromString(phone);
+    if (!phoneNumber || !phoneNumber.isValid()) {
+      return { success: false, error: "Invalid phone number format. Please include country code (e.g. +919876543210)." };
+    }
+    const testOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const result = await WhatsAppService.sendOTP(phone, testOtp, shop);
+    if (!result.success) {
+      return {
+        success: false,
+        provider: result.provider,
+        error: result.provider === "unconfigured"
+          ? "No SMS or WhatsApp provider configured. Set META_WHATSAPP_TOKEN or TWILIO_ACCOUNT_SID in environment variables."
+          : `Dispatch failed via ${result.provider}. Please verify provider credentials.`,
+      };
+    }
+    return {
+      success: true,
+      provider: result.provider,
+      message: `Test OTP successfully dispatched to ${phone} via ${result.provider}.`,
+    };
   }
 
   /**
@@ -108,7 +147,9 @@ export class SettingsApplicationService {
     if (input.whatsappPhone !== undefined) updatePayload.whatsappPhone = input.whatsappPhone || null;
     if (input.whatsappEnabled !== undefined) {
       updatePayload.whatsappEnabled = Boolean(input.whatsappEnabled);
-      updatePayload.otpVerificationEnabled = Boolean(input.whatsappEnabled);
+    }
+    if (input.otpVerificationEnabled !== undefined) {
+      updatePayload.otpVerificationEnabled = Boolean(input.otpVerificationEnabled);
     }
     if (input.shippingSlabs !== undefined) updatePayload.shippingSlabs = input.shippingSlabs || null;
     if (input.codBlockedPincodes !== undefined) {

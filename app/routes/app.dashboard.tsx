@@ -41,7 +41,6 @@ import {
   PersonIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import { ProfitService } from "../services/profit.service";
 import { ShopifyService } from "../services/shopify.service";
 import { ProfitIntelligenceService } from "../services/profit-intelligence.service";
@@ -1720,6 +1719,45 @@ export default function DashboardRoute() {
                       </BlockStack>
                     </BlockStack>
                   </Card>
+
+                  {/* WhatsApp Weekly Digest Preview Card */}
+                  <Card>
+                    <Box padding="400">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <InlineStack gap="300" blockAlign="center">
+                          <div style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: "50%",
+                            background: "rgba(34, 197, 94, 0.15)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 18,
+                            flexShrink: 0,
+                          }}>
+                            💬
+                          </div>
+                          <BlockStack gap="050">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text variant="headingSm" as="h3">Weekly WhatsApp Profit Digest</Text>
+                              <Badge tone="success">Active</Badge>
+                            </InlineStack>
+                            <Text variant="bodyXs" tone="subdued" as="p">
+                              Delivers true profit, margin, and top 3 recommended actions every Monday morning.
+                            </Text>
+                          </BlockStack>
+                        </InlineStack>
+                        <Button
+                          size="slim"
+                          variant="secondary"
+                          url={`/app/settings?shop=${encodeURIComponent(data.shop || "")}&host=${encodeURIComponent(data.host || "")}`}
+                        >
+                          Configure Digest ⚙️
+                        </Button>
+                      </InlineStack>
+                    </Box>
+                  </Card>
                 </BlockStack>
               )}
 
@@ -1806,7 +1844,7 @@ export default function DashboardRoute() {
                                 {[
                                   "Block high-RTO pincodes for COD",
                                   "Add prepaid discount (₹50 off)",
-                                  "Verify COD orders >₹2000 by phone",
+                                  "Verify COD orders >₹2000 by OTP",
                                   "Set max discount cap of 10%",
                                   "Negotiate ₹45/order bulk shipping",
                                 ].map((action, idx) => (

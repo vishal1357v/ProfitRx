@@ -1,9 +1,11 @@
 import { OrderRepository } from "../../infrastructure/repositories/order.repository";
 import { CodOrderRepository } from "../../infrastructure/repositories/cod-order.repository";
+import { CustomerRepository } from "../../infrastructure/repositories/customer.repository";
 import { ExecutionLogRepository } from "../../infrastructure/repositories/execution-log.repository";
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { CanonicalEconomicsCalculator } from "../../services/economics/canonical-economics.calculator";
 import { ProfitService } from "../../services/profit.service";
+import { CODManagementService } from "../../services/cod-management.service";
 import { EventBus } from "../../infrastructure/events/event.bus";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
 
@@ -290,6 +292,84 @@ export class OperationsApplicationService {
         overrideReason: reason,
       },
     });
+
+    // ── Execution Wiring: Dispatch live OTP if OTP_VERIFY ─────────
+    if (action === "OTP_VERIFY") {
+      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+      let phone: string | null = null;
+
+      const existingCod = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
+      if (existingCod?.phone) {
+        phone = existingCod.phone;
+      }
+      if (!phone && order.customerId) {
+        const customerRisk = await CustomerRepository.findByCustomerId(shop, order.customerId) as any;
+        if (customerRisk?.phone) phone = customerRisk.phone;
+      }
+      if (!phone) {
+        const storeSettings = await SettingsRepository.getByShop(shop);
+        if (storeSettings?.whatsappPhone) phone = storeSettings.whatsappPhone;
+      }
+
+      if (phone) {
+        const otpResult = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
+        if (otpResult.success) {
+          await ExecutionLogRepository.createLog({
+            shop,
+            orderId,
+            step: "EXECUTION",
+            status: "SUCCESS",
+            message: `OTP challenge dispatched to ${phone} via ${otpResult.provider || "gateway"}.`,
+            data: { phone, provider: otpResult.provider },
+          });
+          return {
+            success: true,
+            message: `Order #${order.orderNumber} decision updated: OTP verification dispatched to ${phone}.`,
+          };
+        } else {
+          await ExecutionLogRepository.createLog({
+            shop,
+            orderId,
+            step: "EXECUTION",
+            status: "FAILED",
+            message: otpResult.message || "Failed to dispatch OTP verification.",
+            data: { phone, provider: otpResult.provider },
+          });
+          return {
+            success: false,
+            message: `Order decision updated, but OTP dispatch warning: ${otpResult.message}`,
+          };
+        }
+      }
+    }
+
+    // ── Execution Wiring: Mark partial payment if PARTIAL_PAYMENT ─
+    if (action === "PARTIAL_PAYMENT") {
+      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
+      const settings = await SettingsRepository.getByShop(shop);
+      const depositAmount = settings?.partialPaymentAmount || 50;
+
+      await CodOrderRepository.upsert(shop, {
+        orderId: cleanOrderId,
+        phone: "",
+        status: "PARTIAL_PAYMENT_PENDING",
+        partialAmount: depositAmount,
+      });
+
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: "SUCCESS",
+        message: `Partial payment deposit of ₹${depositAmount} requested for Order #${order.orderNumber}.`,
+        data: { depositAmount },
+      });
+
+      return {
+        success: true,
+        message: `Order #${order.orderNumber} updated to require ₹${depositAmount} partial payment deposit.`,
+      };
+    }
 
     return { success: true, message: `Order #${order.orderNumber} decision updated to ${action}` };
   }

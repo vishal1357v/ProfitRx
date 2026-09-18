@@ -72,4 +72,24 @@ export class CustomerRepository {
       },
     });
   }
+
+  /**
+   * Update customer risk level and score with shop isolation.
+   */
+  static async updateRiskLevel(
+    shop: string,
+    customerId: string,
+    data: { riskLevel: string; riskScore?: number }
+  ): Promise<CustomerRiskRecord> {
+    return prisma.customerRisk.update({
+      where: {
+        shop_customerId: { shop, customerId },
+      },
+      data: {
+        riskLevel: data.riskLevel,
+        ...(data.riskScore !== undefined ? { riskScore: data.riskScore } : {}),
+        updatedAt: new Date(),
+      },
+    });
+  }
 }

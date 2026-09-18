@@ -16,6 +16,8 @@ import {
   ShieldCheckMarkIcon,
   AlertTriangleIcon,
   LockIcon,
+  NotificationIcon,
+  FinanceIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { CodRulesApplicationService } from "../application/protection/cod-rules.application";
@@ -58,25 +60,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }
           }
         `);
-        const gqlData = await res.json() as any;
-        const plan = gqlData?.data?.shop?.plan;
+        const json = await res.json() as any;
+        const plan = json.data?.shop?.plan;
+        partnerDevelopment = Boolean(plan?.partnerDevelopment);
+        planDisplayName = (plan?.displayName || "").toLowerCase();
         if (plan) {
-          partnerDevelopment = plan.partnerDevelopment === true;
-          planDisplayName = (plan.displayName || "").toLowerCase();
           // Persist so we don't re-query every request
           await SettingsRepository.upsertStoreSettings(shop, {
             shopifyPlanName: plan.displayName || "Basic",
           });
         }
-      } catch (err: any) {
-        console.warn("[CodRules] Failed to query shop plan via GraphQL:", err.message);
+      } catch (e) {
+        console.warn("[CodRules DevStore Check Warning]:", e);
       }
     } else {
       // Use cached plan name for heuristic checks
       planDisplayName = cachedPlan;
       partnerDevelopment =
-        cachedPlan.includes("developer preview") ||
-        cachedPlan.includes("development") ||
+        cachedPlan.includes("dev") ||
+        cachedPlan.includes("partner") ||
+        cachedPlan.includes("affiliate") ||
         cachedPlan.includes("partner_test") ||
         cachedPlan.includes("partner test");
     }
@@ -126,6 +129,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const rulesAutoFlagRepeatOffenders = formData.get("rulesAutoFlagRepeatOffenders") === "true";
     const rulesAutoRequireOtp = formData.get("rulesAutoRequireOtp") === "true";
     const codBlockingEnabled = formData.get("codBlockingEnabled") === "true";
+    const otpVerificationEnabled = formData.get("otpVerificationEnabled") === "true";
+    const partialPaymentEnabled = formData.get("partialPaymentEnabled") === "true";
+    const partialPaymentAmount = parseFloat(formData.get("partialPaymentAmount") as string) || 50;
+    const codFeeEnabled = formData.get("codFeeEnabled") === "true";
+    const codFeeAmount = parseFloat(formData.get("codFeeAmount") as string) || 30;
+    const codFeeType = (formData.get("codFeeType") as string) || "fixed";
 
     const result = await CodRulesApplicationService.saveMerchantRules(shop, {
       rulesRejectCodOver,
@@ -133,6 +142,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       rulesAutoFlagRepeatOffenders,
       rulesAutoRequireOtp,
       codBlockingEnabled,
+      otpVerificationEnabled,
+      partialPaymentEnabled,
+      partialPaymentAmount,
+      codFeeEnabled,
+      codFeeAmount,
+      codFeeType,
     }, admin);
 
     return Response.json(result);
@@ -176,10 +191,22 @@ export default function CODRulesRoute() {
   
   // Intent B: Repeat Offenders
   const [flagRepeat, setFlagRepeat] = useState(storeSettings?.rulesAutoFlagRepeatOffenders ?? false);
-  const [requireOtpRepeat, setRequireOtpRepeat] = useState(false);
+  const [requireOtpRepeat, setRequireOtpRepeat] = useState(storeSettings?.rulesAutoRequireOtp ?? false);
 
   // Intent C: Checkout Blocking Activation Toggle
   const [codBlockingEnabled, setCodBlockingEnabled] = useState(codSettings?.codBlockingEnabled ?? false);
+
+  // Intent D: Dynamic OTP Verification Policy
+  const [otpVerificationEnabled, setOtpVerificationEnabled] = useState(storeSettings?.otpVerificationEnabled ?? false);
+  const [otpRiskThreshold, setOtpRiskThreshold] = useState("HIGH");
+  const [otpBypassLowRisk, setOtpBypassLowRisk] = useState(true);
+
+  // Intent E: Partial Payment & Deposit
+  const [partialPaymentEnabled, setPartialPaymentEnabled] = useState(storeSettings?.partialPaymentEnabled ?? false);
+  const [partialPaymentAmount, setPartialPaymentAmount] = useState((storeSettings?.partialPaymentAmount ?? 50).toString());
+  const [codFeeEnabled, setCodFeeEnabled] = useState(storeSettings?.codFeeEnabled ?? false);
+  const [codFeeAmount, setCodFeeAmount] = useState((storeSettings?.codFeeAmount ?? 30).toString());
+  const [codFeeType, setCodFeeType] = useState(storeSettings?.codFeeType ?? "fixed");
 
   useEffect(() => {
     setCodBlockingEnabled(codSettings?.codBlockingEnabled ?? false);
@@ -210,6 +237,12 @@ export default function CODRulesRoute() {
     fd.append("rulesAutoFlagRepeatOffenders", flagRepeat.toString());
     fd.append("rulesAutoRequireOtp", requireOtpRepeat.toString());
     fd.append("codBlockingEnabled", codBlockingEnabled.toString());
+    fd.append("otpVerificationEnabled", otpVerificationEnabled.toString());
+    fd.append("partialPaymentEnabled", partialPaymentEnabled.toString());
+    fd.append("partialPaymentAmount", partialPaymentAmount);
+    fd.append("codFeeEnabled", codFeeEnabled.toString());
+    fd.append("codFeeAmount", codFeeAmount);
+    fd.append("codFeeType", codFeeType);
     
     submit(fd, { method: "POST" });
   };
@@ -346,11 +379,11 @@ export default function CODRulesRoute() {
                         label="Action to take"
                         options={[
                           { label: "Block COD (Prepaid Only)", value: "block" },
-                          { label: "Require OTP Verification (Unavailable - Coming Soon)", value: "otp", disabled: true },
+                          { label: "Require WhatsApp/SMS OTP Verification", value: "otp" },
                         ]}
-                        value="block"
+                        value={requireOtpRepeat ? "otp" : "block"}
                         onChange={(val) => setRequireOtpRepeat(val === "otp")}
-                        helpText="OTP Verification is currently unavailable. Repeat offenders are protected by requiring prepaid payment."
+                        helpText="Repeat offenders with 2+ past RTOs will either have COD blocked or be challenged by OTP before fulfillment."
                       />
                     </Box>
                   )}
@@ -432,6 +465,156 @@ export default function CODRulesRoute() {
                     />
                   )}
                 </BlockStack>
+              </BlockStack>
+            </Box>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
+            <Box padding="500">
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={NotificationIcon} />
+                    <Text variant="headingMd" as="h2">D. Dynamic OTP Verification Policy</Text>
+                  </InlineStack>
+                  <Badge tone={otpVerificationEnabled ? "success" : undefined}>
+                    {otpVerificationEnabled ? "OTP Active" : "Disabled"}
+                  </Badge>
+                </InlineStack>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Verify buyer purchase intent on suspicious or high-risk orders via automated 6-digit WhatsApp/SMS OTP before fulfillment.
+                </Text>
+
+                <BlockStack gap="300">
+                  <Checkbox
+                    label="Enable Dynamic OTP Verification Policy"
+                    checked={otpVerificationEnabled}
+                    onChange={setOtpVerificationEnabled}
+                    helpText="Orders flagged with high RTO risk will automatically trigger an OTP verification message."
+                  />
+
+                  {otpVerificationEnabled && (
+                    <Box paddingBlockStart="200" paddingInlineStart="400">
+                      <Grid columns={{ xs: 1, sm: 2 }}>
+                        <Grid.Cell>
+                          <Select
+                            label="Verification Trigger Threshold"
+                            options={[
+                              { label: "CRITICAL Risk Orders Only (>60% Risk)", value: "CRITICAL" },
+                              { label: "HIGH & CRITICAL Risk Orders (>40% Risk)", value: "HIGH" },
+                              { label: "MEDIUM, HIGH & CRITICAL Risk (>20% Risk)", value: "MEDIUM" },
+                            ]}
+                            value={otpRiskThreshold}
+                            onChange={setOtpRiskThreshold}
+                            helpText="Orders exceeding this risk score will require OTP verification."
+                          />
+                        </Grid.Cell>
+                        <Grid.Cell>
+                          <Checkbox
+                            label="Auto-bypass OTP for Verified Repeat Buyers"
+                            checked={otpBypassLowRisk}
+                            onChange={setOtpBypassLowRisk}
+                            helpText="Do not challenge loyal customers who have 2+ successful prepaid or delivered orders."
+                          />
+                        </Grid.Cell>
+                      </Grid>
+                    </Box>
+                  )}
+                </BlockStack>
+              </BlockStack>
+            </Box>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
+            <Box padding="500">
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={FinanceIcon} />
+                    <Text variant="headingMd" as="h2">E. Partial Payment & COD Deposit Protection</Text>
+                  </InlineStack>
+                  <Badge tone={partialPaymentEnabled || codFeeEnabled ? "success" : undefined}>
+                    {partialPaymentEnabled || codFeeEnabled ? "Deposit Active" : "Standard COD"}
+                  </Badge>
+                </InlineStack>
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Require a non-refundable upfront deposit or add a small COD convenience fee to commit buyers and offset courier return risk.
+                </Text>
+
+                <Grid columns={{ xs: 1, sm: 2 }}>
+                  <Grid.Cell>
+                    <Card background="bg-surface-secondary">
+                      <Box padding="400">
+                        <BlockStack gap="300">
+                          <Checkbox
+                            label="Require Partial Payment / Upfront Deposit"
+                            checked={partialPaymentEnabled}
+                            onChange={setPartialPaymentEnabled}
+                            helpText="Collect an advance deposit (e.g. ₹50 or shipping cost) via UPI before shipping COD."
+                          />
+                          {partialPaymentEnabled && (
+                            <TextField
+                              label="Deposit Amount (₹)"
+                              type="number"
+                              prefix="₹"
+                              value={partialPaymentAmount}
+                              onChange={setPartialPaymentAmount}
+                              autoComplete="off"
+                              placeholder="50"
+                              helpText="Deducted from the remaining COD balance due at delivery."
+                            />
+                          )}
+                        </BlockStack>
+                      </Box>
+                    </Card>
+                  </Grid.Cell>
+
+                  <Grid.Cell>
+                    <Card background="bg-surface-secondary">
+                      <Box padding="400">
+                        <BlockStack gap="300">
+                          <Checkbox
+                            label="Enable Extra COD Handling Fee"
+                            checked={codFeeEnabled}
+                            onChange={setCodFeeEnabled}
+                            helpText="Pass courier cash-collection fees to customers selecting Cash on Delivery."
+                          />
+                          {codFeeEnabled && (
+                            <InlineStack gap="300">
+                              <div style={{ flex: 1 }}>
+                                <TextField
+                                  label="COD Fee Amount"
+                                  type="number"
+                                  prefix={codFeeType === "fixed" ? "₹" : undefined}
+                                  suffix={codFeeType === "percentage" ? "%" : undefined}
+                                  value={codFeeAmount}
+                                  onChange={setCodFeeAmount}
+                                  autoComplete="off"
+                                  placeholder="30"
+                                />
+                              </div>
+                              <div style={{ width: 140 }}>
+                                <Select
+                                  label="Fee Type"
+                                  options={[
+                                    { label: "Fixed (₹)", value: "fixed" },
+                                    { label: "Percentage (%)", value: "percentage" },
+                                  ]}
+                                  value={codFeeType}
+                                  onChange={setCodFeeType}
+                                />
+                              </div>
+                            </InlineStack>
+                          )}
+                        </BlockStack>
+                      </Box>
+                    </Card>
+                  </Grid.Cell>
+                </Grid>
               </BlockStack>
             </Box>
           </Card>

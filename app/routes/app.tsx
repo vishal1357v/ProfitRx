@@ -62,7 +62,6 @@ function RemixLink({ url, children, external, ...props }: any) {
 }
 
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import { getFeatureList, getSubscription, normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
 
@@ -220,8 +219,10 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const isOperationsActive = location.pathname === "/app/operations" || location.pathname.startsWith("/app/orders");
-  const isProtectionActive = ["/app/cod-rules", "/app/rto-heatmap"].some(
+  const isOperationsActive = ["/app/operations", "/app/orders", "/app/cod-dashboard"].some(
+    (path) => location.pathname === path || location.pathname.startsWith(path + "/")
+  );
+  const isProtectionActive = ["/app/cod-rules", "/app/rto-heatmap", "/app/customer-risk"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
   const isProfitActive = ["/app/profit-leaks", "/app/cogs"].some(
@@ -240,7 +241,9 @@ export default function App() {
         <a href="/app/dashboard" rel="home">Dashboard</a>
         <a href="/app/operations">Operations</a>
         <a href="/app/cod-rules">COD Rules</a>
+        <a href="/app/customer-risk">Customer Risk</a>
         <a href="/app/rto-heatmap">Pincode Risk</a>
+        <a href="/app/cod-dashboard">COD Analytics</a>
         <a href="/app/profit-leaks">Profit Leaks</a>
         <a href="/app/cogs">COGS Catalog</a>
         <a href="/app/rto">RTO Analytics</a>
@@ -417,6 +420,11 @@ export default function App() {
                         icon: ShieldCheckMarkIcon,
                       },
                       {
+                        content: "Customer Risk & Serial Offenders",
+                        url: `/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PersonIcon,
+                      },
+                      {
                         content: "Pincode Risk Heatmap",
                         url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: LocationIcon,
@@ -503,6 +511,11 @@ export default function App() {
                 >
                   <ActionList
                     items={[
+                      {
+                        content: "COD Analytics Dashboard",
+                        url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ShieldCheckMarkIcon,
+                      },
                       {
                         content: "RTO Analytics",
                         url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
@@ -622,6 +635,14 @@ export default function App() {
                     <span>COD Rules & Policy</span>
                   </ReactRouterLink>
                   <ReactRouterLink
+                    to={`/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={PersonIcon} />
+                    <span>Customer Risk & Serial Offenders</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
                     to={`/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className="gg-mobile-sublink"
@@ -651,6 +672,14 @@ export default function App() {
 
                   {/* Analytics Category */}
                   <span className="gg-mobile-category-title">Analytics</span>
+                  <ReactRouterLink
+                    to={`/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={ShieldCheckMarkIcon} />
+                    <span>COD Analytics Dashboard</span>
+                  </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}

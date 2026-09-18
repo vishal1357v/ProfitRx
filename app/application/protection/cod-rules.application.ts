@@ -16,6 +16,12 @@ export interface MerchantRulesInput {
   rulesAutoFlagRepeatOffenders: boolean;
   rulesAutoRequireOtp: boolean;
   codBlockingEnabled?: boolean;
+  otpVerificationEnabled?: boolean;
+  partialPaymentEnabled?: boolean;
+  partialPaymentAmount?: number;
+  codFeeEnabled?: boolean;
+  codFeeAmount?: number;
+  codFeeType?: string;
 }
 
 export class CodRulesApplicationService {

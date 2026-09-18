@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, useSubmit, useActionData } from "react-router";
+import { useLoaderData, useNavigation, useSubmit, useActionData, useFetcher } from "react-router";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -10,7 +10,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Button,
   Grid, TextField, Select, Banner, Divider, Badge,
-  Box, Icon, Frame, Toast, Tabs,
+  Box, Icon, Frame, Toast, Tabs, Checkbox,
 } from "@shopify/polaris";
 import {
   DatabaseIcon,
@@ -41,6 +41,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ success: true, dpaAccepted: true });
   }
 
+  if (intent === "test_otp") {
+    const phone = formData.get("phone") as string;
+    const result = await SettingsApplicationService.testOtpDispatch(shop, phone);
+    return Response.json(result);
+  }
+
   if (intent === "save_settings") {
     const defaultForwardShipping = parseFloat(formData.get("defaultForwardShipping") as string) || 0;
     const defaultReturnShipping = parseFloat(formData.get("defaultReturnShipping") as string) || 0;
@@ -60,6 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     
     const whatsappPhone = formData.get("whatsappPhone") as string;
     const whatsappEnabled = formData.get("whatsappEnabled") === "true";
+    const otpVerificationEnabled = formData.get("otpVerificationEnabled") === "true";
     
     const rawSlabs = formData.get("shippingSlabs") as string;
     let shippingSlabs: any = null;
@@ -87,6 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       gstRate,
       whatsappPhone,
       whatsappEnabled,
+      otpVerificationEnabled,
       shippingSlabs,
     });
 
@@ -104,6 +112,7 @@ export default function SettingsRoute() {
   const { shop, settings, dpaAcceptedAt, dpaAcceptedVersion } = useLoaderData<any>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const testOtpFetcher = useFetcher<any>();
 
   const [forwardShipping, setForwardShipping] = useState(settings.defaultForwardShipping.toString());
   const [returnShipping, setReturnShipping] = useState(settings.defaultReturnShipping.toString());
@@ -133,7 +142,8 @@ export default function SettingsRoute() {
   const [isGstReg, setIsGstReg] = useState(settings.isGstRegistered);
   const [gstRate, setGstRate] = useState(settings.gstRate.toString());
   const [waPhone, setWaPhone] = useState(settings.whatsappPhone || "");
-  const [waEnabled, setWaEnabled] = useState(false);
+  const [waEnabled, setWaEnabled] = useState(Boolean(settings.whatsappEnabled));
+  const [otpEnabled, setOtpEnabled] = useState(Boolean(settings.otpVerificationEnabled));
   const [saved, setSaved] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
   const actionData = useActionData<any>();
@@ -152,7 +162,7 @@ export default function SettingsRoute() {
   const tabs = [
     { id: "costs-shipping", content: "💰 Costs & Shipping", panelID: "costs-panel" },
     { id: "gst-compliance", content: "🇮🇳 GST Compliance", panelID: "gst-panel" },
-    { id: "notifications", content: "💬 Notifications", panelID: "notifications-panel" },
+    { id: "notifications", content: "💬 WhatsApp & OTP", panelID: "notifications-panel" },
     { id: "alerts-keywords", content: "🔔 Alerts & Courier", panelID: "alerts-panel" },
     { id: "data-protection", content: "🛡️ Data Protection (DPA)", panelID: "dpa-panel" },
   ];
@@ -175,6 +185,7 @@ export default function SettingsRoute() {
     formData.append("gstRate", gstRate);
     formData.append("whatsappPhone", waPhone);
     formData.append("whatsappEnabled", waEnabled.toString());
+    formData.append("otpVerificationEnabled", otpEnabled.toString());
     formData.append("shippingSlabs", JSON.stringify(slabs));
 
     submit(formData, { method: "post" });
@@ -438,49 +449,97 @@ export default function SettingsRoute() {
                     </Card>
                   )}
 
-                  {/* ── TAB 2: Notifications (Coming Soon) ─────── */}
+                  {/* ── TAB 2: WhatsApp & OTP Verification ─────── */}
                   {selectedTab === 2 && (
                     <Card>
                       <Box padding="500">
                         <BlockStack gap="400">
-                          <InlineStack gap="200" blockAlign="center">
-                            <Icon source={NotificationIcon} />
-                            <Text variant="headingMd" as="h2">💬 Notifications & Customer Alerts</Text>
-                            <Badge tone="attention">Coming Soon</Badge>
+                          <InlineStack align="space-between" blockAlign="center">
+                            <InlineStack gap="200" blockAlign="center">
+                              <Icon source={NotificationIcon} />
+                              <Text variant="headingMd" as="h2">💬 WhatsApp & OTP Verification</Text>
+                              <Badge tone={waEnabled || otpEnabled ? "success" : "attention"}>
+                                {waEnabled || otpEnabled ? "Protection Active" : "Disabled"}
+                              </Badge>
+                            </InlineStack>
+                            <Button
+                              onClick={() => {
+                                setWaEnabled(true);
+                                setOtpEnabled(true);
+                              }}
+                              variant="secondary"
+                            >
+                              Enable All Protection
+                            </Button>
                           </InlineStack>
+
                           <Text variant="bodySm" as="p" tone="subdued">
-                            Automated WhatsApp and SMS order confirmations, OTP verification, and weekly profit digests are planned for an upcoming release.
+                            Configure automated WhatsApp notifications, customer OTP confirmations on risky COD orders, and weekly executive digests.
                           </Text>
 
-                          <Banner tone="info" title="Feature Currently Unavailable">
-                            <p>Automated WhatsApp notifications and OTP verification are currently in development and not yet available. These capabilities will be enabled in an upcoming release following direct messaging gateway integrations. No customer messages or OTPs are currently transmitted.</p>
-                          </Banner>
-                          
                           {actionData?.error && (
-                            <Banner tone="critical" title="Validation Error">
+                            <Banner tone="critical" title="Configuration Error">
                               <p>{actionData.error}</p>
                             </Banner>
                           )}
 
+                          {testOtpFetcher.data?.success && (
+                            <Banner tone="success" title="Test OTP Dispatched">
+                              <p>{testOtpFetcher.data.message || "Test OTP code sent successfully!"}</p>
+                            </Banner>
+                          )}
+
+                          {testOtpFetcher.data?.error && (
+                            <Banner tone="critical" title="Test OTP Failed">
+                              <p>{testOtpFetcher.data.error}</p>
+                            </Banner>
+                          )}
+
+                          <Divider />
+
+                          <BlockStack gap="300">
+                            <Checkbox
+                              label="Enable WhatsApp Notifications & Weekly Digest"
+                              checked={waEnabled}
+                              onChange={setWaEnabled}
+                              helpText="Receive weekly profit health summaries and high-risk order notifications directly to your WhatsApp."
+                            />
+
+                            <Checkbox
+                              label="Enable Dynamic OTP Verification for Risky COD Orders"
+                              checked={otpEnabled}
+                              onChange={setOtpEnabled}
+                              helpText="Challenge suspicious or high-risk COD orders with a 6-digit WhatsApp/SMS OTP confirmation before dispatch."
+                            />
+                          </BlockStack>
+
+                          <Divider />
+
                           <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
                             <Grid.Cell>
                               <TextField
-                                label="Notification Phone Number (Optional)"
+                                label="Merchant Notification Phone Number"
                                 value={waPhone}
                                 onChange={setWaPhone}
                                 placeholder="e.g. +919876543210"
-                                helpText="Include country code (e.g. +91 for India)."
+                                helpText="Include country code (e.g. +91 for India). Used for digests and test OTP dispatch."
                                 autoComplete="off"
                               />
                             </Grid.Cell>
                             <Grid.Cell>
                               <BlockStack gap="200">
-                                <Text variant="bodySm" as="span" fontWeight="bold">Notification Service Status</Text>
+                                <Text variant="bodySm" as="span" fontWeight="bold">Test Gateway Dispatch</Text>
                                 <InlineStack gap="200" blockAlign="center">
-                                  <Badge>Unavailable — Coming Soon</Badge>
+                                  <Button
+                                    loading={testOtpFetcher.state === "submitting"}
+                                    onClick={() => testOtpFetcher.submit({ intent: "test_otp", phone: waPhone }, { method: "post" })}
+                                    disabled={!waPhone}
+                                  >
+                                    Send Test OTP 📲
+                                  </Button>
                                 </InlineStack>
                                 <Text variant="bodyXs" as="p" tone="subdued">
-                                  WhatsApp and OTP verification controls are disabled until carrier gateway integration is released.
+                                  Dispatches a test verification code to the phone number via configured provider (Meta Cloud API or Twilio).
                                 </Text>
                               </BlockStack>
                             </Grid.Cell>

@@ -147,6 +147,24 @@ export class SettingsRepository {
     if (rules.codBlockingEnabled !== undefined) {
       updateData.codBlockingEnabled = rules.codBlockingEnabled;
     }
+    if (rules.otpVerificationEnabled !== undefined) {
+      updateData.otpVerificationEnabled = Boolean(rules.otpVerificationEnabled);
+    }
+    if (rules.partialPaymentEnabled !== undefined) {
+      updateData.partialPaymentEnabled = Boolean(rules.partialPaymentEnabled);
+    }
+    if (rules.partialPaymentAmount !== undefined) {
+      updateData.partialPaymentAmount = rules.partialPaymentAmount;
+    }
+    if (rules.codFeeEnabled !== undefined) {
+      updateData.codFeeEnabled = Boolean(rules.codFeeEnabled);
+    }
+    if (rules.codFeeAmount !== undefined) {
+      updateData.codFeeAmount = rules.codFeeAmount;
+    }
+    if (rules.codFeeType !== undefined) {
+      updateData.codFeeType = rules.codFeeType;
+    }
 
     const existing = await prisma.storeSettings.findUnique({
       where: { shop: shopId },
