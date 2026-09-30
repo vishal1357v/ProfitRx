@@ -88,6 +88,19 @@ const shopify = shopifyApp({
         // Re-activate canceled subscriptions upon reinstall to prevent lockout
         await SubscriptionSyncService.handleAfterAuth(session.shop);
 
+        // Cancel any pending GDPR shop redactions for reinstalled shop (prevents reinstall race conditions)
+        try {
+          await (prisma as any).shopRedactionRequest.updateMany({
+            where: { shop: session.shop, status: { in: ["PENDING", "PROCESSING", "FAILED"] } },
+            data: {
+              status: "CANCELLED_REINSTALLED",
+              lastError: `Shop reinstalled on ${new Date().toISOString()}`,
+              updatedAt: new Date(),
+            },
+          });
+        } catch (redactCancelErr) {
+          console.warn(`[afterAuth] Could not update shopRedactionRequest for ${session.shop}:`, redactCancelErr);
+        }
 
         // Trigger initial orders and native COGS sync for shop synchronously so Vercel does not terminate task
         try {

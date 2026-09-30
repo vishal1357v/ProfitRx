@@ -382,10 +382,6 @@ Group 5.8 Post purchase
 **Description:** Ensure your app displays the same product title, product price, and [product image](https://shopify.dev/api/checkout-extensions/components/image) in your upsell as the merchant’s store.
 **Verification guidance:** Check that upsell or cross-sell offers displayed by the app use product titles, prices, and images pulled from the merchant's Shopify store data rather than hardcoded or externally sourced values.
 
-5.8.4 Limit consecutive requests displayed to customers
-**Description:** Limit consecutive post purchase requests to a maximum of 2 that appear to buyers.
-**Verification guidance:** Review the post-purchase or upsell extension flow and count the maximum number of consecutive offers a customer can be shown. Flag if more than 3 consecutive offers (upsell or non-purchase) are possible in a single session.
-
 5.8.5 Correctly assign the purchase option category for each selling plan created
 **Description:** App must correctly assign the [purchase option category](https://shopify.dev/docs/apps/selling-strategies/purchase-options#purchase-option-category) in the API for subscriptions, pre-orders, and try before you buy.
 **Verification guidance:** Check the app's selling plan creation code and verify that the correct purchase option category (SUBSCRIPTION, PRE_ORDER, or TRY_BEFORE_YOU_BUY) is assigned via the Selling Plan API for each purchase type offered.

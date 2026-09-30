@@ -5,6 +5,12 @@ import { AdSpendService } from "../services/ad-spend.service";
 import { WhatsAppService } from "../services/whatsapp.service";
 import { RetentionCleanupService } from "../services/compliance/retention-cleanup.service";
 
+export const maxDuration = 60;
+export const config = {
+  maxDuration: 60,
+};
+
+
 export async function loader({ request }: LoaderFunctionArgs) {
   // Verify Bearer Token
   const authHeader = request.headers.get("Authorization");
@@ -15,8 +21,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // 1. Scheduled Data Protection Retention Cleanup (Shopify PCD Level 2 compliance)
+  // RUNS FIRST: Critical compliance and GDPR tasks must never be starved or delayed by merchant sync latency
+  let retentionCleanupResult: any = null;
   try {
-    // Get all offline sessions
+    retentionCleanupResult = await RetentionCleanupService.runScheduledCleanup();
+    console.log("[Auto-Sync Cron] Retention cleanup completed successfully:", retentionCleanupResult);
+  } catch (cleanupErr: any) {
+    console.error("[Auto-Sync Cron] Retention cleanup failed:", cleanupErr);
+    retentionCleanupResult = {
+      success: false,
+      error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+    };
+  }
+
+  try {
+    // 2. Get all offline sessions
     const sessions = await prisma.session.findMany({
       where: {
         isOnline: false,
@@ -83,24 +103,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
       );
     }
 
-    // 5. Scheduled Data Protection Retention Cleanup (Shopify PCD Level 2 compliance)
-    let retentionCleanupResult: any = null;
-    try {
-      retentionCleanupResult = await RetentionCleanupService.runScheduledCleanup();
-      console.log("[Auto-Sync Cron] Retention cleanup completed successfully:", retentionCleanupResult);
-    } catch (cleanupErr: any) {
-      console.error("[Auto-Sync Cron] Retention cleanup failed:", cleanupErr);
-      retentionCleanupResult = {
-        success: false,
-        error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
-      };
-    }
-
-    return Response.json({ success: true, results, retentionCleanup: retentionCleanupResult });
+    return Response.json({ success: true, retentionCleanup: retentionCleanupResult, results });
   } catch (error) {
-    console.error("[Auto-Sync Cron] Critical failure:", error);
+    console.error("[Auto-Sync Cron] Critical failure in merchant sync:", error);
     return Response.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+        retentionCleanup: retentionCleanupResult,
+      },
       { status: 500 }
     );
   }

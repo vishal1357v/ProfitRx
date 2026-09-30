@@ -168,6 +168,7 @@ describe("Automated Retention Cleanup Service", () => {
     vi.spyOn((prisma as any).cODOrder, "updateMany").mockResolvedValue({ count: 5 } as any);
     vi.spyOn((prisma as any).executionLog, "deleteMany").mockResolvedValue({ count: 12 } as any);
     vi.spyOn((prisma as any).customerDataAccessLog, "deleteMany").mockResolvedValue({ count: 3 } as any);
+    vi.spyOn((prisma as any).shopRedactionRequest, "findMany").mockResolvedValue([]);
 
     const result = await RetentionCleanupService.runScheduledCleanup();
 

@@ -17,41 +17,70 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const { payload, shop, topic } = authResult;
+  const shopName = payload?.shop_domain || shop;
 
-  console.log(`Received ${topic} webhook for ${shop}`);
+  if (!shopName) {
+    console.warn("[GDPR Shop Redact] Missing shop identifier in webhook payload");
+    return new Response("Missing shop domain", { status: 400 });
+  }
+
+  console.log(`Received ${topic} webhook for ${shopName}`);
   console.log(`[GDPR Shop Redact] Summary:`, safeGdprLogSummary(payload as any));
 
-  const shopName = payload.shop_domain || shop;
+  // Extract Shopify Webhook Delivery ID for duplicate delivery safety (idempotency)
+  const webhookId = request.headers.get("x-shopify-webhook-id") || null;
 
-  // ⚡ Respond immediately (within 5 seconds) as required by Shopify Webhook spec
-  // Run heavy database purges asynchronously in the background
-  setTimeout(async () => {
-    try {
-      console.log(`[GDPR Shop Redact] Purging store data in background for: ${shopName}`);
-
-      // Run deletions in parallel to reduce database connection time
-      await Promise.all([
-        (prisma as any).productCOGS.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).rTOEvent.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).alert.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).order.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).subscription.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).storeSettings.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).pincodeStats.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).customerProfile.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).adSpend.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).profitSnapshot.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).aISearchQuery.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-        (prisma as any).session.deleteMany({ where: { shop: shopName } }).catch((e: any) => console.warn(e)),
-      ]);
-
-      console.log(`[GDPR Shop Redact] Successfully purged data for: ${shopName}`);
-      logGdprAudit(shopName, "SHOP_REDACT_SUCCESS", "Successfully purged all records in the background.");
-    } catch (err: any) {
-      console.error(`[GDPR Shop Redact] Failed to purge data:`, err.message);
-      logGdprAudit(shopName, "SHOP_REDACT_FAILURE", `Failed to purge data in background: ${err.message}`);
+  try {
+    // 1. Idempotency check: if this specific webhook delivery was already recorded, return 200 immediately
+    if (webhookId) {
+      const existingDelivery = await (prisma as any).shopRedactionRequest.findUnique({
+        where: { webhookId },
+      });
+      if (existingDelivery) {
+        console.log(`[GDPR Shop Redact] Duplicate webhook delivery ${webhookId} for shop ${shopName}. Status: ${existingDelivery.status}`);
+        return new Response("Webhook received successfully (idempotent duplicate)", { status: 200 });
+      }
     }
-  }, 10);
 
-  return new Response("Webhook received successfully", { status: 200 });
+    // 2. Check if a redaction request is already pending or processing for this shop
+    const activeRequest = await (prisma as any).shopRedactionRequest.findFirst({
+      where: {
+        shop: shopName,
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+    });
+
+    if (activeRequest) {
+      console.log(`[GDPR Shop Redact] Redaction request already active for ${shopName} (ID: ${activeRequest.id}, Status: ${activeRequest.status})`);
+      return new Response("Webhook received successfully (already active)", { status: 200 });
+    }
+
+    // 3. Persist durable REDACT_REQUESTED tombstone in PostgreSQL
+    await (prisma as any).shopRedactionRequest.create({
+      data: {
+        shop: shopName,
+        webhookId,
+        status: "PENDING",
+        requestedAt: new Date(),
+      },
+    });
+
+    logGdprAudit(shopName, "SHOP_REDACT_QUEUED", `Durable redaction request created (webhookId: ${webhookId || "none"}). Data will be purged via scheduled retention cleanup within the 30-day compliance window.`);
+    console.log(`[GDPR Shop Redact] Successfully queued durable redaction request for ${shopName}`);
+
+    // Return HTTP 200 comfortably within Shopify's 5-second requirement (<300ms)
+    return new Response("Webhook received successfully", { status: 200 });
+  } catch (err: any) {
+    console.error(`[GDPR Shop Redact] Failed to persist redaction request for ${shopName}:`, err?.message || err);
+    logGdprAudit(shopName, "SHOP_REDACT_PERSIST_ERROR", `Failed to persist redaction request: ${err?.message || err}`);
+    return new Response(
+      JSON.stringify({ error: "Failed to persist redaction request" }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
 };
+
+

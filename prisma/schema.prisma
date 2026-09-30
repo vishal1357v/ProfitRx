@@ -599,3 +599,24 @@ model HealthScore {
   @@index([date])
   @@map("health_scores")
 }
+
+// ============================================
+// SHOP REDACTION REQUEST - Durable GDPR compliance tracking
+// ============================================
+model ShopRedactionRequest {
+  id          String    @id @default(cuid())
+  shop        String
+  webhookId   String?   @unique
+  status      String    @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED_REINSTALLED
+  attempts    Int       @default(0)
+  lastError   String?
+  requestedAt DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([shop, status])
+  @@index([status])
+  @@map("shop_redaction_requests")
+}
+
