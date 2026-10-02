@@ -22,6 +22,7 @@ import {
 import { authenticate } from "../shopify.server";
 import { CodRulesApplicationService } from "../application/protection/cod-rules.application";
 import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing, admin } = await authenticate.admin(request);
@@ -97,20 +98,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Enforce billing for real production stores only
   if (process.env.BYPASS_BILLING !== "true" && !isDevStore) {
-    try {
-      await billing.require({
-        plans: ["GROWTH", "PRO"],
-        isTest: false,
-        onFailure: async () => {
-          throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
-        },
-      });
-    } catch (error) {
-      if (error instanceof Response) {
-        throw error;
-      }
-      console.warn("[CodRules Billing Guard Warning]:", error);
-    }
+    await BillingApplicationService.requirePlan(shop, ["GROWTH", "PRO"], host);
   }
 
   return CodRulesApplicationService.getCodRulesData(shop);

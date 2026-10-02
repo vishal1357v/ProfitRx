@@ -33,6 +33,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+  const planHandle = url.searchParams.get("plan_handle");
+
+  if (planHandle) {
+    await BillingApplicationService.syncSubscription(session.shop, billing, true, planHandle);
+  }
 
   return BillingApplicationService.getBillingData(session.shop, billing, host);
 };
@@ -56,7 +61,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BillingPage() {
-  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt, lastSyncedAt, shopifyChargeId, billingProvider, isTestStore, totalRtoSavings } = useLoaderData<typeof loader>();
+  const { shop, host, plan, status, orderLimit, ordersUsed, trialEndsAt, lastSyncedAt, shopifyChargeId, billingProvider, isTestStore, totalRtoSavings, pricingPlansUrl } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
@@ -157,15 +162,15 @@ export default function BillingPage() {
                     {totalRtoSavings > 0 && <Badge tone="success">Profit Protected</Badge>}
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Estimated profit saved by blocking high-risk RTO pincodes and optimizing courier costs.
+                  Estimated shipping losses avoided by blocking high-risk COD orders.
                 </Text>
               </BlockStack>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 900, fontSize: 32, color: "var(--gg-accent-green)", letterSpacing: "-0.03em" }}>
-                  ~₹{totalRtoSavings.toLocaleString("en-IN")} Saved
+                  ~₹{totalRtoSavings.toLocaleString("en-IN")} Protected
                 </div>
                 <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>
-                  (Real-time calculation)
+                  (Modeled estimate from blocked orders)
                 </div>
               </div>
             </InlineStack>
@@ -242,12 +247,15 @@ export default function BillingPage() {
                         Change tiers, review Shopify subscription charges, or verify synchronization with Shopify Billing.
                       </Text>
                       <BlockStack gap="200">
-                        <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="primary" fullWidth>
-                          Change Plan Tier
+                        <Button url={pricingPlansUrl} target="_top" variant="primary" fullWidth>
+                          Change Plan (Shopify App Pricing)
+                        </Button>
+                        <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="secondary" fullWidth>
+                          Compare Features & Tiers
                         </Button>
                         <Form method="POST">
                           <input type="hidden" name="intent" value="sync_subscription" />
-                          <Button variant="secondary" submit fullWidth loading={isSubmitting}>
+                          <Button variant="plain" submit fullWidth loading={isSubmitting}>
                             Sync Subscription with Shopify
                           </Button>
                         </Form>

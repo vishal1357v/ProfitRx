@@ -20,6 +20,7 @@ import {
 import { authenticate } from "../shopify.server";
 import { CustomerAnalyticsApplicationService } from "../application/analytics/customer-analytics.application";
 import { AuditLogService } from "../services/compliance/audit-log.service";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -37,20 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Enforce billing if not bypassed
   if (process.env.BYPASS_BILLING !== "true") {
-    try {
-      await billing.require({
-        plans: ["PRO"],
-        isTest: process.env.NODE_ENV !== "production",
-        onFailure: async () => {
-          throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
-        },
-      });
-    } catch (error) {
-      if (error instanceof Response) {
-        throw error;
-      }
-      console.warn("[Customers Billing Guard Warning]:", error);
-    }
+    await BillingApplicationService.requirePlan(shop, ["PRO"], host);
   }
 
   const meta = AuditLogService.extractRequestMeta(request);

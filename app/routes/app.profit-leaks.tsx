@@ -22,6 +22,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ProfitLeaksApplicationService } from "../application/analytics/profit-leaks.application";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
@@ -35,20 +36,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Enforce billing if not bypassed
   if (process.env.BYPASS_BILLING !== "true") {
-    try {
-      await billing.require({
-        plans: ["GROWTH", "PRO"],
-        isTest: process.env.NODE_ENV !== "production",
-        onFailure: async () => {
-          throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
-        },
-      });
-    } catch (error) {
-      if (error instanceof Response) {
-        throw error;
-      }
-      console.warn("[ProfitLeaks Billing Guard Warning]:", error);
-    }
+    await BillingApplicationService.requirePlan(shop, ["GROWTH", "PRO"], host);
   }
 
   const data = await ProfitLeaksApplicationService.getProfitLeaksData(shop);
@@ -392,7 +380,7 @@ export default function ProfitLeaksRoute() {
                     title="Shipping Loss"
                     amount={leaks.shippingLoss}
                     trend={leaks.shippingTrend}
-                    detail="Shipping costs above ₹60/order baseline. Negotiate bulk rates with logistics partners."
+                    detail="Shipping costs above default order baseline. Negotiate volume rates with logistics partners."
                     tone="warning"
                     actionUrl="/app/settings"
                     actionText="Logistics Rules →"
@@ -423,10 +411,10 @@ export default function ProfitLeaksRoute() {
                       <BlockStack gap="150">
                         {[
                           "Block high-RTO pincodes for COD",
-                          "Add prepaid discount (₹50 off)",
-                          "Verify COD orders >₹2000 by OTP",
+                          "Add prepaid incentive discount",
+                          "Verify high-risk COD orders by OTP",
                           "Set max discount cap of 10%",
-                          "Negotiate ₹45/order bulk shipping",
+                          "Negotiate bulk shipping with courier partners",
                         ].map((action, idx) => (
                           <div key={idx} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                             <span style={{ color: "var(--gg-accent-green)", fontWeight: 700, flexShrink: 0 }}>✓</span>

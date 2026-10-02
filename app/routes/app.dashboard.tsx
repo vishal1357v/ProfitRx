@@ -1101,7 +1101,7 @@ export default function DashboardRoute() {
             {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
             <Layout.Section>
               <CalloutCard
-                title="⚡ Proof of ROI: ProfitRx Pays for Itself"
+                title="⚡ Estimated RTO Prevention Impact"
                 illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
                 primaryAction={{
                   content: "Manage COD Risk Shield Rules",
@@ -1110,11 +1110,17 @@ export default function DashboardRoute() {
               >
                 <BlockStack gap="200">
                   <Text variant="bodyMd" as="p" tone="success">
-                    ProfitRx saved you <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses this month. Your subscription cost is only {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.
+                    {data.totalRtoSavings > 0 ? (
+                      <>Estimated <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses avoided this month by blocking high-risk COD orders. Your subscription cost is {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.</>
+                    ) : (
+                      <>No high-risk COD orders blocked yet this month. Configure COD rules to protect your profit.</>
+                    )}
                   </Text>
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription!
-                  </Text>
+                  {data.totalRtoSavings > 0 && (
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      Estimated Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription.
+                    </Text>
+                  )}
                 </BlockStack>
               </CalloutCard>
             </Layout.Section>
@@ -1464,10 +1470,10 @@ export default function DashboardRoute() {
                             <BlockStack gap="150">
                               <InlineStack align="space-between">
                                 <Text variant="bodySm" as="span" fontWeight="bold" tone="critical">🛑 Action 1: Block High-RTO Pincodes</Text>
-                                <Badge tone="critical">Save ~$380</Badge>
+                                <Badge tone="critical">Estimated impact</Badge>
                               </InlineStack>
                               <Text variant="bodyXs" as="p" tone="subdued">
-                                Pincodes 110053 and 110078 have over 45% return rates. Restrict COD to stop loss.
+                                Identify postal codes with elevated return rates and restrict COD to avoid freight loss.
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
@@ -1496,11 +1502,11 @@ export default function DashboardRoute() {
                           }}>
                             <BlockStack gap="150">
                               <InlineStack align="space-between">
-                                <Text variant="bodySm" as="span" fontWeight="bold">⚡ Action 2: Disable COD on Toxic Item</Text>
-                                <Badge tone="warning">Save ~$220</Badge>
+                                <Text variant="bodySm" as="span" fontWeight="bold">⚡ Action 2: Review High-RTO Items</Text>
+                                <Badge tone="warning">Estimated impact</Badge>
                               </InlineStack>
                               <Text variant="bodyXs" as="p" tone="subdued">
-                                Item "{data.topProducts[0]?.name || "Product Catalog"}" has negative net margin after returns.
+                                Review catalog items with low or negative margins after factoring in return shipping.
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
@@ -1528,11 +1534,11 @@ export default function DashboardRoute() {
                           }}>
                             <BlockStack gap="150">
                               <InlineStack align="space-between">
-                                <Text variant="bodySm" as="span" fontWeight="bold">🚚 Action 3: Logistics Route Swap</Text>
-                                <Badge tone="info">Save ~$110</Badge>
+                                <Text variant="bodySm" as="span" fontWeight="bold">🚚 Action 3: Courier Route Review</Text>
+                                <Badge tone="info">Estimated impact</Badge>
                               </InlineStack>
                               <Text variant="bodyXs" as="p" tone="subdued">
-                                High shipping overage detected in Zone UP. Adjust default courier settings.
+                                Check delivery performance and freight costs across zones to optimize courier routing.
                               </Text>
                             </BlockStack>
                             <div style={{ marginTop: "12px" }}>
@@ -1820,7 +1826,7 @@ export default function DashboardRoute() {
                           <LeakInsight
                             icon="🚚" title="Shipping Loss" amount={data.leaks.shippingLoss}
                             trend={data.leaks.shippingTrend}
-                            detail="Shipping costs above ₹60/order baseline. Negotiate bulk rates with logistics partners."
+                            detail="Shipping costs above default order baseline. Negotiate volume rates with logistics partners."
                             tone="warning"
                           />
                         </Grid.Cell>
@@ -1843,10 +1849,10 @@ export default function DashboardRoute() {
                               <BlockStack gap="150">
                                 {[
                                   "Block high-RTO pincodes for COD",
-                                  "Add prepaid discount (₹50 off)",
-                                  "Verify COD orders >₹2000 by OTP",
+                                  "Add prepaid incentive discount",
+                                  "Verify high-risk COD orders by OTP",
                                   "Set max discount cap of 10%",
-                                  "Negotiate ₹45/order bulk shipping",
+                                  "Negotiate bulk shipping with courier partners",
                                 ].map((action, idx) => (
                                   <div key={idx} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                                     <span style={{ color: "var(--gg-accent-green)", fontWeight: 700, flexShrink: 0 }}>✓</span>

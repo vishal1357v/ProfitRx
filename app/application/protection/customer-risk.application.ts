@@ -1,4 +1,5 @@
 import { CustomerRepository, CustomerRiskRecord } from "../../infrastructure/repositories/customer.repository";
+import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { AuditLogService } from "../../services/compliance/audit-log.service";
 
 export interface CustomerRiskItem {
@@ -39,7 +40,13 @@ export class CustomerRiskApplicationService {
    * Retrieves all customer risk profiles, calculates RTO rates and aggregate loss figures.
    */
   static async getCustomerRiskData(shop: string): Promise<CustomerRiskDTO> {
-    const rawProfiles = await CustomerRepository.findRiskProfilesByShop(shop, 100);
+    const [rawProfiles, settings] = await Promise.all([
+      CustomerRepository.findRiskProfilesByShop(shop, 100),
+      SettingsRepository.getByShop(shop),
+    ]);
+
+    const avgShippingCost = (settings?.defaultForwardShipping ?? 60) + (settings?.defaultReturnShipping ?? 70);
+    const avgRtoLoss = avgShippingCost > 0 ? avgShippingCost : 130;
 
     let totalLoss = 0;
     let sumRtoRate = 0;
@@ -50,7 +57,7 @@ export class CustomerRiskApplicationService {
     const customers: CustomerRiskItem[] = rawProfiles.map((p) => {
       const rtoRate = p.codOrders > 0 ? Math.round((p.rtoCount / p.codOrders) * 100) : 0;
       const deliveryRate = p.totalOrders > 0 ? Math.round((p.successfulDeliveries / p.totalOrders) * 100) : 0;
-      const estimatedLoss = Math.round(p.rtoCount * 250); // Standard ₹250 avg return shipping & handling waste
+      const estimatedLoss = Math.round(p.rtoCount * avgRtoLoss);
 
       if (p.rtoCount >= 1 || p.riskLevel === "CRITICAL" || p.riskLevel === "HIGH") {
         totalOffenders += 1;

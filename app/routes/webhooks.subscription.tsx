@@ -2,6 +2,12 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import { upsertSubscriptionRecord } from "../services/subscription-sync.service";
 
+/**
+ * NOTE ON SHOPIFY APP PRICING MIGRATION:
+ * Shopify App Pricing no longer sends subscription webhooks after April 28, 2026.
+ * The primary source of truth is the Partner API activeSubscription query.
+ * Retained for legacy webhook backwards compatibility.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   let shop: string;
   let payload: any;
@@ -21,7 +27,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Missing shop domain", { status: 400 });
   }
 
-  console.log(`[Webhook Subscription] Received ${topic} for shop ${shop}`);
+  console.log(`[Webhook Subscription] (Legacy received ${topic} for shop ${shop})`);
 
   const subData = payload?.app_subscription || payload;
   const planName = subData?.name || subData?.plan || "GROWTH";

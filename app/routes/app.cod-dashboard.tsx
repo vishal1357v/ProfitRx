@@ -164,7 +164,7 @@ export default function CODProfitDashboardRoute() {
                     }}
                   >
                     <Text variant="bodySm" as="p">
-                      <strong>COD Net Margin:</strong> {data.cod.margin}% (Target &gt;20%). Every returned COD order loses approx. ₹130 in forward + return freight.
+                      <strong>COD Net Margin:</strong> {data.cod.margin}% (Target &gt;20%). Returned COD orders incur direct loss from two-way shipping freight and packaging.
                     </Text>
                   </div>
                 </BlockStack>

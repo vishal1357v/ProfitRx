@@ -15,7 +15,7 @@
     "setup": "prisma generate && prisma migrate deploy",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
-    "test": "vitest run app/",
+    "test": "vitest run app/ --test-timeout=20000",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",

@@ -1,18 +1,12 @@
 import prisma from "../db.server";
-import { unauthenticated } from "../shopify.server";
+import {
+  PartnerBillingService,
+  mapPlanHandle,
+  type AppPricingPlan,
+} from "./partner-billing.service";
 
 export function mapPlanDetails(planName: string) {
-  const upper = (planName || "").toUpperCase().trim();
-  if (upper === "PRO" || upper === "ADVANCE" || upper === "PRO_ENTERPRISE") {
-    return { plan: "PRO", orderLimit: null };
-  }
-  if (upper === "GROWTH") {
-    return { plan: "GROWTH", orderLimit: 2000 };
-  }
-  if (upper === "STARTER" || upper === "BASIC") {
-    return { plan: "STARTER", orderLimit: 500 };
-  }
-  return { plan: "FREE", orderLimit: 50 };
+  return mapPlanHandle(planName);
 }
 
 export async function upsertSubscriptionRecord({
@@ -28,13 +22,13 @@ export async function upsertSubscriptionRecord({
   shopifyChargeId?: string | null;
   trialEndsAt?: Date | null;
 }) {
-  const details = mapPlanDetails(plan);
+  const details = mapPlanHandle(plan);
 
   return await prisma.subscription.upsert({
     where: { shop },
     update: {
       plan: details.plan,
-      status,
+      status: status.toUpperCase(),
       ...(shopifyChargeId !== undefined ? { shopifyChargeId } : {}),
       ...(trialEndsAt !== undefined ? { trialEndsAt } : {}),
       orderLimit: details.orderLimit,
@@ -42,7 +36,7 @@ export async function upsertSubscriptionRecord({
     create: {
       shop,
       plan: details.plan,
-      status,
+      status: status.toUpperCase(),
       shopifyChargeId: shopifyChargeId || null,
       trialEndsAt: trialEndsAt || null,
       orderLimit: details.orderLimit,
@@ -51,12 +45,51 @@ export async function upsertSubscriptionRecord({
   });
 }
 
-export async function syncSubscriptionWithShopify(shop: string, billing: any, force: boolean = false) {
-  // ⚡ TTFB Cache Check: Query our database first to see if subscription was checked recently (within 5 min)
+/**
+ * Synchronizes merchant subscription state with Shopify App Pricing.
+ * Uses Partner API activeSubscription query as canonical source of truth.
+ * Supports plan_handle URL parameter from Shopify App Pricing welcome/redirect links.
+ */
+export async function syncSubscriptionWithShopify(
+  shop: string,
+  billing?: any,
+  force: boolean = false,
+  planHandle?: string | null
+) {
+  // ── 1. If plan_handle is supplied (Welcome/Redirect link), establish plan immediately ──
+  if (planHandle) {
+    const details = mapPlanHandle(planHandle);
+    console.log(`[SubscriptionSync] Redirect received with plan_handle="${planHandle}" -> establishing ${details.plan} for ${shop}`);
+
+    // Try to verify via Partner API if credentials exist
+    try {
+      const partnerSub = await PartnerBillingService.fetchPartnerActiveSubscription(shop);
+      if (partnerSub.hasSubscription && partnerSub.plan) {
+        return await upsertSubscriptionRecord({
+          shop,
+          plan: partnerSub.plan,
+          status: partnerSub.status,
+          shopifyChargeId: partnerSub.shopifyChargeId,
+          trialEndsAt: partnerSub.trialEndsAt,
+        });
+      }
+    } catch (partnerErr) {
+      console.warn(`[SubscriptionSync] Partner API verification during redirect skipped for ${shop}:`, partnerErr);
+    }
+
+    // Set plan directly from verified plan_handle
+    return await upsertSubscriptionRecord({
+      shop,
+      plan: details.plan,
+      status: "ACTIVE",
+      trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // Default 14-day trial
+    });
+  }
+
+  // ── 2. TTFB Cache Check: Return recent record if checked within 5 minutes ──
   if (!force) {
     try {
       const existing = await prisma.subscription.findUnique({ where: { shop } });
-      // Always re-check PENDING records (merchant just selected a plan, awaiting Shopify confirmation)
       if (existing && existing.status !== "CANCELED" && existing.status !== "PENDING") {
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
         if (existing.updatedAt > fiveMinAgo) {
@@ -68,114 +101,44 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
     }
   }
 
+  // ── 3. Query Partner API activeSubscription ──
   try {
-    // First attempt: Check live subscriptions, fallback to test subscriptions (for development stores)
-    let checkResult = await billing.check({
-      plans: ["STARTER", "GROWTH", "PRO"],
-      isTest: false,
-    }).catch((err: any) => {
-      console.warn(`[Billing Check] Live check failed (${err.message}), checking test subscriptions...`);
-      return { appSubscriptions: [] };
-    });
+    const partnerSub = await PartnerBillingService.fetchPartnerActiveSubscription(shop);
 
-    if (!checkResult.appSubscriptions?.length) {
-      checkResult = await billing.check({
-        plans: ["STARTER", "GROWTH", "PRO"],
-        isTest: true,
-      }).catch((err: any) => {
-        console.warn(`[Billing Check] Test check error: ${err.message}`);
-        return { appSubscriptions: [] };
-      });
-    }
-
-    console.log(`[Billing Check] shop=${shop} attempt=1 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
-
-    // Retry once after 1.5s if Shopify returned no subscriptions — covers propagation delay
-    if (!checkResult.appSubscriptions?.length) {
-      console.log(`[Billing Check] shop=${shop} No subscriptions on first check, retrying in 1.5s...`);
-      await new Promise(r => setTimeout(r, 1500));
-      checkResult = await billing.check({
-        plans: ["STARTER", "GROWTH", "PRO"],
-        isTest: true,
-      }).catch(() => ({ appSubscriptions: [] }));
-      
-      if (!checkResult.appSubscriptions?.length) {
-        checkResult = await billing.check({
-          plans: ["STARTER", "GROWTH", "PRO"],
-          isTest: false,
-        }).catch(() => ({ appSubscriptions: [] }));
-      }
-      console.log(`[Billing Check] shop=${shop} attempt=2 appSubscriptions=${JSON.stringify(checkResult.appSubscriptions, null, 2)}`);
-    }
-
-    const activeSub = checkResult.appSubscriptions?.find((sub: any) => {
-      const s = (sub.status || "").toUpperCase();
-      return s === "ACTIVE" || s === "TRIALING" || s === "ACCEPTED";
-    });
-
-    console.log(`[Billing Check] shop=${shop} activeSub=${activeSub ? JSON.stringify({ name: activeSub.name, status: activeSub.status, id: activeSub.id }) : "NONE"}`);
-
-    if (activeSub) {
-      const trialEndsAt = activeSub.trialEndsAt ? new Date(activeSub.trialEndsAt) : null;
-      const dbBefore = await prisma.subscription.findUnique({ where: { shop } });
-      console.log(`[Billing Check] shop=${shop} DB BEFORE update: plan=${dbBefore?.plan} status=${dbBefore?.status}`);
-      const updated = await upsertSubscriptionRecord({
+    if (partnerSub.hasSubscription) {
+      console.log(`[SubscriptionSync] Partner API active sub confirmed for ${shop}: plan=${partnerSub.plan}, status=${partnerSub.status}`);
+      return await upsertSubscriptionRecord({
         shop,
-        plan: activeSub.name,
-        status: activeSub.status.toUpperCase(),
-        shopifyChargeId: activeSub.id,
-        trialEndsAt,
+        plan: partnerSub.plan,
+        status: partnerSub.status,
+        shopifyChargeId: partnerSub.shopifyChargeId,
+        trialEndsAt: partnerSub.trialEndsAt,
       });
-      console.log(`[Billing Check] shop=${shop} DB AFTER update: plan=${updated.plan} status=${updated.status}`);
-      return updated;
     }
 
-    // No active payment found on Shopify after retry
+    // If Partner API returned a confirmed NO-SUBSCRIPTION (source === "PARTNER_API")
+    if (partnerSub.source === "PARTNER_API" && !partnerSub.hasSubscription) {
+      console.log(`[SubscriptionSync] Partner API confirmed NO active subscription for ${shop}. Defaulting to FREE.`);
+      return await upsertSubscriptionRecord({
+        shop,
+        plan: "FREE",
+        status: "ACTIVE",
+        shopifyChargeId: null,
+        trialEndsAt: null,
+      });
+    }
+
+    // Partner API credentials were not configured or failed -> check local DB
     const existing = await prisma.subscription.findUnique({ where: { shop } });
-    console.log(`[Billing Check] shop=${shop} No active sub from Shopify. Local DB: plan=${existing?.plan} status=${existing?.status} updatedAt=${existing?.updatedAt?.toISOString()}`);
-
-    if (!existing || existing.status === "CANCELED") {
-      console.log(`[Billing Check] shop=${shop} No local record or CANCELED — defaulting to FREE`);
-      return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
+    if (existing) {
+      console.log(`[SubscriptionSync] Preserving local subscription for ${shop}: plan=${existing.plan}, status=${existing.status}`);
+      return existing;
     }
 
-    // Protect PENDING records: merchant selected a plan but Shopify hasn't confirmed yet.
-    // Never downgrade a PENDING record — only Shopify confirmation or stale timeout should clear it.
-    if (existing.status === "PENDING") {
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-      if (existing.updatedAt > fiveMinAgo) {
-        console.log(`[Billing Check] shop=${shop} PENDING record preserved (plan=${existing.plan}, age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s)`);
-        return existing;
-      }
-      // PENDING record is stale (>5 min) — merchant likely abandoned checkout, revert to FREE
-      console.log(`[Billing Check] shop=${shop} PENDING record STALE (plan=${existing.plan}, age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s) — reverting to FREE`);
-      return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
-    }
-
-    // Only downgrade ACTIVE/TRIALING subscriptions after Shopify confirms they're gone.
-    // The billing.check() above (with retry) already ran — if we're here, Shopify genuinely
-    // has no active subscription for this shop.
-    if (
-      existing.plan !== "FREE" && 
-      (existing.status === "ACTIVE" || existing.status === "TRIALING") &&
-      existing.updatedAt < new Date(Date.now() - 5 * 60 * 1000)
-    ) {
-      console.log(`[Billing Check] shop=${shop} DOWNGRADING: Shopify confirmed no active sub. Local was plan=${existing.plan} status=${existing.status} (age=${Math.round((Date.now() - existing.updatedAt.getTime()) / 1000)}s)`);
-      return await prisma.subscription.update({
-        where: { shop },
-        data: {
-          plan: "FREE",
-          status: "EXPIRED",
-          orderLimit: 50,
-          trialEndsAt: null,
-        },
-      });
-    }
-
-    console.log(`[Billing Check] shop=${shop} Keeping existing record as-is: plan=${existing.plan} status=${existing.status}`);
-    return existing;
-  } catch (err) {
-    console.error(`[SubscriptionSync] Error checking billing for ${shop}:`, err);
+    // No local record -> default to FREE tier
+    return await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
+  } catch (err: any) {
+    console.error(`[SubscriptionSync] Error syncing subscription for ${shop}:`, err);
     let localSub = await prisma.subscription.findUnique({ where: { shop } });
     if (!localSub) {
       localSub = await upsertSubscriptionRecord({ shop, plan: "FREE", status: "ACTIVE" });
@@ -184,7 +147,30 @@ export async function syncSubscriptionWithShopify(shop: string, billing: any, fo
   }
 }
 
+/**
+ * Handles post-installation and reinstallation hook.
+ * Reinstalls must discover any existing active App Pricing subscription rather than
+ * creating duplicates or resetting to FREE unnecessarily.
+ */
 export async function handleAfterAuth(shop: string) {
+  try {
+    // Check Partner API to see if this store has an active App Pricing contract
+    const partnerSub = await PartnerBillingService.fetchPartnerActiveSubscription(shop);
+    if (partnerSub.hasSubscription && partnerSub.plan !== "FREE") {
+      console.log(`[SubscriptionSync] Reinstall discovered active App Pricing subscription for ${shop}: plan=${partnerSub.plan}`);
+      return await upsertSubscriptionRecord({
+        shop,
+        plan: partnerSub.plan,
+        status: partnerSub.status,
+        shopifyChargeId: partnerSub.shopifyChargeId,
+        trialEndsAt: partnerSub.trialEndsAt,
+      });
+    }
+  } catch (partnerErr) {
+    console.warn(`[SubscriptionSync] Reinstall Partner API check failed for ${shop}:`, partnerErr);
+  }
+
+  // Check local database
   const existingSub = await prisma.subscription.findUnique({ where: { shop } });
   if (!existingSub || existingSub.status === "CANCELED") {
     return await upsertSubscriptionRecord({
@@ -195,44 +181,16 @@ export async function handleAfterAuth(shop: string) {
       trialEndsAt: null,
     });
   }
+
   return existingSub;
 }
 
-export async function cancelSubscription(shop: string, billing: any) {
-  const subscription = await prisma.subscription.findUnique({
-    where: { shop },
-  });
-
-  if (subscription?.shopifyChargeId) {
-    try {
-      const { admin } = await unauthenticated.admin(shop);
-      const res = await admin.graphql(`
-        mutation appSubscriptionCancel($id: ID!) {
-          appSubscriptionCancel(id: $id) {
-            appSubscription {
-              id
-              status
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }
-      `, {
-        variables: { id: subscription.shopifyChargeId }
-      });
-      
-      const data = await res.json();
-      if (data?.data?.appSubscriptionCancel?.userErrors?.length > 0) {
-        console.error("[SubscriptionSync] GraphQL UserErrors canceling subscription:", data.data.appSubscriptionCancel.userErrors);
-      } else {
-        console.log("[SubscriptionSync] Successfully canceled Shopify charge:", subscription.shopifyChargeId);
-      }
-    } catch (err) {
-      console.error("Failed to cancel Shopify subscription:", err);
-    }
-  }
+/**
+ * Cancels a subscription and downgrades merchant to the FREE tier.
+ * Under Shopify App Pricing, recurring charges are managed in the Partner Dashboard / Shopify Admin.
+ */
+export async function cancelSubscription(shop: string, billing?: any) {
+  console.log(`[SubscriptionSync] Canceling subscription for shop: ${shop}`);
 
   return await prisma.subscription.update({
     where: { shop },
@@ -253,4 +211,3 @@ export const SubscriptionSyncService = {
   handleAfterAuth,
   cancelSubscription,
 };
-

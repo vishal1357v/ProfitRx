@@ -67,10 +67,10 @@ describe("API Auto-Sync Cron Route (api.auto-sync.ts)", () => {
     });
 
     // Spy on offline session lookup
-    vi.spyOn(prisma.session, "findMany").mockImplementation(async () => {
+    vi.spyOn(prisma.session, "findMany").mockImplementation((async () => {
       executionOrder.push("SESSION_LOOKUP");
       return [{ shop: "merchant-1.myshopify.com" }] as any;
-    });
+    }) as any);
 
     vi.mocked(ShopifyService.syncOrdersForShop).mockImplementation(async () => {
       executionOrder.push("ORDER_SYNC");

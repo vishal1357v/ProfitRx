@@ -1,7 +1,9 @@
+import { redirect } from "react-router";
 import { SubscriptionRepository } from "../../infrastructure/repositories/subscription.repository";
 import { OrderRepository } from "../../infrastructure/repositories/order.repository";
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { SubscriptionSyncService } from "../../services/subscription-sync.service";
+import { PartnerBillingService } from "../../services/partner-billing.service";
 
 export interface BillingDataDTO {
   shop: string;
@@ -16,6 +18,7 @@ export interface BillingDataDTO {
   billingProvider: string;
   isTestStore: boolean;
   totalRtoSavings: number;
+  pricingPlansUrl: string;
 }
 
 export class BillingApplicationService {
@@ -57,23 +60,47 @@ export class BillingApplicationService {
       trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
       lastSyncedAt: subscription.updatedAt ? subscription.updatedAt.toISOString() : new Date().toISOString(),
       shopifyChargeId: subscription.shopifyChargeId || null,
-      billingProvider: "Shopify App Billing API (Recurring Application Charge)",
+      billingProvider: "Shopify App Pricing",
       isTestStore,
       totalRtoSavings,
+      pricingPlansUrl: PartnerBillingService.getPricingPlansUrl(shop),
     };
   }
 
   /**
-   * Sync active subscription with Shopify Billing API.
+   * Enforces plan gating for protected routes without legacy Billing API SDK calls.
+   * Redirects to the pricing page if the merchant does not have an active matching tier.
    */
-  static async syncSubscription(shop: string, billing: any, force = false) {
-    return SubscriptionSyncService.syncSubscriptionWithShopify(shop, billing, force);
+  static async requirePlan(shop: string, requiredPlans: string[], host: string): Promise<boolean> {
+    if (process.env.BYPASS_BILLING === "true") {
+      return true;
+    }
+
+    const sub = await SubscriptionRepository.findByShop(shop);
+    const normalizedPlan = (sub?.plan || "FREE").toUpperCase();
+    const status = (sub?.status || "ACTIVE").toUpperCase();
+
+    const hasActiveStatus = status === "ACTIVE" || status === "TRIALING";
+    const meetsPlan = requiredPlans.map((p) => p.toUpperCase()).includes(normalizedPlan);
+
+    if (!hasActiveStatus || !meetsPlan) {
+      throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
+    }
+
+    return true;
+  }
+
+  /**
+   * Sync active subscription with Shopify App Pricing (Partner API).
+   */
+  static async syncSubscription(shop: string, billing?: any, force = false, planHandle?: string | null) {
+    return SubscriptionSyncService.syncSubscriptionWithShopify(shop, billing, force, planHandle);
   }
 
   /**
    * Cancel merchant subscription.
    */
-  static async cancelSubscription(shop: string, billing: any) {
+  static async cancelSubscription(shop: string, billing?: any) {
     return SubscriptionSyncService.cancelSubscription(shop, billing);
   }
 
@@ -101,16 +128,18 @@ export class BillingApplicationService {
   static async getPricingData(
     shop: string,
     billing: any,
-    urlParams: { forceSync?: boolean; isChangingPlan?: boolean; host?: string }
+    urlParams: { forceSync?: boolean; isChangingPlan?: boolean; host?: string; planHandle?: string | null }
   ) {
     const sub = await SubscriptionSyncService.syncSubscriptionWithShopify(
       shop,
       billing,
-      urlParams.forceSync || false
+      urlParams.forceSync || Boolean(urlParams.planHandle),
+      urlParams.planHandle
     );
 
     const shouldRedirect =
       !urlParams.isChangingPlan &&
+      !urlParams.planHandle &&
       sub &&
       sub.plan !== "FREE" &&
       (sub.status === "ACTIVE" || sub.status === "TRIALING");
@@ -130,6 +159,7 @@ export class BillingApplicationService {
       shop,
       host: urlParams.host || "",
       subscription: sub,
+      pricingPlansUrl: PartnerBillingService.getPricingPlansUrl(shop),
     };
   }
 }

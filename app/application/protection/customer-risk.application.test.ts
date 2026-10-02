@@ -60,7 +60,7 @@ describe("CustomerRiskApplicationService", () => {
     expect(result.shop).toBe(shop);
     expect(result.summary.totalOffenders).toBe(1);
     expect(result.summary.highRiskCount).toBe(1);
-    expect(result.summary.totalLoss).toBe(500); // 2 RTOs * 250
+    expect(result.summary.totalLoss).toBe(260); // 2 RTOs * (60 forward + 70 return default = 130)
     expect(result.summary.avgRtoRate).toBe(50); // 2 / 4 = 50%
     expect(result.customers).toHaveLength(2);
 

@@ -5,7 +5,9 @@ import { syncSubscriptionWithShopify } from "../services/subscription-sync.servi
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const { session, billing } = await authenticate.admin(request);
-    const subscription = await syncSubscriptionWithShopify(session.shop, billing, true);
+    const url = new URL(request.url);
+    const planHandle = url.searchParams.get("plan_handle");
+    const subscription = await syncSubscriptionWithShopify(session.shop, billing, true, planHandle);
     return Response.json({
       success: true,
       shop: session.shop,
@@ -23,7 +25,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { session, billing } = await authenticate.admin(request);
-    const subscription = await syncSubscriptionWithShopify(session.shop, billing, true);
+    const url = new URL(request.url);
+    const planHandle = url.searchParams.get("plan_handle");
+    const subscription = await syncSubscriptionWithShopify(session.shop, billing, true, planHandle);
     return Response.json({
       success: true,
       shop: session.shop,

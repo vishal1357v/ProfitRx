@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { CustomerRiskApplicationService } from "../application/protection/customer-risk.application";
+import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
@@ -33,20 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Enforce billing for growth/pro tiers
   if (process.env.BYPASS_BILLING !== "true") {
-    try {
-      await billing.require({
-        plans: ["GROWTH", "PRO"],
-        isTest: process.env.NODE_ENV !== "production",
-        onFailure: async () => {
-          throw redirect(`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
-        },
-      });
-    } catch (error) {
-      if (error instanceof Response) {
-        throw error;
-      }
-      console.warn("[CustomerRisk Billing Guard Warning]:", error);
-    }
+    await BillingApplicationService.requirePlan(shop, ["GROWTH", "PRO"], host);
   }
 
   return CustomerRiskApplicationService.getCustomerRiskData(shop);

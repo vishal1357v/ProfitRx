@@ -3,7 +3,6 @@ import {
   ApiVersion,
   AppDistribution,
   shopifyApp,
-  BillingInterval,
 } from "@shopify/shopify-app-react-router/server";
 import prisma from "./db.server";
 import { EncryptedPrismaSessionStorage } from "./services/encrypted-session-storage.server";
@@ -117,38 +116,7 @@ const shopify = shopifyApp({
       }
     },
   },
-  billing: {
-    "STARTER": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 19.0,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-    "GROWTH": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 39.0,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-    "PRO": {
-      trialDays: 14,
-      lineItems: [
-        {
-          amount: 79.0,
-          currencyCode: "USD",
-          interval: BillingInterval.Every30Days,
-        },
-      ],
-    },
-  },
+
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
     : {}),

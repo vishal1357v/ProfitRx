@@ -136,13 +136,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
   }
 
-  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
+  const planHandle = url.searchParams.get("plan_handle");
+  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true" || Boolean(planHandle);
 
   // ── Step 2: Sync billing with Shopify (sequential to avoid stale reads) ────
   let localSub: { plan: string; status: string; orderLimit: number | null; ordersUsed: number };
 
   try {
-    localSub = await syncSubscriptionWithShopify(session.shop, billing, forceSync);
+    localSub = await syncSubscriptionWithShopify(session.shop, billing, forceSync, planHandle);
   } catch (syncErr: any) {
     console.error("[app.tsx syncSubscriptionWithShopify FAILED]:", syncErr);
     localSub = { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };

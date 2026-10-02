@@ -81,11 +81,12 @@ export class DashboardApplicationService {
   }
 
   const url = new URL(request.url);
-  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
+  const planHandle = url.searchParams.get("plan_handle");
+  const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true" || Boolean(planHandle);
 
   try {
-    // Perform active subscription check with Shopify Billing API
-    const subscription = await syncSubscriptionWithShopify(shop, billing, forceSync);
+    // Perform active subscription check with Shopify App Pricing (Partner API)
+    const subscription = await syncSubscriptionWithShopify(shop, billing, forceSync, planHandle);
     const isFreeTier = (subscription?.plan || "FREE") === "FREE";
     const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
     const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";

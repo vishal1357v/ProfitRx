@@ -408,7 +408,8 @@ export class CODManagementService {
 
     // High risk pincodes suggestion
     const highRiskPincodes = pincodeStats.filter((p) => p.rtoRate >= 30);
-    const estimatedPincodeSavings = highRiskPincodes.reduce((sum, p) => sum + p.totalLoss, 0) || 3200;
+    const hasPincodeData = highRiskPincodes.length > 0;
+    const realPincodeLoss = highRiskPincodes.reduce((sum, p) => sum + (p.totalLoss || 0), 0);
 
     const codSettings = await this.getCODSettings(shop);
     const hostQuery = host ? `&host=${encodeURIComponent(host)}` : "";
@@ -417,36 +418,42 @@ export class CODManagementService {
       {
         id: "pincode_block",
         type: "CRITICAL",
-        title: `Block High-RTO Pincodes (${highRiskPincodes.length > 0 ? highRiskPincodes.map((p) => p.pincode).join(", ") : "110053, 635109"})`,
-        impact: `Save ~₹${Math.round(estimatedPincodeSavings).toLocaleString("en-IN")}/mo`,
-        description: "Pincodes with >30% return rates drain profit. Restrict COD in these pincodes.",
+        title: hasPincodeData
+          ? `Block High-RTO Pincodes (${highRiskPincodes.map((p) => p.pincode).join(", ")})`
+          : "Analyze Pincode RTO Rates",
+        impact: hasPincodeData && realPincodeLoss > 0
+          ? `Est. ~₹${Math.round(realPincodeLoss).toLocaleString("en-IN")}/mo loss avoided`
+          : "Analyze your pincodes to identify savings",
+        description: hasPincodeData
+          ? "Pincodes with >30% return rates drain profit. Restrict COD in these pincodes."
+          : "Identify and restrict COD in postal codes with elevated return rates.",
         actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
-        actionText: "Block Pincodes →",
+        actionText: hasPincodeData ? "Block Pincodes →" : "View Pincode Analytics →",
       },
       {
         id: "cod_fee",
         type: "WARNING",
-        title: "Add COD Fee of ₹40",
-        impact: `Estimated savings ~₹${Math.round(codOrders * 30).toLocaleString("en-IN")}/mo`,
-        description: "Incentivize buyers to switch to Prepaid orders by adding a small handling fee.",
+        title: "Add COD Handling Fee",
+        impact: "Deters low-intent orders and offsets courier handling",
+        description: "Incentivize buyers to switch to prepaid orders and cover handling costs by adding a fee.",
         actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
-        actionText: "Enable COD Fee →",
+        actionText: "Configure COD Fee →",
       },
       {
         id: "otp_verification",
         type: "INFO",
         title: "Enable WhatsApp OTP Verification",
-        impact: "Reduces RTO by 15-20%",
-        description: "Confirm buyer phone numbers before fulfillment to stop fake impulsiveness.",
+        impact: "Verifies buyer intent before dispatch",
+        description: "Confirm buyer phone numbers and delivery intent before fulfillment to reduce non-delivery.",
         actionUrl: `/app/cod-rules?shop=${shop}${hostQuery}`,
         actionText: "Enable OTP Verification →",
       },
       {
         id: "courier_swap",
         type: "INFO",
-        title: "Switch Courier in UP Zone",
-        impact: "Save ~₹900/mo",
-        description: "High shipping overage detected in North Zone. Swap default logistics provider.",
+        title: "Optimize Logistics Routing",
+        impact: "Reduce shipping overages across delivery zones",
+        description: "Review zone-level delivery performance and return rates to assign the best courier partner.",
         actionUrl: `/app/settings?shop=${shop}${hostQuery}`,
         actionText: "Review Courier Settings →",
       },

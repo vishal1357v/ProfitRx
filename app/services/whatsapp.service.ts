@@ -154,9 +154,6 @@ export class WhatsAppService {
     });
     const pincodeListStr = highRtoPincodes.map((p) => p.pincode).join(", ");
     const highRtoPincodeLoss = highRtoPincodes.reduce((sum, p) => sum + (p.totalLoss || 0), 0);
-    const pincodeSavings = highRtoPincodeLoss > 0 ? Math.round(highRtoPincodeLoss) : Math.round(rtoLoss * 0.4);
-    const productSavings = Math.max(0, Math.round(rtoLoss * 0.3));
-    const courierSavings = Math.max(0, Math.round(rtoLoss * 0.15));
 
     // Action 2: Top Product
     const firstOrder = targetOrders[0];
@@ -164,10 +161,10 @@ export class WhatsAppService {
 
     const actionItems = [
       pincodeListStr
-        ? `1. 🛑 *Block COD in pincodes:* ${pincodeListStr} (Saves approx. ₹${pincodeSavings.toLocaleString("en-IN")})`
+        ? `1. 🛑 *Block COD in pincodes:* ${pincodeListStr}${highRtoPincodeLoss > 0 ? ` (Est. loss avoided ~₹${Math.round(highRtoPincodeLoss).toLocaleString("en-IN")})` : ""}`
         : `1. 🛑 *Enable High-Risk Pincode Shield* (Protects against regional RTO clusters)`,
-      `2. ⚡ *Verify COD on High-Risk Orders of:* ${topProdName} (Saves approx. ₹${productSavings.toLocaleString("en-IN")})`,
-      `3. 🚚 *Logistics Optimization:* Review shipping providers with >15% return rate (Saves approx. ₹${courierSavings.toLocaleString("en-IN")})`,
+      `2. ⚡ *Verify COD on High-Risk Orders of:* ${topProdName} (Deters non-serious buyers and prevents RTO)`,
+      `3. 🚚 *Logistics Optimization:* Review shipping providers with >15% return rate (Reduces courier return surcharges)`,
     ];
 
     const formattedMessage = `*PROFITRX WEEKLY PROFIT DIGEST* 📊

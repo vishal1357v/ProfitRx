@@ -20,13 +20,14 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { BillingApplicationService } from "../application/billing/billing.application";
-import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
+import { PartnerBillingService } from "../services/partner-billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
   const isChangingPlan = url.searchParams.get("change_plan") === "true";
+  const planHandle = url.searchParams.get("plan_handle");
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");
@@ -34,19 +35,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const result = await BillingApplicationService.getPricingData(session.shop, billing, {
-    forceSync,
+    forceSync: forceSync || Boolean(planHandle),
     isChangingPlan,
     host,
+    planHandle,
   });
 
+  // If redirecting after successful subscription verification or active plan
   if (result.shouldRedirect) {
     return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
   }
 
-  return { currentPlan: result.currentPlan, shop: session.shop, host };
+  return {
+    currentPlan: result.currentPlan,
+    shop: session.shop,
+    host,
+    pricingPlansUrl: result.pricingPlansUrl,
+    planHandleParam: planHandle,
+  };
 };
-
-type BillingPlan = "STARTER" | "GROWTH" | "PRO";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
@@ -61,140 +68,78 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (sub && sub.plan !== "FREE" && (sub.status === "ACTIVE" || sub.status === "TRIALING")) {
         return redirect(`/app/dashboard?shop=${session.shop}&host=${host}`);
       }
-      return Response.json({ success: true, message: `Subscription synced. Local plan status is ${sub.plan}.` });
+      return { success: true, message: `Subscription synced. Current plan status is ${sub.plan}.` };
     } catch (err: any) {
-      return Response.json({ error: err.message || "Failed to sync subscription" }, { status: 500 });
+      return { success: false, error: err.message || "Failed to sync subscription" };
     }
   }
 
-  const rawPlan = (formData.get("plan") as string) || "";
-  const upperPlan = rawPlan.toUpperCase();
-
-  let plan: BillingPlan = "STARTER";
-  if (upperPlan === "PRO") plan = "PRO";
-  else if (upperPlan === "GROWTH") plan = "GROWTH";
-  else if (upperPlan === "STARTER" || upperPlan === "BASIC") plan = "STARTER";
-  else {
-    return Response.json({ error: "Invalid plan selected" }, { status: 400 });
-  }
-
-  const dbPlan = plan;
-  const returnUrl = `https://${url.host}/app/dashboard?shop=${session.shop}&host=${encodeURIComponent(host)}&plan_updated=true`;
-
-  // Pre-persist the selected plan as PENDING so the DB records merchant intent
-  // before Shopify redirect.
-  await BillingApplicationService.upsertSubscriptionRecord({
-    shop: session.shop,
-    plan: dbPlan,
-    status: "PENDING",
-  });
-
-  const settings = await SettingsRepository.getByShop(session.shop);
-  const isDevStore =
-    process.env.NODE_ENV !== "production" ||
-    (settings?.shopifyPlanName || "").toLowerCase().includes("develop") ||
-    (settings?.shopifyPlanName || "").toLowerCase().includes("partner") ||
-    (settings?.shopifyPlanName || "").toLowerCase().includes("affiliate") ||
-    (settings?.shopifyPlanName || "").toLowerCase().includes("test") ||
-    session.shop.includes("test") ||
-    session.shop.includes("dev");
-
-  try {
-    return await (billing.request as any)({
-      plan: plan,
-      isTest: isDevStore,
-      trialDays: 14,
-      returnUrl,
-    });
-  } catch (error: any) {
-    console.error("[Pricing Action Error]:", error);
-    // If billing.request threw an exit-iframe redirect Response, re-throw it so App Bridge can redirect!
-    if (error instanceof Response || (error && typeof error.status === "number" && error.headers)) {
-      throw error;
-    }
-
-    // If Shopify Billing API threw an error requiring test charges on dev store, retry with isTest: true
-    if (!isDevStore && (error?.message || "").toLowerCase().includes("test")) {
-      try {
-        return await (billing.request as any)({
-          plan: plan,
-          isTest: true,
-          trialDays: 14,
-          returnUrl,
-        });
-      } catch (retryErr: any) {
-        if (retryErr instanceof Response || (retryErr && typeof retryErr.status === "number" && retryErr.headers)) {
-          throw retryErr;
-        }
-      }
-    }
-    
-    // Revert the PENDING status since Shopify billing failed to initiate
-    await BillingApplicationService.upsertSubscriptionRecord({
-      shop: session.shop,
-      plan: "FREE",
-      status: "ACTIVE",
-    });
-
-    const detailedMessage = error?.message || "Failed to initiate Shopify billing.";
-    return Response.json({ error: `Shopify Billing Error: ${detailedMessage}` }, { status: 500 });
-  }
+  // Shopify App Pricing: merchant selects plans through the Shopify-hosted plan selection page
+  const pricingPlansUrl = PartnerBillingService.getPricingPlansUrl(session.shop);
+  return redirect(pricingPlansUrl);
 };
 
 export default function Pricing() {
-  const { currentPlan, shop, host } = useLoaderData<typeof loader>();
-  const actionData = useActionData<{ error?: string; success?: boolean; message?: string }>();
+  const { currentPlan, shop, host, pricingPlansUrl, planHandleParam } = useLoaderData<typeof loader>();
+  const actionData = useActionData<{ success?: boolean; message?: string; error?: string }>();
   const navigation = useNavigation();
   const isSyncing = navigation.state === "submitting" && navigation.formData?.get("intent") === "sync_subscription";
 
   const plans = [
     {
       name: "Starter",
+      handle: "starter",
       price: "$19",
-      description: "Small & early-stage stores",
-      tagline: "Essential profit tracking, COGS management, GST reports, and basic RTO insights.",
+      description: "For emerging D2C brands starting with COD risk control.",
+      tagline: "Prevent early RTO bleed with core intelligence and analytics.",
       features: [
-        "Up to 500 orders / month",
-        "True Profit Dashboard",
-        "Store Health Score",
-        "Weekly WhatsApp Digest",
-        "Product Cost Tracking (COGS)",
-        "Basic RTO & COD insights",
-        "GST Compliance Reports",
-        "CSV Data Export",
+        "Up to 500 evaluated orders / mo",
+        "Profit & Loss Live Dashboard",
+        "Store Health & Efficiency Score",
+        "Native & Custom COGS Tracking",
+        "Basic RTO Rate & Return Alerts",
+        "Automated GST Return Reports",
+        "Order Analytics & CSV Export",
       ],
+      popular: false,
     },
     {
       name: "Growth",
+      handle: "growth",
       price: "$39",
-      description: "Growing stores ⭐ Most Popular",
-      tagline: "Pincode-level logistics intelligence, COD Risk Shield, and profit leak detection.",
+      description: "Complete COD Shield suite for scaling Shopify merchants.",
+      tagline: "Block fake COD, verify buyer intent with OTP, and halt RTO losses.",
       features: [
-        "Up to 2,000 orders / month",
-        "Everything in Starter",
-        "COD Risk Score (Pre-shipment prediction)",
-        "Pincode RTO Heatmap",
-        "Profit Leak Recommendations",
-        "COD Shield & OTP Verification",
-        "Advanced Email & System Alerts",
+        "Up to 2,000 evaluated orders / mo",
+        "Everything in Starter, plus:",
+        "COD Shield — Automated COD Blocking",
+        "Interactive India Pincode RTO Heatmap",
+        "Buyer Intent OTP Verification via SMS",
+        "Partial Deposit / Advance Payment on COD",
+        "Customer Risk Scoring & Blacklist Rules",
+        "Profit Leak Diagnostics & Action Hub",
+        "Priority WhatsApp Courier Alerts",
       ],
       popular: true,
     },
     {
       name: "Pro",
+      handle: "pro",
       price: "$79",
-      description: "Established brands & high-volume stores",
-      tagline: "Full enterprise intelligence suite with unlimited order sync, ROAS ad spend, and cohort retention.",
+      description: "Unlimited scale and omni-channel intelligence for market leaders.",
+      tagline: "Maximum profit protection with custom economics and unlimited volume.",
       features: [
-        "Unlimited orders / month",
-        "Everything in Growth",
-        "LTV & Cohort Retention Analysis",
-        "Blended ROAS & Ad Spend Sync",
-        "Full Customer Intelligence",
-        "Multi-Store Support",
-        "API Access for Custom Integrations",
-        "Priority Support & Dedicated Onboarding",
+        "Unlimited evaluated orders / mo",
+        "Everything in Growth, plus:",
+        "Blended ROAS & Ad Spend Intelligence",
+        "Meta & Google Ads Direct Integrations",
+        "Customer LTV Cohort Retention Analytics",
+        "Multi-Store & Enterprise Team Access",
+        "Custom Courier SLA Rules Engine",
+        "White-glove 1-on-1 Onboarding",
+        "24/7 Dedicated Support",
       ],
+      popular: false,
     },
   ];
 
@@ -209,6 +154,14 @@ export default function Pricing() {
           </Layout.Section>
         )}
 
+        {planHandleParam && (
+          <Layout.Section>
+            <Banner tone="success" title="Plan Selection Completed">
+              <p>Your subscription to the {planHandleParam.toUpperCase()} plan is being synchronized with Shopify App Pricing.</p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         {actionData?.success && actionData?.message && (
           <Layout.Section>
             <Banner tone="success" title="Subscription Status Synced">
@@ -219,7 +172,7 @@ export default function Pricing() {
 
         <Layout.Section>
           <Banner tone="info">
-            <p>All plans include a 14-day free trial. Charges are billed monthly in USD via Shopify App Subscriptions.</p>
+            <p>All plans include a 14-day free trial. Charges are billed monthly in USD via Shopify App Pricing.</p>
           </Banner>
         </Layout.Section>
 
@@ -282,17 +235,15 @@ export default function Pricing() {
                       </Text>
                     </div>
 
-                    <Form method="POST">
-                      <input type="hidden" name="plan" value={plan.name} />
-                      <Button
-                        variant={plan.name === currentPlan ? undefined : plan.popular ? "primary" : undefined}
-                        submit
-                        fullWidth
-                        disabled={currentPlan === plan.name}
-                      >
-                        {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Free Trial"}
-                      </Button>
-                    </Form>
+                    <Button
+                      variant={plan.name === currentPlan ? undefined : plan.popular ? "primary" : undefined}
+                      url={pricingPlansUrl}
+                      target="_top"
+                      fullWidth
+                      disabled={currentPlan === plan.name}
+                    >
+                      {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Free Trial"}
+                    </Button>
 
                     <BlockStack gap="200">
                       <Text variant="headingSm" as="h4">
@@ -348,52 +299,64 @@ export default function Pricing() {
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Product Cost Tracking (COGS)</td>
+                        <td>COGS Management</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>GST Compliance Reports & Export</td>
+                        <td>Basic RTO Tracking</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Basic RTO Insights & Alerts</td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                      </tr>
-                      <tr>
-                        <td>COD Risk Score & Heatmap</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td>COD Shield (Auto-Block)</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Profit Leaks & COD Risk Shield</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td>OTP Verification via SMS</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>LTV & Cohort Retention Analysis</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td>Partial Deposit on COD</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>ROAS & Ad Spend Sync</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td>Customer Risk Blacklist</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Multi-store & API Access</td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-red)" }}>✗ No</span></td>
+                        <td>Pincode RTO Heatmap</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Blended ROAS Intelligence</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Customer LTV Cohorts</td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
+                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
+                      </tr>
+                      <tr>
+                        <td>Support Level</td>
+                        <td>Community</td>
+                        <td>Priority</td>
+                        <td><strong>24/7 Dedicated</strong></td>
                       </tr>
                     </tbody>
                   </table>
