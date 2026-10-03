@@ -28,6 +28,7 @@ import {
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { BillingApplicationService } from "../application/billing/billing.application";
+import { PartnerBillingService } from "../services/partner-billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, billing } = await authenticate.admin(request);
@@ -43,9 +44,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { session, billing, redirect } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
+
+  if (intent === "change_plan") {
+    const pricingPlansUrl = PartnerBillingService.getPricingPlansUrl(session.shop);
+    return redirect(pricingPlansUrl, { target: "_top" });
+  }
 
   if (intent === "sync_subscription") {
     const subscription = await BillingApplicationService.syncSubscription(session.shop, billing);
@@ -247,9 +253,22 @@ export default function BillingPage() {
                         Change tiers, review Shopify subscription charges, or verify synchronization with Shopify Billing.
                       </Text>
                       <BlockStack gap="200">
-                        <Button url={pricingPlansUrl} target="_top" variant="primary" fullWidth>
-                          Change Plan (Shopify App Pricing)
-                        </Button>
+                        <Form method="POST">
+                          <input type="hidden" name="intent" value="change_plan" />
+                          <Button
+                            variant="primary"
+                            submit
+                            fullWidth
+                            loading={isSubmitting && navigation.formData?.get("intent") === "change_plan"}
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                window.open(pricingPlansUrl, "_top");
+                              }
+                            }}
+                          >
+                            Change Plan (Shopify App Pricing)
+                          </Button>
+                        </Form>
                         <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="secondary" fullWidth>
                           Compare Features & Tiers
                         </Button>

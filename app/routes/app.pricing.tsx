@@ -56,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
+  const { billing, session, redirect } = await authenticate.admin(request);
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const formData = await request.formData();
@@ -76,7 +76,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Shopify App Pricing: merchant selects plans through the Shopify-hosted plan selection page
   const pricingPlansUrl = PartnerBillingService.getPricingPlansUrl(session.shop);
-  return redirect(pricingPlansUrl);
+  return redirect(pricingPlansUrl, { target: "_top" });
 };
 
 export default function Pricing() {
@@ -235,15 +235,23 @@ export default function Pricing() {
                       </Text>
                     </div>
 
-                    <Button
-                      variant={plan.name === currentPlan ? undefined : plan.popular ? "primary" : undefined}
-                      url={pricingPlansUrl}
-                      target="_top"
-                      fullWidth
-                      disabled={currentPlan === plan.name}
-                    >
-                      {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Free Trial"}
-                    </Button>
+                    <Form method="POST">
+                      <input type="hidden" name="intent" value="select_plan" />
+                      <input type="hidden" name="plan" value={plan.handle} />
+                      <Button
+                        variant={plan.name === currentPlan ? undefined : plan.popular ? "primary" : undefined}
+                        submit
+                        fullWidth
+                        disabled={currentPlan === plan.name}
+                        onClick={() => {
+                          if (typeof window !== "undefined" && currentPlan !== plan.name) {
+                            window.open(pricingPlansUrl, "_top");
+                          }
+                        }}
+                      >
+                        {currentPlan === plan.name ? "Current Plan" : "Start 14-Day Free Trial"}
+                      </Button>
+                    </Form>
 
                     <BlockStack gap="200">
                       <Text variant="headingSm" as="h4">
