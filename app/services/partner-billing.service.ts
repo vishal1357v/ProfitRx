@@ -41,21 +41,22 @@ export function mapPlanHandle(planHandle?: string | null): PlanDetails {
   return APP_PRICING_PLANS.FREE;
 }
 
-export interface ActiveSubscriptionItem {
+export interface ActiveSubscriptionShop {
   id: string;
+  myshopifyDomain: string;
+}
+
+export interface ActiveSubscriptionItem {
   handle: string;
   description?: string;
   price?: {
     __typename?: string;
     amount: number;
-    currency: string;
   };
 }
 
 export interface ActiveSubscriptionPayload {
-  id: string;
-  status: string;
-  createdAt?: string;
+  shop?: ActiveSubscriptionShop;
   billingPeriod?: string;
   cancelAtEndOfCycle?: boolean;
   trialEndsAt?: string | null;
@@ -64,6 +65,7 @@ export interface ActiveSubscriptionPayload {
     endTime?: string;
   } | null;
   items?: ActiveSubscriptionItem[];
+  legacySubscriptionId?: string | null;
 }
 
 export interface PartnerApiActiveSubResult {
@@ -77,6 +79,7 @@ export interface PartnerApiActiveSubResult {
   shopifyChargeId: string | null;
   source: "PARTNER_API" | "LOCAL_FALLBACK" | "REDIRECT_PARAM";
   rawSubscription?: ActiveSubscriptionPayload | null;
+  isError?: boolean;
   error?: string;
 }
 
@@ -110,9 +113,10 @@ export function formatShopGid(rawShopId: string): string {
 export const PARTNER_ACTIVE_SUBSCRIPTION_QUERY = `
   query ActiveSubscription($appId: ID!, $shopId: ID!) {
     activeSubscription(appId: $appId, shopId: $shopId) {
-      id
-      status
-      createdAt
+      shop {
+        id
+        myshopifyDomain
+      }
       billingPeriod
       cancelAtEndOfCycle
       trialEndsAt
@@ -121,17 +125,16 @@ export const PARTNER_ACTIVE_SUBSCRIPTION_QUERY = `
         endTime
       }
       items {
-        id
         handle
         description
         price {
           __typename
           ... on FlatRatePrice {
             amount
-            currency
           }
         }
       }
+      legacySubscriptionId
     }
   }
 `;
@@ -188,6 +191,7 @@ export async function fetchPartnerActiveSubscription(
       billingPeriod: null,
       shopifyChargeId: null,
       source: "LOCAL_FALLBACK",
+      isError: true,
       error: "PARTNER_API_NOT_CONFIGURED",
     };
   }
@@ -204,6 +208,7 @@ export async function fetchPartnerActiveSubscription(
       billingPeriod: null,
       shopifyChargeId: null,
       source: "LOCAL_FALLBACK",
+      isError: true,
       error: "SHOP_ID_MISSING",
     };
   }
@@ -239,6 +244,7 @@ export async function fetchPartnerActiveSubscription(
         billingPeriod: null,
         shopifyChargeId: null,
         source: "LOCAL_FALLBACK",
+        isError: true,
         error: `PARTNER_API_HTTP_${res.status}`,
       };
     }
@@ -257,6 +263,7 @@ export async function fetchPartnerActiveSubscription(
         billingPeriod: null,
         shopifyChargeId: null,
         source: "LOCAL_FALLBACK",
+        isError: true,
         error: json.errors[0]?.message || "GRAPHQL_ERROR",
       };
     }
@@ -264,7 +271,7 @@ export async function fetchPartnerActiveSubscription(
     const sub: ActiveSubscriptionPayload | null = json.data?.activeSubscription || null;
 
     if (!sub) {
-      // Merchant has no active subscription under App Pricing -> FREE tier
+      // Merchant has no active subscription under App Pricing -> confirmed NO_SUBSCRIPTION
       return {
         hasSubscription: false,
         plan: "FREE",
@@ -276,6 +283,7 @@ export async function fetchPartnerActiveSubscription(
         shopifyChargeId: null,
         source: "PARTNER_API",
         rawSubscription: null,
+        isError: false,
       };
     }
 
@@ -284,14 +292,15 @@ export async function fetchPartnerActiveSubscription(
     const planHandle = primaryItem?.handle || "";
     const planDetails = mapPlanHandle(planHandle);
 
-    const status = (sub.status || "ACTIVE").toUpperCase();
+    const isTrial = Boolean(sub.trialEndsAt && new Date(sub.trialEndsAt) > new Date());
+    const status = isTrial ? "TRIALING" : "ACTIVE";
     const trialEndsAt = sub.trialEndsAt ? new Date(sub.trialEndsAt) : null;
     const cancelAtEndOfCycle = Boolean(sub.cancelAtEndOfCycle);
     const billingPeriod = sub.billingPeriod || "EVERY_30_DAYS";
-    const shopifyChargeId = sub.id || null;
+    const shopifyChargeId = sub.legacySubscriptionId || null;
 
     return {
-      hasSubscription: status === "ACTIVE" || status === "TRIALING",
+      hasSubscription: true,
       plan: planDetails.plan,
       orderLimit: planDetails.orderLimit,
       status,
@@ -301,6 +310,7 @@ export async function fetchPartnerActiveSubscription(
       shopifyChargeId,
       source: "PARTNER_API",
       rawSubscription: sub,
+      isError: false,
     };
   } catch (err: any) {
     console.error(`[PartnerBilling] Partner API fetch failed for shop ${shop}:`, err.message);
@@ -314,6 +324,7 @@ export async function fetchPartnerActiveSubscription(
       billingPeriod: null,
       shopifyChargeId: null,
       source: "LOCAL_FALLBACK",
+      isError: true,
       error: err.message || "FETCH_FAILED",
     };
   }

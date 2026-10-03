@@ -82,18 +82,16 @@ describe("Shopify App Pricing & Partner API Migration", () => {
     const mockPartnerResponse = {
       data: {
         activeSubscription: {
-          id: "gid://shopify/AppSubscription/starter-sub-001",
-          status: "ACTIVE",
-          createdAt: "2026-05-01T00:00:00Z",
+          legacySubscriptionId: "gid://shopify/AppSubscription/starter-sub-001",
           billingPeriod: "EVERY_30_DAYS",
           cancelAtEndOfCycle: false,
           trialEndsAt: "2026-05-15T00:00:00Z",
+          currentBillingCycle: null,
           items: [
             {
-              id: "item_01",
               handle: "starter",
               description: "Starter Plan",
-              price: { __typename: "FlatRatePrice", amount: 19.0, currency: "USD" },
+              price: { __typename: "FlatRatePrice", amount: 19.0 },
             },
           ],
         },
@@ -116,7 +114,6 @@ describe("Shopify App Pricing & Partner API Migration", () => {
     expect(result.hasSubscription).toBe(true);
     expect(result.plan).toBe("STARTER");
     expect(result.orderLimit).toBe(500);
-    expect(result.status).toBe("ACTIVE");
     expect(result.shopifyChargeId).toBe("gid://shopify/AppSubscription/starter-sub-001");
     expect(result.cancelAtEndOfCycle).toBe(false);
     expect(result.billingPeriod).toBe("EVERY_30_DAYS");
@@ -128,18 +125,19 @@ describe("Shopify App Pricing & Partner API Migration", () => {
     const mockPartnerResponse = {
       data: {
         activeSubscription: {
-          id: "gid://shopify/AppSubscription/growth-sub-002",
-          status: "ACTIVE",
-          createdAt: "2026-05-01T00:00:00Z",
+          legacySubscriptionId: "gid://shopify/AppSubscription/growth-sub-002",
           billingPeriod: "EVERY_30_DAYS",
           cancelAtEndOfCycle: false,
           trialEndsAt: null,
+          currentBillingCycle: {
+            startTime: "2026-05-01T00:00:00Z",
+            endTime: "2026-05-31T00:00:00Z",
+          },
           items: [
             {
-              id: "item_02",
               handle: "growth",
               description: "Growth Plan",
-              price: { __typename: "FlatRatePrice", amount: 39.0, currency: "USD" },
+              price: { __typename: "FlatRatePrice", amount: 39.0 },
             },
           ],
         },
@@ -171,18 +169,19 @@ describe("Shopify App Pricing & Partner API Migration", () => {
     const mockPartnerResponse = {
       data: {
         activeSubscription: {
-          id: "gid://shopify/AppSubscription/pro-sub-003",
-          status: "ACTIVE",
-          createdAt: "2026-05-01T00:00:00Z",
+          legacySubscriptionId: "gid://shopify/AppSubscription/pro-sub-003",
           billingPeriod: "EVERY_30_DAYS",
           cancelAtEndOfCycle: false,
           trialEndsAt: null,
+          currentBillingCycle: {
+            startTime: "2026-05-01T00:00:00Z",
+            endTime: "2026-05-31T00:00:00Z",
+          },
           items: [
             {
-              id: "item_03",
               handle: "pro",
               description: "Pro Plan",
-              price: { __typename: "FlatRatePrice", amount: 79.0, currency: "USD" },
+              price: { __typename: "FlatRatePrice", amount: 79.0 },
             },
           ],
         },

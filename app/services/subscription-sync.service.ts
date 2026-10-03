@@ -152,11 +152,15 @@ export async function syncSubscriptionWithShopify(
  * Reinstalls must discover any existing active App Pricing subscription rather than
  * creating duplicates or resetting to FREE unnecessarily.
  */
-export async function handleAfterAuth(shop: string) {
+export async function handleAfterAuth(shop: string, adminClient?: any) {
   try {
-    // Check Partner API to see if this store has an active App Pricing contract
-    const partnerSub = await PartnerBillingService.fetchPartnerActiveSubscription(shop);
-    if (partnerSub.hasSubscription && partnerSub.plan !== "FREE") {
+    const shopId = await PartnerBillingService.resolveShopGid(shop, adminClient);
+    const partnerSub = await PartnerBillingService.fetchPartnerActiveSubscription(shop, {
+      shopId: shopId || undefined,
+    });
+
+    // 1. Partner API confirmed active paid subscription
+    if (partnerSub.source === "PARTNER_API" && partnerSub.hasSubscription && partnerSub.plan !== "FREE") {
       console.log(`[SubscriptionSync] Reinstall discovered active App Pricing subscription for ${shop}: plan=${partnerSub.plan}`);
       return await upsertSubscriptionRecord({
         shop,
@@ -166,23 +170,48 @@ export async function handleAfterAuth(shop: string) {
         trialEndsAt: partnerSub.trialEndsAt,
       });
     }
+
+    // 2. Partner API confirmed NO subscription exists (null return, zero errors)
+    if (partnerSub.source === "PARTNER_API" && !partnerSub.hasSubscription && !partnerSub.isError) {
+      console.log(`[SubscriptionSync] Partner API confirmed NO active subscription for ${shop}. Initializing FREE.`);
+      return await upsertSubscriptionRecord({
+        shop,
+        plan: "FREE",
+        status: "ACTIVE",
+        shopifyChargeId: null,
+        trialEndsAt: null,
+      });
+    }
+
+    // 3. Partner API errored or credentials unconfigured -> DO NOT force FREE!
+    if (partnerSub.isError) {
+      console.warn(`[SubscriptionSync] Partner API lookup returned error during reinstall for ${shop}: ${partnerSub.error}. Preserving prior subscription without resetting to FREE.`);
+    }
   } catch (partnerErr) {
     console.warn(`[SubscriptionSync] Reinstall Partner API check failed for ${shop}:`, partnerErr);
   }
 
-  // Check local database
+  // Preserve existing local subscription if one exists (do NOT reset paid tier to FREE on errors)
   const existingSub = await prisma.subscription.findUnique({ where: { shop } });
-  if (!existingSub || existingSub.status === "CANCELED") {
-    return await upsertSubscriptionRecord({
-      shop,
-      plan: "FREE",
-      status: "ACTIVE",
-      shopifyChargeId: null,
-      trialEndsAt: null,
-    });
+  if (existingSub) {
+    // If it was marked CANCELED upon uninstall, reactivate existing tier so merchant is not locked out
+    if (existingSub.status === "CANCELED") {
+      return await prisma.subscription.update({
+        where: { shop },
+        data: { status: "ACTIVE" },
+      });
+    }
+    return existingSub;
   }
 
-  return existingSub;
+  // Brand new store with no history -> initialize FREE
+  return await upsertSubscriptionRecord({
+    shop,
+    plan: "FREE",
+    status: "ACTIVE",
+    shopifyChargeId: null,
+    trialEndsAt: null,
+  });
 }
 
 /**

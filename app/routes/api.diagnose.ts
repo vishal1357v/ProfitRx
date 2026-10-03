@@ -105,6 +105,66 @@ export async function loader({ request }: LoaderFunctionArgs) {
       });
       return subs;
     }),
+
+    testStep("partner_api_live", async () => {
+      const orgId = process.env.SHOPIFY_ORGANIZATION_ID || process.env.SHOPIFY_PARTNER_ORGANIZATION_ID;
+      const partnerToken = process.env.SHOPIFY_PARTNER_API_TOKEN || process.env.SHOPIFY_PARTNER_TOKEN;
+      const appId = process.env.SHOPIFY_APP_ID || process.env.SHOPIFY_API_KEY;
+      const appHandle = process.env.SHOPIFY_APP_HANDLE;
+      const bypassBilling = process.env.BYPASS_BILLING;
+
+      const envStatus = {
+        SHOPIFY_ORGANIZATION_ID: orgId ? "SET ✅" : "MISSING ❌",
+        SHOPIFY_PARTNER_API_TOKEN: partnerToken ? "SET ✅" : "MISSING ❌",
+        SHOPIFY_APP_ID: appId ? "SET ✅" : "MISSING ❌",
+        SHOPIFY_APP_HANDLE: appHandle || "DEFAULT (profitrx-rto-profit)",
+        BYPASS_BILLING: bypassBilling || "false",
+      };
+
+      if (!orgId || !partnerToken || !appId) {
+        return {
+          envStatus,
+          queryStatus: "SKIPPED_CREDENTIALS_MISSING",
+          error: "Partner API organization ID, token, or app ID not configured in environment",
+        };
+      }
+
+      // Live query test with Shopify Partner API
+      const endpoint = `https://partners.shopify.com/${orgId}/api/2026-04/graphql.json`;
+      const testShopId = url.searchParams.get("testShopId") || "gid://shopify/Shop/1";
+      const formattedAppId = appId.startsWith("gid://") ? appId : `gid://shopify/App/${appId.replace(/\D/g, "")}`;
+      const formattedShopId = testShopId.startsWith("gid://") ? testShopId : `gid://shopify/Shop/${testShopId.replace(/\D/g, "")}`;
+
+      const { PARTNER_ACTIVE_SUBSCRIPTION_QUERY } = await import("../services/partner-billing.service");
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": partnerToken,
+        },
+        body: JSON.stringify({
+          query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
+          variables: { appId: formattedAppId, shopId: formattedShopId },
+        }),
+      });
+
+      const responseStatus = res.status;
+      const responseText = await res.text();
+      let responseJson: any = null;
+      try {
+        responseJson = JSON.parse(responseText);
+      } catch {}
+
+      return {
+        envStatus,
+        endpoint,
+        formattedAppId,
+        formattedShopId,
+        httpStatus: responseStatus,
+        response: responseJson || responseText,
+      };
+    }),
   ]);
 
   const allOk = steps.every(s => s.status === "OK");
