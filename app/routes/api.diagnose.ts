@@ -191,13 +191,35 @@ export async function loader({ request }: LoaderFunctionArgs) {
       }
 
       // ── Step 2: Execute activeSubscription with canonical GID ─────────────
-      let activeSubscriptionResult: any = null;
-      let rawPartnerResponseText: string | null = null;
-      let partnerHttpStatus: number | null = null;
       const resolvedShopGid = shopGidResolution.gid;
+      let queryAResult: any = null;
+      let queryBResult: any = null;
 
-      const partnerQuery = `
-        query ActiveSubscriptionVerification($appId: ID!, $shopId: ID!) {
+      const singleSubQuery = `
+        query ActiveSubscriptionExact($appId: ID!, $shopId: ID!) {
+          activeSubscription(appId: $appId, shopId: $shopId) {
+            shop {
+              id
+              myshopifyDomain
+            }
+            billingPeriod
+            cancelAtEndOfCycle
+            trialEndsAt
+            currentBillingCycle {
+              startTime
+              endTime
+            }
+            items {
+              handle
+              description
+            }
+            legacySubscriptionId
+          }
+        }
+      `;
+
+      const partnersGidQuery = `
+        query ActiveSubscriptionWithPartnersGid($appId: ID!, $shopId: ID!) {
           app(id: $appId) {
             id
             name
@@ -220,49 +242,54 @@ export async function loader({ request }: LoaderFunctionArgs) {
             }
             legacySubscriptionId
           }
-          priceType: __type(name: "Price") {
-            fields {
-              name
-            }
-          }
         }
       `;
 
       if (resolvedShopGid && orgId && partnerToken) {
+        const endpoint = `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`;
+        
+        // Query A: Exact as requested: appId: gid://shopify/App/382378508289
         try {
-          const endpoint = `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`;
-          const subRes = await fetch(endpoint, {
+          const resA = await fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Shopify-Access-Token": partnerToken,
             },
             body: JSON.stringify({
-              query: partnerQuery,
-              variables: { appId: formattedAppId, shopId: resolvedShopGid },
+              query: singleSubQuery,
+              variables: { appId: "gid://shopify/App/382378508289", shopId: resolvedShopGid },
             }),
           });
-          partnerHttpStatus = subRes.status;
-          activeSubscriptionResult = await subRes.json();
-        } catch (subErr: any) {
-          activeSubscriptionResult = { error: subErr.message };
+          queryAResult = {
+            httpStatus: resA.status,
+            body: await resA.json(),
+          };
+        } catch (errA: any) {
+          queryAResult = { error: errA.message };
         }
-      } else {
-        activeSubscriptionResult = {
-          skipped: true,
-          reason: !resolvedShopGid
-            ? "Shop GID could not be resolved"
-            : "Partner credentials missing",
-        };
-      }
 
-      // Analyze partner API response
-      const hasGraphqlErrors = !!activeSubscriptionResult?.errors?.length;
-      const shopNotFoundError = activeSubscriptionResult?.errors?.some((e: any) =>
-        e.message?.toLowerCase().includes("shop not found")
-      );
-      const activeSubData = activeSubscriptionResult?.data?.activeSubscription;
-      const appData = activeSubscriptionResult?.data?.app;
+        // Query B: With appId: gid://partners/App/382378508289
+        try {
+          const resB = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": partnerToken,
+            },
+            body: JSON.stringify({
+              query: partnersGidQuery,
+              variables: { appId: "gid://partners/App/382378508289", shopId: resolvedShopGid },
+            }),
+          });
+          queryBResult = {
+            httpStatus: resB.status,
+            body: await resB.json(),
+          };
+        } catch (errB: any) {
+          queryBResult = { error: errB.message };
+        }
+      }
 
       return {
         envStatus: {
@@ -276,22 +303,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
         canonicalShopGid: resolvedShopGid,
         shopGidResolution,
         activeSubscriptionProbe: {
-          queryVariables: { appId: formattedAppId, shopId: resolvedShopGid },
-          endpoint: `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`,
-          httpStatus: partnerHttpStatus,
-          response: activeSubscriptionResult,
-          analysis: {
-            appRecognized: !!appData?.id,
-            appName: appData?.name || null,
-            hasGraphqlErrors,
-            shopNotFoundError: !!shopNotFoundError,
-            activeSubscriptionPresent: activeSubData !== null && activeSubData !== undefined,
-            activeSubscriptionValue: activeSubData ?? null,
-            verdict: shopNotFoundError
-              ? "FAIL: Shop not found by Partner API"
-              : activeSubData === null
-              ? "CONFIRMED: Shop exists in Partner API; activeSubscription is NULL because App Pricing is not enabled yet or no active subscription exists."
-              : "SUCCESS: Active App Pricing subscription discovered!",
+          queryA_exact_shopify_app_gid: {
+            variables: { appId: "gid://shopify/App/382378508289", shopId: resolvedShopGid },
+            endpoint: `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`,
+            result: queryAResult,
+          },
+          queryB_partners_app_gid: {
+            variables: { appId: "gid://partners/App/382378508289", shopId: resolvedShopGid },
+            endpoint: `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`,
+            result: queryBResult,
           },
         },
       };
