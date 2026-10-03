@@ -110,175 +110,174 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const orgId = process.env.SHOPIFY_ORGANIZATION_ID || process.env.SHOPIFY_PARTNER_ORGANIZATION_ID;
       const partnerToken = process.env.SHOPIFY_PARTNER_API_TOKEN || process.env.SHOPIFY_PARTNER_TOKEN;
       const appId = process.env.SHOPIFY_APP_ID || process.env.SHOPIFY_API_KEY;
-      const appHandle = process.env.SHOPIFY_APP_HANDLE;
       const bypassBilling = process.env.BYPASS_BILLING;
 
       const envStatus = {
         SHOPIFY_ORGANIZATION_ID: orgId ? "SET ✅" : "MISSING ❌",
         SHOPIFY_PARTNER_API_TOKEN: partnerToken ? "SET ✅" : "MISSING ❌",
         SHOPIFY_APP_ID: appId ? "SET ✅" : "MISSING ❌",
-        SHOPIFY_APP_HANDLE: appHandle || "DEFAULT (profitrx-rto-profit)",
         BYPASS_BILLING: bypassBilling || "false",
       };
 
       if (!orgId || !partnerToken || !appId) {
-        return {
-          envStatus,
-          queryStatus: "SKIPPED_CREDENTIALS_MISSING",
-          error: "Partner API organization ID, token, or app ID not configured in environment",
+        return { envStatus, error: "Partner API credentials not configured" };
+      }
+
+      const formattedAppId = appId.startsWith("gid://") ? appId : `gid://shopify/App/${appId.replace(/\D/g, "")}`;
+      const { PARTNER_ACTIVE_SUBSCRIPTION_QUERY } = await import("../services/partner-billing.service");
+
+      // ── Step 1: Resolve canonical Shop GID via Admin API ──────────────────
+      // Use the offline session access token stored in Prisma to query the Shopify Admin API
+      const targetShop = url.searchParams.get("shop") || "greek-god-wvwt8ptt.myshopify.com";
+      const session = await prisma.session.findFirst({
+        where: { shop: targetShop, isOnline: false },
+        select: { accessToken: true, shop: true },
+      });
+
+      let shopGidResolution: any = { method: null, gid: null, error: null };
+
+      if (session?.accessToken) {
+        // Try Admin API with the stored access token
+        const adminApiVersion = "2026-04";
+        const adminEndpoint = `https://${targetShop}/admin/api/${adminApiVersion}/graphql.json`;
+        try {
+          const adminRes = await fetch(adminEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": session.accessToken,
+            },
+            body: JSON.stringify({ query: `{ shop { id name myshopifyDomain } }` }),
+          });
+          const adminStatus = adminRes.status;
+          const adminJson: any = await adminRes.json();
+
+          if (adminJson?.data?.shop?.id) {
+            shopGidResolution = {
+              method: "ADMIN_API",
+              gid: adminJson.data.shop.id,
+              shopName: adminJson.data.shop.name,
+              myshopifyDomain: adminJson.data.shop.myshopifyDomain,
+              adminApiStatus: adminStatus,
+            };
+          } else {
+            shopGidResolution = {
+              method: "ADMIN_API_FAILED",
+              adminApiStatus: adminStatus,
+              adminResponse: adminJson,
+              error: adminJson?.errors?.[0]?.message || "No shop.id in response",
+            };
+          }
+        } catch (adminErr: any) {
+          shopGidResolution = {
+            method: "ADMIN_API_ERROR",
+            error: adminErr.message,
+          };
+        }
+      } else {
+        shopGidResolution = {
+          method: "NO_SESSION",
+          error: `No offline session found for ${targetShop}`,
         };
       }
 
-      // Live query test with Shopify Partner API
-      const endpoint = `https://partners.shopify.com/${orgId}/api/2026-04/graphql.json`;
-      const testShopId = url.searchParams.get("testShopId") || "gid://shopify/Shop/1";
-      const formattedAppId = appId.startsWith("gid://") ? appId : `gid://shopify/App/${appId.replace(/\D/g, "")}`;
-      const formattedShopId = testShopId.startsWith("gid://") ? testShopId : `gid://shopify/Shop/${testShopId.replace(/\D/g, "")}`;
-
-      const { PARTNER_ACTIVE_SUBSCRIPTION_QUERY } = await import("../services/partner-billing.service");
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Access-Token": partnerToken,
-        },
-        body: JSON.stringify({
-          query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
-          variables: { appId: formattedAppId, shopId: formattedShopId },
-        }),
-      });
-
-      const responseStatus = res.status;
-      const responseText = await res.text();
-      let responseJson: any = null;
-      try {
-        responseJson = JSON.parse(responseText);
-      } catch {}
-
-      // Also run introspection on queryType fields to see available schema
-      let publicVersions: any[] = [];
-      let appFields: string[] = [];
-      let appQueryArgs: any[] = [];
-      try {
-        const introRes = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": partnerToken,
-          },
-          body: JSON.stringify({
-            query: `
-              query VersionsAndApp {
-                publicApiVersions {
-                  handle
-                  displayName
-                  supported
-                }
-                __type(name: "App") {
-                  fields {
-                    name
-                    type {
-                      name
-                      kind
-                      ofType { name kind }
-                    }
-                  }
-                }
-              }
-            `,
-          }),
-        });
-        const introJson: any = await introRes.json();
-        publicVersions = introJson?.data?.publicApiVersions || [];
-        const appType = introJson?.data?.__type;
-        if (appType?.fields) {
-          appFields = appType.fields.map((f: any) => `${f.name}: ${f.type?.name || f.type?.ofType?.name || f.type?.kind}`);
-        }
-      } catch (err: any) {
-        publicVersions = [`Introspection failed: ${err.message}`];
-      }
-
-      // 1. Discover shops from app events
-      let appDetails: any = null;
-      let discoveredShopGid: string | null = null;
-      try {
-        const appRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": partnerToken,
-          },
-          body: JSON.stringify({
-            query: `
-              query AppDetails($appId: ID!) {
-                app(id: $appId) {
-                  id
-                  name
-                  apiKey
-                  events(first: 10) {
-                    edges {
-                      node {
-                        type
-                        createdAt
-                        shop {
-                          id
-                          myshopifyDomain
-                          name
+      // If Admin API didn't resolve, try Partner API app.events to discover shop GID
+      if (!shopGidResolution.gid) {
+        try {
+          const eventsRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": partnerToken,
+            },
+            body: JSON.stringify({
+              query: `
+                query AppEvents($appId: ID!) {
+                  app(id: $appId) {
+                    events(first: 50) {
+                      edges {
+                        node {
+                          type
+                          shop {
+                            id
+                            myshopifyDomain
+                          }
                         }
                       }
                     }
                   }
                 }
-              }
-            `,
-            variables: { appId: formattedAppId },
-          }),
-        });
-        const appData: any = await appRes.json();
-        appDetails = appData?.data?.app;
-        if (appDetails?.events?.edges?.length > 0) {
-          discoveredShopGid = appDetails.events.edges[0]?.node?.shop?.id || null;
+              `,
+              variables: { appId: formattedAppId },
+            }),
+          });
+          const eventsJson: any = await eventsRes.json();
+          const events = eventsJson?.data?.app?.events?.edges || [];
+          // Find the event matching our target shop
+          const matchingEvent = events.find((e: any) =>
+            e.node?.shop?.myshopifyDomain === targetShop
+          );
+          if (matchingEvent) {
+            shopGidResolution = {
+              method: "PARTNER_API_EVENTS",
+              gid: matchingEvent.node.shop.id,
+              myshopifyDomain: matchingEvent.node.shop.myshopifyDomain,
+              eventType: matchingEvent.node.type,
+            };
+          } else {
+            // List all shops from events for diagnostic purposes
+            const allShops = events.map((e: any) => ({
+              gid: e.node?.shop?.id,
+              domain: e.node?.shop?.myshopifyDomain,
+              eventType: e.node?.type,
+            }));
+            shopGidResolution.partnerApiEvents = {
+              totalEvents: events.length,
+              shopsFound: allShops,
+              note: `Target shop "${targetShop}" not found in app events`,
+            };
+          }
+        } catch (evErr: any) {
+          shopGidResolution.partnerApiEventsError = evErr.message;
         }
-      } catch (e: any) {
-        appDetails = `Error: ${e.message}`;
       }
 
-      // 2. Query activeSubscription on unstable with discovered shop GID or query param or default
-      const finalShopId = url.searchParams.get("testShopId") || discoveredShopGid || formattedShopId;
-      let unstableExecutionResult: any = null;
-      try {
-        const uRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": partnerToken,
-          },
-          body: JSON.stringify({
-            query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
-            variables: { appId: formattedAppId, shopId: finalShopId },
-          }),
-        });
-        unstableExecutionResult = await uRes.json();
-      } catch (e: any) {
-        unstableExecutionResult = `Error: ${e.message}`;
+      // ── Step 2: Execute activeSubscription with real GID ──────────────────
+      let activeSubscriptionResult: any = null;
+      const resolvedShopGid = shopGidResolution.gid;
+
+      if (resolvedShopGid) {
+        try {
+          const subRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": partnerToken,
+            },
+            body: JSON.stringify({
+              query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
+              variables: { appId: formattedAppId, shopId: resolvedShopGid },
+            }),
+          });
+          activeSubscriptionResult = await subRes.json();
+        } catch (subErr: any) {
+          activeSubscriptionResult = { error: subErr.message };
+        }
+      } else {
+        activeSubscriptionResult = { skipped: true, reason: "Shop GID could not be resolved" };
       }
 
       return {
         envStatus,
-        endpoint,
         formattedAppId,
-        finalShopId,
-        httpStatus: responseStatus,
-        response: responseJson || responseText,
-        publicVersions,
-        appDetails: {
-          name: appDetails?.name,
-          apiKey: appDetails?.apiKey,
-          eventCount: appDetails?.events?.edges?.length || 0,
-          events: appDetails?.events?.edges?.map((e: any) => e.node),
+        targetShop,
+        shopGidResolution,
+        activeSubscriptionQuery: {
+          appId: formattedAppId,
+          shopId: resolvedShopGid || "UNRESOLVED",
+          endpoint: `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`,
+          result: activeSubscriptionResult,
         },
-        unstableExecutionResult,
       };
     }),
   ]);
