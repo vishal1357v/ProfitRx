@@ -199,7 +199,53 @@ export async function loader({ request }: LoaderFunctionArgs) {
         publicVersions = [`Introspection failed: ${err.message}`];
       }
 
-      // Also test executing activeSubscription on unstable
+      // 1. Discover shops from app events
+      let appDetails: any = null;
+      let discoveredShopGid: string | null = null;
+      try {
+        const appRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": partnerToken,
+          },
+          body: JSON.stringify({
+            query: `
+              query AppDetails($appId: ID!) {
+                app(id: $appId) {
+                  id
+                  name
+                  apiKey
+                  events(first: 10) {
+                    edges {
+                      node {
+                        type
+                        createdAt
+                        shop {
+                          id
+                          myshopifyDomain
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `,
+            variables: { appId: formattedAppId },
+          }),
+        });
+        const appData: any = await appRes.json();
+        appDetails = appData?.data?.app;
+        if (appDetails?.events?.edges?.length > 0) {
+          discoveredShopGid = appDetails.events.edges[0]?.node?.shop?.id || null;
+        }
+      } catch (e: any) {
+        appDetails = `Error: ${e.message}`;
+      }
+
+      // 2. Query activeSubscription on unstable with discovered shop GID or query param or default
+      const finalShopId = url.searchParams.get("testShopId") || discoveredShopGid || formattedShopId;
       let unstableExecutionResult: any = null;
       try {
         const uRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
@@ -210,7 +256,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
           },
           body: JSON.stringify({
             query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
-            variables: { appId: formattedAppId, shopId: formattedShopId },
+            variables: { appId: formattedAppId, shopId: finalShopId },
           }),
         });
         unstableExecutionResult = await uRes.json();
@@ -222,11 +268,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
         envStatus,
         endpoint,
         formattedAppId,
-        formattedShopId,
+        finalShopId,
         httpStatus: responseStatus,
         response: responseJson || responseText,
         publicVersions,
-        appFields,
+        appDetails: {
+          name: appDetails?.name,
+          apiKey: appDetails?.apiKey,
+          eventCount: appDetails?.events?.edges?.length || 0,
+          events: appDetails?.events?.edges?.map((e: any) => e.node),
+        },
         unstableExecutionResult,
       };
     }),
