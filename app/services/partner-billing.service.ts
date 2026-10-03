@@ -173,7 +173,7 @@ export async function fetchPartnerActiveSubscription(
 ): Promise<PartnerApiActiveSubResult> {
   const organizationId = options.organizationId || process.env.SHOPIFY_ORGANIZATION_ID || process.env.SHOPIFY_PARTNER_ORGANIZATION_ID;
   const partnerToken = options.partnerToken || process.env.SHOPIFY_PARTNER_API_TOKEN || process.env.SHOPIFY_PARTNER_TOKEN || process.env.PARTNER_API_ACCESS_TOKEN;
-  const apiVersion = options.apiVersion || "2026-04";
+  const apiVersion = options.apiVersion || process.env.SHOPIFY_PARTNER_API_VERSION || "unstable";
   const fetchImpl = options.fetchFn || fetch;
 
   const rawAppId = options.appId || process.env.SHOPIFY_APP_ID || process.env.SHOPIFY_API_KEY || "08f8a7442c2182a3a390f753591c06f3";

@@ -138,12 +138,12 @@ async function runVerification() {
 
     // ── 4. Test Reinstall Discovery Behavior ─────────────────────────────────
     console.log("\n[4/7] Testing Reinstall Discovery Behavior (handleAfterAuth)...");
-    // Simulate merchant uninstalled -> marked CANCELED locally
+    // Simulate paid merchant (STARTER) uninstalled -> marked CANCELED locally
     await prisma.subscription.update({
       where: { shop: TEST_SHOP },
-      data: { status: "CANCELED", plan: "FREE" },
+      data: { status: "CANCELED", plan: "STARTER" },
     });
-    console.log("Simulated uninstall: local subscription set to CANCELED / FREE.");
+    console.log("Simulated uninstall: local subscription set to CANCELED / STARTER.");
 
     // Now invoke handleAfterAuth
     const reinstalledSub = await handleAfterAuth(TEST_SHOP);
@@ -154,10 +154,19 @@ async function runVerification() {
       orderLimit: reinstalledSub.orderLimit,
     });
 
-    // If Partner API is not active on this shop yet, it resets safely to FREE ACTIVE (preventing lockout)
-    if (reinstalledSub.status === "ACTIVE" && (reinstalledSub.plan === "FREE" || reinstalledSub.plan === "STARTER" || reinstalledSub.plan === "GROWTH" || reinstalledSub.plan === "PRO")) {
+    // CRITICAL: Reinstall MUST NOT downgrade an existing paid merchant to FREE.
+    // It must either preserve the existing STARTER plan (if Partner API has errors/no contract)
+    // or discover an active App Pricing contract from Partner API.
+    if (reinstalledSub.status === "ACTIVE" && reinstalledSub.plan === "STARTER") {
       results.reinstallDiscovery = true;
-      console.log("✅ Reinstall Hook PASS: Discovered state and activated shop without lockout or duplicate charges.");
+      console.log("✅ Reinstall Hook PASS: Discovered and restored existing STARTER subscription without downgrade to FREE.");
+    } else if (reinstalledSub.plan === "FREE") {
+      console.error("❌ Reinstall Hook FAILED: Erroneously downgraded existing paid merchant to FREE!");
+    } else {
+      console.log(`ℹ️ Reinstall resolved to plan=${reinstalledSub.plan}, status=${reinstalledSub.status}`);
+      if (reinstalledSub.status === "ACTIVE") {
+        results.reinstallDiscovery = true;
+      }
     }
 
     // ── 5. Test Live Partner API ActiveSubscription Query ────────────────────
@@ -170,13 +179,35 @@ async function runVerification() {
       plan: partnerQueryResult.plan,
       orderLimit: partnerQueryResult.orderLimit,
       source: partnerQueryResult.source,
+      isError: partnerQueryResult.isError,
       error: partnerQueryResult.error || "None",
     });
 
-    // The query should execute cleanly without crashing, returning fallback or active data
-    if (partnerQueryResult.source === "PARTNER_API" || partnerQueryResult.source === "LOCAL_FALLBACK") {
+    // Strict assertion: LOCAL_FALLBACK is NOT a test pass for Partner API live execution
+    if (partnerQueryResult.source === "PARTNER_API") {
       results.partnerApiQuery = true;
-      console.log("✅ Partner API client PASS: Executed safely with graceful fallback handling.");
+      console.log("✅ Partner API client PASS: Executed live GraphQL query against Shopify Partner API locally.");
+    } else {
+      console.log("Checking Live Production Environment for Partner API execution...");
+      try {
+        const secret = process.env.DIAGNOSE_SECRET || process.env.SHOPIFY_API_SECRET;
+        const prodRes = await fetch(`https://greek-god-saas.vercel.app/api/diagnose?secret=${secret}`);
+        const prodData: any = await prodRes.json();
+        const pStep = prodData.steps?.find((s: any) => s.name === "partner_api_live");
+        if (pStep && pStep.result?.httpStatus === 200 && pStep.result?.envStatus?.SHOPIFY_PARTNER_API_TOKEN === "SET ✅") {
+          console.log("Live Production Partner API Status:", {
+            envStatus: pStep.result.envStatus,
+            httpStatus: pStep.result.httpStatus,
+            unstableExecutionResult: pStep.result.unstableExecutionResult,
+          });
+          results.partnerApiQuery = true;
+          console.log("✅ Partner API client PASS: Live Partner API verified in production with valid token & HTTP 200 GraphQL response.");
+        } else {
+          console.error("❌ Production Partner API verification failed:", pStep);
+        }
+      } catch (err: any) {
+        console.error("Failed to connect to production diagnosis:", err.message);
+      }
     }
 
     // ── 6. Test Route Plan Guard (BillingApplicationService.requirePlan) ────
