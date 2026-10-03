@@ -156,6 +156,46 @@ export async function loader({ request }: LoaderFunctionArgs) {
         responseJson = JSON.parse(responseText);
       } catch {}
 
+      // Also run introspection on queryType fields to see available schema
+      let introspectionFields: string[] = [];
+      let subscriptionTypes: string[] = [];
+      try {
+        const introRes = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": partnerToken,
+          },
+          body: JSON.stringify({
+            query: `
+              query Introspect {
+                __schema {
+                  queryType {
+                    fields {
+                      name
+                    }
+                  }
+                  types {
+                    name
+                  }
+                }
+              }
+            `,
+          }),
+        });
+        const introJson: any = await introRes.json();
+        if (introJson?.data?.__schema?.queryType?.fields) {
+          introspectionFields = introJson.data.__schema.queryType.fields.map((f: any) => f.name);
+        }
+        if (introJson?.data?.__schema?.types) {
+          subscriptionTypes = introJson.data.__schema.types
+            .map((t: any) => t.name)
+            .filter((n: string) => /subscri|billing|app|pricing/i.test(n));
+        }
+      } catch (err: any) {
+        introspectionFields = [`Introspection failed: ${err.message}`];
+      }
+
       return {
         envStatus,
         endpoint,
@@ -163,6 +203,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         formattedShopId,
         httpStatus: responseStatus,
         response: responseJson || responseText,
+        availableQueries: introspectionFields,
+        matchingTypes: subscriptionTypes,
       };
     }),
   ]);
