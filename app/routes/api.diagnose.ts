@@ -189,6 +189,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
             `,
           }),
         });
+        const introJson: any = await introRes.json();
+        publicVersions = introJson?.data?.publicApiVersions || [];
+        const appType = introJson?.data?.__type;
+        if (appType?.fields) {
+          appFields = appType.fields.map((f: any) => `${f.name}: ${f.type?.name || f.type?.ofType?.name || f.type?.kind}`);
+        }
+      } catch (err: any) {
+        publicVersions = [`Introspection failed: ${err.message}`];
+      }
+
       // Also test if other API versions (2026-07, unstable) have activeSubscription
       const versionChecks: Record<string, string> = {};
       for (const ver of ["2026-01", "2026-04", "2026-07", "unstable"]) {
