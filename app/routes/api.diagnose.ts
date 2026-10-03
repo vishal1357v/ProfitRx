@@ -217,12 +217,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
             items {
               handle
               description
-              price {
-                amount
-                currencyCode
-              }
             }
             legacySubscriptionId
+          }
+          priceType: __type(name: "Price") {
+            fields {
+              name
+            }
           }
         }
       `;
