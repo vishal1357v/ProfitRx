@@ -127,192 +127,141 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const { PARTNER_ACTIVE_SUBSCRIPTION_QUERY } = await import("../services/partner-billing.service");
       const { decryptToken } = await import("../services/token-encryption.server");
 
-      // ── Step 1: Resolve canonical Shop GID via Admin API ──────────────────
-      // Use the offline session access token stored in Prisma to query the Shopify Admin API
+      // ── Step 1: Resolve canonical Shop GID ───────────────────────────────
       const targetShop = url.searchParams.get("shop") || "greek-god-wvwt8ptt.myshopify.com";
-      const session = await prisma.session.findFirst({
-        where: { shop: targetShop, isOnline: false },
-        select: { accessToken: true, shop: true },
-      });
+      let shopGidResolution: any = { method: null, gid: null, numericId: null, error: null };
 
-      let shopGidResolution: any = { method: null, gid: null, error: null };
+      // Method 1: Canonical Shopify store meta endpoint
+      try {
+        const metaRes = await fetch(`https://${targetShop}/meta.json`);
+        if (metaRes.ok) {
+          const metaJson: any = await metaRes.json();
+          if (metaJson?.id) {
+            const numericId = String(metaJson.id);
+            const canonicalGid = `gid://shopify/Shop/${numericId}`;
+            const isValidGid = /^gid:\/\/shopify\/Shop\/\d+$/.test(canonicalGid);
 
-      if (session?.accessToken) {
-        // Decrypt the encrypted access token
-        let plainAccessToken: string | null = null;
-        try {
-          plainAccessToken = decryptToken(session.accessToken);
-        } catch (decryptErr: any) {
-          shopGidResolution = {
-            method: "DECRYPT_FAILED",
-            error: decryptErr.message,
-            tokenPrefix: session.accessToken.substring(0, 12) + "...",
-          };
-        }
-
-        if (plainAccessToken) {
-          const versionsToTry = ["2025-01", "2024-10", "2024-07", "2025-04", "2025-07", "2025-10"];
-          const adminAttempts: any[] = [];
-
-          for (const ver of versionsToTry) {
-            if (shopGidResolution.gid) break;
-
-            // 1. Try GraphQL Admin API
-            try {
-              const gqlEndpoint = `https://${targetShop}/admin/api/${ver}/graphql.json`;
-              const gqlRes = await fetch(gqlEndpoint, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Shopify-Access-Token": plainAccessToken,
-                },
-                body: JSON.stringify({ query: `{ shop { id name myshopifyDomain } }` }),
-              });
-              const gqlStatus = gqlRes.status;
-              const gqlJson: any = await gqlRes.json();
-              adminAttempts.push({
-                ver,
-                type: "graphql",
-                status: gqlStatus,
-                shopId: gqlJson?.data?.shop?.id,
-                error: gqlJson?.errors,
-              });
-
-              if (gqlJson?.data?.shop?.id) {
-                shopGidResolution = {
-                  method: "ADMIN_API_GRAPHQL",
-                  apiVersion: ver,
-                  gid: gqlJson.data.shop.id,
-                  shopName: gqlJson.data.shop.name,
-                  myshopifyDomain: gqlJson.data.shop.myshopifyDomain,
-                  adminApiStatus: gqlStatus,
-                  adminAttempts,
-                };
-                break;
-              }
-            } catch (err: any) {
-              adminAttempts.push({ ver, type: "graphql", error: err.message });
-            }
-
-            // 2. Try REST Admin API
-            if (!shopGidResolution.gid) {
-              try {
-                const restEndpoint = `https://${targetShop}/admin/api/${ver}/shop.json`;
-                const restRes = await fetch(restEndpoint, {
-                  method: "GET",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "X-Shopify-Access-Token": plainAccessToken,
-                  },
-                });
-                const restStatus = restRes.status;
-                const restJson: any = await restRes.json();
-                adminAttempts.push({
-                  ver,
-                  type: "rest",
-                  status: restStatus,
-                  shopId: restJson?.shop?.id,
-                  error: restJson?.errors,
-                });
-
-                if (restJson?.shop?.id) {
-                  const numericId = String(restJson.shop.id);
-                  shopGidResolution = {
-                    method: "ADMIN_API_REST",
-                    apiVersion: ver,
-                    gid: `gid://shopify/Shop/${numericId}`,
-                    shopName: restJson.shop.name,
-                    myshopifyDomain: restJson.shop.myshopify_domain,
-                    adminApiStatus: restStatus,
-                    adminAttempts,
-                  };
-                  break;
-                }
-              } catch (err: any) {
-                adminAttempts.push({ ver, type: "rest", error: err.message });
-              }
-            }
-          }
-
-          if (!shopGidResolution.gid) {
             shopGidResolution = {
-              method: "ADMIN_API_FAILED_ALL_VERSIONS",
-              adminAttempts,
+              method: "CANONICAL_STORE_META",
+              numericId,
+              gid: canonicalGid,
+              isValidGidFormat: isValidGid,
+              shopName: metaJson.name,
+              myshopifyDomain: metaJson.myshopify_domain || metaJson.domain,
+              currency: metaJson.currency,
+              country: metaJson.country,
             };
           }
         }
-      } else {
-        shopGidResolution = {
-          method: "NO_SESSION",
-          error: `No offline session found for ${targetShop}`,
-        };
+      } catch (metaErr: any) {
+        shopGidResolution.metaError = metaErr.message;
       }
 
-      // Also introspect Partner API schema for QueryRoot and App fields
-      let partnerSchemaInfo: any = null;
-      try {
-        const schemaRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": partnerToken,
-          },
-          body: JSON.stringify({
-            query: `
-              query Introspect {
-                queryRoot: __type(name: "QueryRoot") {
-                  fields {
-                    name
-                    args {
-                      name
-                    }
-                  }
-                }
-                appType: __type(name: "App") {
-                  fields {
-                    name
-                  }
-                }
-              }
-            `,
-          }),
+      // Method 2: If meta.json failed, try Admin API with stored session
+      if (!shopGidResolution.gid) {
+        const session = await prisma.session.findFirst({
+          where: { shop: targetShop, isOnline: false },
+          select: { accessToken: true, shop: true },
         });
-        const schemaJson: any = await schemaRes.json();
-        partnerSchemaInfo = {
-          queryRootFields: schemaJson?.data?.queryRoot?.fields?.map((f: any) => ({
-            name: f.name,
-            args: f.args?.map((a: any) => a.name),
-          })),
-          appFields: schemaJson?.data?.appType?.fields?.map((f: any) => f.name),
-        };
-      } catch (schemaErr: any) {
-        partnerSchemaInfo = { error: schemaErr.message };
+
+        if (session?.accessToken) {
+          try {
+            const plainAccessToken = decryptToken(session.accessToken);
+            if (plainAccessToken) {
+              const adminRes = await fetch(`https://${targetShop}/admin/api/2025-01/shop.json`, {
+                headers: { "X-Shopify-Access-Token": plainAccessToken },
+              });
+              const adminJson: any = await adminRes.json();
+              if (adminJson?.shop?.id) {
+                const numericId = String(adminJson.shop.id);
+                shopGidResolution = {
+                  method: "ADMIN_API_REST",
+                  numericId,
+                  gid: `gid://shopify/Shop/${numericId}`,
+                  isValidGidFormat: /^gid:\/\/shopify\/Shop\/\d+$/.test(`gid://shopify/Shop/${numericId}`),
+                  shopName: adminJson.shop.name,
+                  myshopifyDomain: adminJson.shop.myshopify_domain,
+                };
+              }
+            }
+          } catch (e: any) {
+            shopGidResolution.adminError = e.message;
+          }
+        }
       }
 
-      // ── Step 2: Execute activeSubscription with real GID ──────────────────
+      // ── Step 2: Execute activeSubscription with canonical GID ─────────────
       let activeSubscriptionResult: any = null;
+      let rawPartnerResponseText: string | null = null;
+      let partnerHttpStatus: number | null = null;
       const resolvedShopGid = shopGidResolution.gid;
 
-      if (resolvedShopGid) {
+      const partnerQuery = `
+        query ActiveSubscriptionVerification($appId: ID!, $shopId: ID!) {
+          app(id: $appId) {
+            id
+            name
+          }
+          activeSubscription(appId: $appId, shopId: $shopId) {
+            shop {
+              id
+              myshopifyDomain
+            }
+            billingPeriod
+            cancelAtEndOfCycle
+            trialEndsAt
+            currentBillingCycle {
+              startTime
+              endTime
+            }
+            items {
+              handle
+              description
+              price {
+                amount
+                currencyCode
+              }
+            }
+            legacySubscriptionId
+          }
+        }
+      `;
+
+      if (resolvedShopGid && orgId && partnerToken) {
         try {
-          const subRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
+          const endpoint = `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`;
+          const subRes = await fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Shopify-Access-Token": partnerToken,
             },
             body: JSON.stringify({
-              query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
+              query: partnerQuery,
               variables: { appId: formattedAppId, shopId: resolvedShopGid },
             }),
           });
+          partnerHttpStatus = subRes.status;
           activeSubscriptionResult = await subRes.json();
         } catch (subErr: any) {
           activeSubscriptionResult = { error: subErr.message };
         }
       } else {
-        activeSubscriptionResult = { skipped: true, reason: "Shop GID could not be resolved" };
+        activeSubscriptionResult = {
+          skipped: true,
+          reason: !resolvedShopGid
+            ? "Shop GID could not be resolved"
+            : "Partner credentials missing",
+        };
       }
+
+      // Analyze partner API response
+      const hasGraphqlErrors = !!activeSubscriptionResult?.errors?.length;
+      const shopNotFoundError = activeSubscriptionResult?.errors?.some((e: any) =>
+        e.message?.toLowerCase().includes("shop not found")
+      );
+      const activeSubData = activeSubscriptionResult?.data?.activeSubscription;
+      const appData = activeSubscriptionResult?.data?.app;
 
       return {
         envStatus: {
@@ -323,13 +272,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
         },
         formattedAppId,
         targetShop,
+        canonicalShopGid: resolvedShopGid,
         shopGidResolution,
-        partnerSchemaInfo,
-        activeSubscriptionQuery: {
-          appId: formattedAppId,
-          shopId: resolvedShopGid || "UNRESOLVED",
+        activeSubscriptionProbe: {
+          queryVariables: { appId: formattedAppId, shopId: resolvedShopGid },
           endpoint: `https://partners.shopify.com/${orgId}/api/unstable/graphql.json`,
-          result: activeSubscriptionResult,
+          httpStatus: partnerHttpStatus,
+          response: activeSubscriptionResult,
+          analysis: {
+            appRecognized: !!appData?.id,
+            appName: appData?.name || null,
+            hasGraphqlErrors,
+            shopNotFoundError: !!shopNotFoundError,
+            activeSubscriptionPresent: activeSubData !== null && activeSubData !== undefined,
+            activeSubscriptionValue: activeSubData ?? null,
+            verdict: shopNotFoundError
+              ? "FAIL: Shop not found by Partner API"
+              : activeSubData === null
+              ? "CONFIRMED: Shop exists in Partner API; activeSubscription is NULL because App Pricing is not enabled yet or no active subscription exists."
+              : "SUCCESS: Active App Pricing subscription discovered!",
+          },
         },
       };
     }),
