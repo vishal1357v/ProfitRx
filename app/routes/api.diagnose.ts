@@ -199,38 +199,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
         publicVersions = [`Introspection failed: ${err.message}`];
       }
 
-      // Also test if other API versions (2026-07, unstable) have activeSubscription
-      const versionChecks: Record<string, string> = {};
-      for (const ver of ["2026-01", "2026-04", "2026-07", "unstable"]) {
-        try {
-          const vRes = await fetch(`https://partners.shopify.com/${orgId}/api/${ver}/graphql.json`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Shopify-Access-Token": partnerToken,
-            },
-            body: JSON.stringify({
-              query: `
-                query CheckVer {
-                  __schema {
-                    queryType {
-                      fields {
-                        name
-                      }
-                    }
-                  }
-                }
-              `,
-            }),
-          });
-          const vJson: any = await vRes.json();
-          const qNames = vJson?.data?.__schema?.queryType?.fields?.map((f: any) => f.name) || [];
-          versionChecks[ver] = qNames.includes("activeSubscription")
-            ? "HAS activeSubscription ✅"
-            : `Queries: [${qNames.join(", ")}] (lacks Manage apps permission ❌)`;
-        } catch (e: any) {
-          versionChecks[ver] = `Error: ${e.message}`;
-        }
+      // Also test executing activeSubscription on unstable
+      let unstableExecutionResult: any = null;
+      try {
+        const uRes = await fetch(`https://partners.shopify.com/${orgId}/api/unstable/graphql.json`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": partnerToken,
+          },
+          body: JSON.stringify({
+            query: PARTNER_ACTIVE_SUBSCRIPTION_QUERY,
+            variables: { appId: formattedAppId, shopId: formattedShopId },
+          }),
+        });
+        unstableExecutionResult = await uRes.json();
+      } catch (e: any) {
+        unstableExecutionResult = `Error: ${e.message}`;
       }
 
       return {
@@ -242,7 +227,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         response: responseJson || responseText,
         publicVersions,
         appFields,
-        versionChecks,
+        unstableExecutionResult,
       };
     }),
   ]);
