@@ -125,6 +125,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
       const formattedAppId = appId.startsWith("gid://") ? appId : `gid://shopify/App/${appId.replace(/\D/g, "")}`;
       const { PARTNER_ACTIVE_SUBSCRIPTION_QUERY } = await import("../services/partner-billing.service");
+      const { decryptToken } = await import("../services/token-encryption.server");
 
       // ── Step 1: Resolve canonical Shop GID via Admin API ──────────────────
       // Use the offline session access token stored in Prisma to query the Shopify Admin API
@@ -137,42 +138,56 @@ export async function loader({ request }: LoaderFunctionArgs) {
       let shopGidResolution: any = { method: null, gid: null, error: null };
 
       if (session?.accessToken) {
-        // Try Admin API with the stored access token
-        const adminApiVersion = "2026-04";
-        const adminEndpoint = `https://${targetShop}/admin/api/${adminApiVersion}/graphql.json`;
+        // Decrypt the encrypted access token
+        let plainAccessToken: string | null = null;
         try {
-          const adminRes = await fetch(adminEndpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Shopify-Access-Token": session.accessToken,
-            },
-            body: JSON.stringify({ query: `{ shop { id name myshopifyDomain } }` }),
-          });
-          const adminStatus = adminRes.status;
-          const adminJson: any = await adminRes.json();
+          plainAccessToken = decryptToken(session.accessToken);
+        } catch (decryptErr: any) {
+          shopGidResolution = {
+            method: "DECRYPT_FAILED",
+            error: decryptErr.message,
+            tokenPrefix: session.accessToken.substring(0, 12) + "...",
+          };
+        }
 
-          if (adminJson?.data?.shop?.id) {
+        if (plainAccessToken) {
+          // Try Admin API with the decrypted access token
+          const adminApiVersion = "2026-04";
+          const adminEndpoint = `https://${targetShop}/admin/api/${adminApiVersion}/graphql.json`;
+          try {
+            const adminRes = await fetch(adminEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": plainAccessToken,
+              },
+              body: JSON.stringify({ query: `{ shop { id name myshopifyDomain } }` }),
+            });
+            const adminStatus = adminRes.status;
+            const adminJson: any = await adminRes.json();
+
+            if (adminJson?.data?.shop?.id) {
+              shopGidResolution = {
+                method: "ADMIN_API",
+                gid: adminJson.data.shop.id,
+                shopName: adminJson.data.shop.name,
+                myshopifyDomain: adminJson.data.shop.myshopifyDomain,
+                adminApiStatus: adminStatus,
+              };
+            } else {
+              shopGidResolution = {
+                method: "ADMIN_API_FAILED",
+                adminApiStatus: adminStatus,
+                adminResponse: adminJson,
+                error: adminJson?.errors?.[0]?.message || "No shop.id in response",
+              };
+            }
+          } catch (adminErr: any) {
             shopGidResolution = {
-              method: "ADMIN_API",
-              gid: adminJson.data.shop.id,
-              shopName: adminJson.data.shop.name,
-              myshopifyDomain: adminJson.data.shop.myshopifyDomain,
-              adminApiStatus: adminStatus,
-            };
-          } else {
-            shopGidResolution = {
-              method: "ADMIN_API_FAILED",
-              adminApiStatus: adminStatus,
-              adminResponse: adminJson,
-              error: adminJson?.errors?.[0]?.message || "No shop.id in response",
+              method: "ADMIN_API_ERROR",
+              error: adminErr.message,
             };
           }
-        } catch (adminErr: any) {
-          shopGidResolution = {
-            method: "ADMIN_API_ERROR",
-            error: adminErr.message,
-          };
         }
       } else {
         shopGidResolution = {
