@@ -157,7 +157,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       } catch {}
 
       // Also run introspection on queryType fields to see available schema
-      let introspectionFields: string[] = [];
+      let publicVersions: any[] = [];
       let appFields: string[] = [];
       let appQueryArgs: any[] = [];
       try {
@@ -169,7 +169,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
           },
           body: JSON.stringify({
             query: `
-              query IntrospectApp {
+              query VersionsAndApp {
+                publicApiVersions {
+                  handle
+                  displayName
+                  supported
+                }
                 __type(name: "App") {
                   fields {
                     name
@@ -180,36 +185,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
                     }
                   }
                 }
-                __schema {
-                  queryType {
-                    fields {
-                      name
-                      args {
-                        name
-                        type { name kind ofType { name kind } }
-                      }
-                    }
-                  }
-                }
               }
             `,
           }),
         });
         const introJson: any = await introRes.json();
+        publicVersions = introJson?.data?.publicApiVersions || [];
         const appType = introJson?.data?.__type;
         if (appType?.fields) {
           appFields = appType.fields.map((f: any) => `${f.name}: ${f.type?.name || f.type?.ofType?.name || f.type?.kind}`);
         }
-        const qFields = introJson?.data?.__schema?.queryType?.fields;
-        if (qFields) {
-          const appQ = qFields.find((f: any) => f.name === "app");
-          if (appQ) {
-            appQueryArgs = appQ.args;
-          }
-          introspectionFields = qFields.map((f: any) => f.name);
-        }
       } catch (err: any) {
-        introspectionFields = [`Introspection failed: ${err.message}`];
+        publicVersions = [`Introspection failed: ${err.message}`];
       }
 
       return {
@@ -219,8 +206,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         formattedShopId,
         httpStatus: responseStatus,
         response: responseJson || responseText,
-        availableQueries: introspectionFields,
-        appQueryArgs,
+        publicVersions,
         appFields,
       };
     }),
