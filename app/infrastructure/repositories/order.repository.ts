@@ -64,18 +64,32 @@ export class OrderRepository {
     const scopedId = `${shopPrefix}_${rawId}`;
     const orderNum = parseInt(rawId.replace(/^ord-/, ""), 10);
 
-    const order = await prisma.order.findFirst({
+    // 1. Try exact ID match first
+    const exactOrder = await prisma.order.findFirst({
       where: {
         shop,
-        OR: [
-          { id: { in: [orderId, gid, rawId, decodedId, scopedId] } },
-          ...(isNaN(orderNum) ? [] : [{ orderNumber: orderNum }]),
-        ],
+        id: { in: [orderId, gid, rawId, decodedId, scopedId] },
       },
       include: { lineItems: true },
     });
 
-    return order as OrderWithLineItems | null;
+    if (exactOrder) {
+      return exactOrder as OrderWithLineItems;
+    }
+
+    // 2. Fall back to order number if no exact ID matched
+    if (!isNaN(orderNum)) {
+      const orderByNum = await prisma.order.findFirst({
+        where: {
+          shop,
+          orderNumber: orderNum,
+        },
+        include: { lineItems: true },
+      });
+      return orderByNum as OrderWithLineItems | null;
+    }
+
+    return null;
   }
 
   /**
