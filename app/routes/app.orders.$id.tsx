@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, redirect } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, redirect, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -653,6 +653,49 @@ export default function OrderIntelligenceRoute() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const navigate = useNavigate();
+  let errorMessage = "An unexpected error occurred while loading order intelligence.";
+  let isNotFound = false;
+
+  if (isRouteErrorResponse(error)) {
+    if (error.status === 404) {
+      isNotFound = true;
+      errorMessage = "The requested order could not be found or does not belong to this shop.";
+    } else {
+      errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+    }
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page
+      title={isNotFound ? "Order Not Found" : "Order Intelligence Error"}
+      backAction={{ content: "Back to Operations", onAction: () => navigate("/app/operations") }}
+    >
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone={isNotFound ? "warning" : "critical"} title={isNotFound ? "Order Not Found" : "Failed to Load Order Intelligence"}>
+              <p>{errorMessage}</p>
+            </Banner>
+            <InlineStack gap="200">
+              <Button variant="primary" onClick={() => navigate("/app/operations")}>
+                Return to Operations Queue
+              </Button>
+              {!isNotFound && (
+                <Button onClick={() => window.location.reload()}>Retry</Button>
+              )}
+            </InlineStack>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

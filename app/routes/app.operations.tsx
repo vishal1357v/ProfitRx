@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useNavigation, useActionData, useRevalidator, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -102,6 +102,29 @@ export default function OperationsRoute() {
   const submit = useSubmit();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const revalidator = useRevalidator();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleSyncOrders = async () => {
+    setIsSyncing(true);
+    setSyncStatus(null);
+    try {
+      const res = await fetch("/api/sync-orders", { method: "POST" });
+      const resData = await res.json();
+      if (res.ok && resData.success) {
+        const msg = resData.message || `Synced ${resData.ordersFound ?? resData.count ?? 0} orders (${resData.ordersImported || 0} imported, ${resData.ordersUpdated || 0} updated).`;
+        setSyncStatus({ success: true, message: `✅ ${msg}` });
+        revalidator.revalidate();
+      } else {
+        throw new Error(resData.error || "Order sync failed");
+      }
+    } catch (e: any) {
+      setSyncStatus({ success: false, message: e?.message || "Failed to sync orders" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const tabs = [
     {
@@ -384,8 +407,18 @@ export default function OperationsRoute() {
       title="Merchant Control Center"
       subtitle="Real-time COD risk evaluation, financial protection queue, and verified execution."
       compactTitle
+      primaryAction={{
+        content: "Sync Orders",
+        loading: isSyncing,
+        onAction: handleSyncOrders,
+      }}
     >
       <BlockStack gap="400">
+        {syncStatus && (
+          <Banner tone={syncStatus.success ? "success" : "critical"} onDismiss={() => setSyncStatus(null)}>
+            <p>{syncStatus.message}</p>
+          </Banner>
+        )}
         {actionData?.message && (
           <Banner tone={actionData.success ? "success" : "critical"}>
             <p>{actionData.message}</p>
@@ -706,6 +739,32 @@ export default function OperationsRoute() {
           )}
         </Modal.Section>
       </Modal>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading orders and operations.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Merchant Control Center">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Operations Control Center">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }
