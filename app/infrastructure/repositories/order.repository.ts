@@ -146,10 +146,13 @@ export class OrderRepository {
     const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
     const rawId = decodedId.replace("gid://shopify/Order/", "");
 
+    const shopPrefix = shop.replace(/[^a-zA-Z0-9]/g, "_");
+    const scopedId = `${shopPrefix}_${rawId}`;
+
     const existing = await prisma.order.findFirst({
       where: {
         shop,
-        id: { in: [orderId, rawId, gid, decodedId] },
+        id: { in: [orderId, rawId, gid, decodedId, scopedId] },
       },
       select: { id: true },
     });

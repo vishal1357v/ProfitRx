@@ -153,9 +153,7 @@ export default function OperationsRoute() {
 
   const handleOpenActionModal = (order: OperationOrderDTO, defaultAction?: string) => {
     setActiveModalOrder(order);
-    const initialAction = (defaultAction && defaultAction !== "OTP_VERIFY")
-      ? defaultAction
-      : (order.merchantRecommendation && order.merchantRecommendation !== "OTP_VERIFY" ? order.merchantRecommendation : "ALLOW_COD");
+    const initialAction = defaultAction || order.merchantRecommendation || "ALLOW_COD";
     setSelectedAction(initialAction);
     setActionReason("");
   };
@@ -623,7 +621,7 @@ export default function OperationsRoute() {
                         "Expected Profit",
                         "RTO Exposure",
                         "Risk",
-                        "Evidence",
+                        "Confidence",
                         "Recommendation",
                         "Mode",
                         "Status",
