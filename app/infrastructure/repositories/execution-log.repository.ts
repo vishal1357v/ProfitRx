@@ -67,11 +67,14 @@ export class ExecutionLogRepository {
     const gid = decodedId.startsWith("gid://") ? decodedId : `gid://shopify/Order/${decodedId}`;
     const rawId = decodedId.replace("gid://shopify/Order/", "");
 
+    const shopPrefix = data.shop.replace(/[^a-zA-Z0-9]/g, "_");
+    const scopedId = `${shopPrefix}_${rawId}`;
+
     // Verify order exists to satisfy foreign key constraint
     const existingOrder = await prisma.order.findFirst({
       where: {
         shop: data.shop,
-        id: { in: [data.orderId, gid, rawId, decodedId] },
+        id: { in: [data.orderId, gid, rawId, decodedId, scopedId] },
       },
       select: { id: true },
     });
