@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, redirect } from "react-router";
+import { useLoaderData, useNavigation, redirect, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -17,6 +17,7 @@ import {
   Divider,
   Select,
   Modal,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { RoasAnalyticsApplicationService } from "../application/analytics/roas-analytics.application";
@@ -665,6 +666,32 @@ export default function ROASRoute() {
           </Card>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while analyzing marketing ROAS.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Marketing ROAS Intelligence">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load ROAS Intelligence">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry ROAS</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

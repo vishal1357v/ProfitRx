@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, redirect, Link } from "react-router";
+import { useLoaderData, redirect, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -19,6 +19,7 @@ import {
   Banner,
   Button,
   DataTable,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { ProfitLeaksApplicationService } from "../application/analytics/profit-leaks.application";
@@ -479,6 +480,32 @@ export default function ProfitLeaksRoute() {
           </Card>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while diagnosing profit leaks.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Profit Leak Detection Engine">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Profit Leak Diagnostics">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry Diagnostics</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

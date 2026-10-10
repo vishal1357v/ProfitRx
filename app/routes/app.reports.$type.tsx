@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useParams } from "react-router";
+import { useLoaderData, useParams, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { Page, Layout, Card, Text, BlockStack, InlineStack, Button, DataTable, Banner, Box, Badge, TextField } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -146,6 +146,32 @@ export default function ReportPage() {
           </Card>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading this report.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Report Detail">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Report Detail">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

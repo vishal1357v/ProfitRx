@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page,
@@ -12,6 +12,8 @@ import {
   Badge,
   Button,
   Divider,
+  Banner,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { CodVerificationApplicationService } from "../application/operations/cod-verification.application";
@@ -329,6 +331,32 @@ export default function CODProfitDashboardRoute() {
           </Card>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading COD analytics.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="COD Performance Analytics">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load COD Analytics">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry Analytics</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

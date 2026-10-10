@@ -1,1 +1,1 @@
-export { loader, default } from "./app.dashboard";
+export { loader, default, ErrorBoundary } from "./app.dashboard";

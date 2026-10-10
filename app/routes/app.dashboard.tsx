@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLoaderData, useRevalidator, redirect, Link } from "react-router";
+import { useLoaderData, useRevalidator, redirect, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -1973,6 +1973,32 @@ export default function DashboardRoute() {
         </Layout.Section>
 
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading your profit dashboard.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Executive Profit Dashboard">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Profit Dashboard">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry Dashboard</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

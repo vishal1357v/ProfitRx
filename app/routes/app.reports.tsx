@@ -1,7 +1,7 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, Link } from "react-router";
+import { useLoaderData, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-import { Page, Layout, Card, Text, BlockStack, InlineStack, Grid, Box, Icon, Badge } from "@shopify/polaris";
+import { Page, Layout, Card, Text, BlockStack, InlineStack, Grid, Box, Icon, Badge, Banner, Button } from "@shopify/polaris";
 import { ChartLineIcon, ChartVerticalIcon, PersonIcon, DeliveryIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 
@@ -73,6 +73,32 @@ export default function ReportsHub() {
           </Grid>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading reports.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Reports Suite">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Reports">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry Reports</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

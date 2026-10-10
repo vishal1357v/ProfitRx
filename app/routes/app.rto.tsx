@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useNavigation, useSubmit, useSearchParams, Link } from "react-router";
+import { Form, useLoaderData, useNavigation, useSubmit, useSearchParams, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -23,6 +23,7 @@ import {
   Badge,
   Divider,
   Pagination,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { RtoAnalyticsApplicationService } from "../application/analytics/rto-analytics.application";
@@ -555,6 +556,32 @@ export default function RtoRoute() {
           </BlockStack>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading RTO analytics.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Return to Origin (RTO) Analytics">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load RTO Analytics">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry Analytics</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }
