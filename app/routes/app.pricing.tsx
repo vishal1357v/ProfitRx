@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useActionData, redirect, useNavigation } from "react-router";
+import { Form, useLoaderData, useActionData, redirect, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -17,6 +17,7 @@ import {
   List,
   Badge,
   Banner,
+  Box,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { BillingApplicationService } from "../application/billing/billing.application";
@@ -374,6 +375,32 @@ export default function Pricing() {
           </div>
         </Layout.Section>
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading pricing.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Pricing Plans">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Plans">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

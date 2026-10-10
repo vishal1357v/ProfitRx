@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigation, useSubmit, useActionData, useFetcher } from "react-router";
+import { useLoaderData, useNavigation, useSubmit, useActionData, useFetcher, useRouteError, isRouteErrorResponse } from "react-router";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -696,5 +696,31 @@ export default function SettingsRoute() {
         <Toast content="Settings saved successfully!" onDismiss={() => setSaved(false)} />
       )}
     </Frame>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading settings.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="Store Settings">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load Settings">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </BlockStack>
+        </Box>
+      </Card>
+    </Page>
   );
 }
