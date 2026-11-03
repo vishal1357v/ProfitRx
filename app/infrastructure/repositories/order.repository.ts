@@ -105,6 +105,17 @@ export class OrderRepository {
   }
 
   /**
+   * Find orders needing merchant review (high or critical risk) with shop isolation.
+   */
+  static async findOrdersNeedingReview(shop: string, limit = 10): Promise<any[]> {
+    return prisma.order.findMany({
+      where: { shop, riskLevel: { in: ["HIGH", "CRITICAL"] } },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+  }
+
+  /**
    * Find a single order by its sequential Shopify order number with shop isolation.
    */
   static async findByOrderNumber(shop: string, orderNumber: number): Promise<any | null> {

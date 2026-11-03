@@ -246,6 +246,8 @@ describe("CodRulesApplicationService & Checkout Activation Toggle", () => {
 
     const metafieldVal = JSON.parse(updateCall![1].variables.paymentCustomization.metafields[0].value);
     expect(metafieldVal.blockedPincodes).toEqual(["560001", "560002"]);
+    expect(metafieldVal.rejectCodOver).toBe(5000);
+    expect(metafieldVal.requirePrepaidAbove).toBe(10000);
   });
 
   it("5. Updating pincodes while ON -> latest pincodes array synced to Shopify configuration metafield", async () => {
@@ -405,5 +407,51 @@ describe("CodRulesApplicationService & Checkout Activation Toggle", () => {
     const loaded = await CodRulesApplicationService.getCodRulesData(shopA);
     expect(loaded.codSettings.codBlockingEnabled).toBe(true);
     expect(loaded.codSettings.codBlockedPincodes).toEqual(["110053"]);
+  });
+
+  it("11. Clearing previously configured rules -> resets thresholds to null and syncs nulls to metafield", async () => {
+    storeDb[shopA] = {
+      shop: shopA,
+      codBlockingEnabled: true,
+      codBlockedPincodes: ["560001"],
+      rulesRejectCodOver: 5000,
+      rulesRequirePrepaidAbove: 10000,
+    };
+
+    const mockAdmin = createMockAdmin({
+      customizations: [
+        {
+          node: {
+            id: "gid://shopify/PaymentCustomization/existing-1",
+            title: "ProfitRx COD Pincode Blocker",
+            enabled: true,
+            functionId: "gid://shopify/ShopifyFunction/fn-123",
+          },
+        },
+      ],
+    });
+
+    const result = await CodRulesApplicationService.saveMerchantRules(
+      shopA,
+      {
+        rulesRejectCodOver: null as any,
+        rulesRequirePrepaidAbove: null as any,
+        rulesAutoFlagRepeatOffenders: false,
+        rulesAutoRequireOtp: false,
+        codBlockingEnabled: true,
+      },
+      mockAdmin as any
+    );
+
+    expect(result.success).toBe(true);
+
+    const updateCall = mockAdmin.graphql.mock.calls.find((call) =>
+      call[0].includes("paymentCustomizationUpdate")
+    );
+    expect(updateCall).toBeDefined();
+
+    const metafieldVal = JSON.parse(updateCall![1].variables.paymentCustomization.metafields[0].value);
+    expect(metafieldVal.rejectCodOver).toBeNull();
+    expect(metafieldVal.requirePrepaidAbove).toBeNull();
   });
 });

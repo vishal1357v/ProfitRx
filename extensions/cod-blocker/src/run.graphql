@@ -1,5 +1,10 @@
 query RunInput {
   cart {
+    cost {
+      totalAmount {
+        amount
+      }
+    }
     deliveryGroups {
       deliveryAddress {
         zip

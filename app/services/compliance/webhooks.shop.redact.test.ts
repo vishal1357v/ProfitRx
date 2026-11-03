@@ -51,6 +51,9 @@ describe("Durable Asynchronous GDPR Shop Redact Architecture", () => {
       }
     }
     vi.spyOn((prisma as any).session, "findFirst").mockResolvedValue(null);
+    if ((prisma as any).shopRedactionRequest) {
+      vi.spyOn((prisma as any).shopRedactionRequest, "count").mockResolvedValue(0);
+    }
   });
 
   afterEach(() => {

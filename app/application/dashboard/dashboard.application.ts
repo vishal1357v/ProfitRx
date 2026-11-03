@@ -1,11 +1,15 @@
 import { redirect } from "react-router";
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../../shopify.server";
-import prisma from "../../db.server";
 import { OrderRepository } from "../../infrastructure/repositories/order.repository";
 import { RtoRepository } from "../../infrastructure/repositories/rto.repository";
 import { AdSpendRepository } from "../../infrastructure/repositories/ad-spend.repository";
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
+import { CustomerRepository } from "../../infrastructure/repositories/customer.repository";
+import { PincodeRepository } from "../../infrastructure/repositories/pincode.repository";
+import { CogsRepository } from "../../infrastructure/repositories/cogs.repository";
+import { ExecutionLogRepository } from "../../infrastructure/repositories/execution-log.repository";
+import { AlertRepository } from "../../infrastructure/repositories/alert.repository";
 import { ProfitService } from "../../services/profit.service";
 import { ShopifyService } from "../../services/shopify.service";
 import { ProfitIntelligenceService } from "../../services/profit-intelligence.service";
@@ -194,14 +198,9 @@ export class DashboardApplicationService {
     }
 
     // Phase 3: Risk Intelligence Data
-    const customerRisks = await prisma.customerRisk.findMany({ where: { shop }, orderBy: { riskScore: 'desc' }, take: 10 });
-    const pincodeStats = await prisma.pincodeStats.findMany({ where: { shop }, orderBy: { rtoRate: 'desc' }, take: 10 }).catch(() => []);
-    // Fallback if riskScore not strictly populated on pincodeStats yet
-    const ordersNeedingReview = await prisma.order.findMany({
-      where: { shop, riskLevel: { in: ["HIGH", "CRITICAL"] } },
-      orderBy: { createdAt: 'desc' },
-      take: 10
-    });
+    const customerRisks = await CustomerRepository.findTopRiskCustomers(shop, 10);
+    const pincodeStats = await PincodeRepository.findTopRiskPincodes(shop, 10).catch(() => []);
+    const ordersNeedingReview = await OrderRepository.findOrdersNeedingReview(shop, 10);
 
     let healthScore = 100;
     if (margin < 25) healthScore -= 10;
@@ -289,71 +288,6 @@ export class DashboardApplicationService {
       { name: "No products synced yet", revenue: 0, profit: 0, volume: 0, rtoRate: 0, margin: 0, isToxic: false },
     ];
 
-    const aiChannels = ["Gemini", "ChatGPT", "Copilot", "Website"];
-    const aiChannelMetrics: Record<string, {
-      name: string; revenue: number; profit: number; orderCount: number;
-      codCount: number; rtoCount: number; rtoRate: number; aov: number;
-      repeatRate: number; ltv: number; newCount: number; returningCount: number;
-    }> = {};
-    const customerOrdersMap: Record<string, Record<string, number>> = {};
-    const customerRevenueMap: Record<string, Record<string, number>> = {};
-
-    aiChannels.forEach((c) => {
-      aiChannelMetrics[c] = { name: c, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
-      customerOrdersMap[c] = {};
-      customerRevenueMap[c] = {};
-    });
-
-    for (const order of orders) {
-      const cleanId = order.productId || "";
-      const cogs = cogsMap[cleanId];
-      if (cogs === undefined) continue; // Exclude orders missing COGS from attribution metrics to keep margins exact
-
-      const attr = (order as any).channelAttribution || "Website";
-      if (!aiChannelMetrics[attr]) {
-        aiChannelMetrics[attr] = { name: attr, revenue: 0, profit: 0, orderCount: 0, codCount: 0, rtoCount: 0, rtoRate: 0, aov: 0, repeatRate: 0, ltv: 0, newCount: 0, returningCount: 0 };
-        customerOrdersMap[attr] = {};
-        customerRevenueMap[attr] = {};
-      }
-      const metric = aiChannelMetrics[attr];
-      metric.revenue += order.totalPrice;
-      metric.orderCount += 1;
-      const { profit } = ProfitService.calculateOrderProfit(order, cogs, settings);
-      metric.profit += profit;
-      if (isCodGateway(order.gateway)) metric.codCount += 1;
-      const cId = (order as any).customerId || (order as any).customerEmail || `anon_${order.id}`;
-      customerOrdersMap[attr][cId] = (customerOrdersMap[attr][cId] || 0) + 1;
-      customerRevenueMap[attr][cId] = (customerRevenueMap[attr][cId] || 0) + order.totalPrice;
-    }
-
-    for (const event of rtoEvents) {
-      const linkedOrder = orders.find((o: any) => o.id === event.orderId);
-      const attr = (linkedOrder as any)?.channelAttribution || "Website";
-      if (aiChannelMetrics[attr] && event.eventType === "RTO") aiChannelMetrics[attr].rtoCount += 1;
-    }
-
-    Object.values(aiChannelMetrics).forEach((m) => {
-      const channel = m.name;
-      const uniqueCustomers = Object.keys(customerOrdersMap[channel] || {});
-      const totalCustomersCount = uniqueCustomers.length;
-      let repeatCustomers = 0;
-      uniqueCustomers.forEach((cId) => { if (customerOrdersMap[channel][cId] > 1) repeatCustomers++; });
-      m.rtoRate = m.codCount > 0 ? Math.round((m.rtoCount / m.codCount) * 100 * 10) / 10 : 0;
-      m.profit = Math.round(m.profit * 10) / 10;
-      m.revenue = Math.round(m.revenue * 10) / 10;
-      m.aov = m.orderCount > 0 ? Math.round((m.revenue / m.orderCount) * 10) / 10 : 0;
-      m.repeatRate = totalCustomersCount > 0 ? Math.round((repeatCustomers / totalCustomersCount) * 100 * 10) / 10 : 0;
-      m.ltv = totalCustomersCount > 0 ? Math.round((m.revenue / totalCustomersCount) * 10) / 10 : 0;
-      m.newCount = totalCustomersCount;
-      m.returningCount = m.orderCount - totalCustomersCount;
-    });
-
-    let aiProductScore = products.length > 0 ? 30 : 0;
-    if (products.length > 0 && (Object.keys(cogsMap).length / products.length) >= 0.5) aiProductScore += 10;
-    const aiPolicyScore = 30;
-    const aiEnrollmentScore = orders.some((o: any) => (o as any).channelAttribution && (o as any).channelAttribution !== "Website") ? 30 : 10;
-    const aiReadinessScore = aiProductScore + aiPolicyScore + aiEnrollmentScore;
-
     const dailyStats: Record<string, { date: string; revenue: number; profit: number }> = {};
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
@@ -381,20 +315,6 @@ export class DashboardApplicationService {
 
     const chartData = Object.values(dailyStats);
 
-    const searchQueries = await (prisma as any).aISearchQuery.findMany({
-      where: { shop },
-      orderBy: { impressions: "desc" },
-    });
-
-    const mappedQueries = searchQueries.map((sq: any) => ({
-      id: sq.id, query: sq.query, productName: sq.productName,
-      rank: sq.rank, impressions: sq.impressions, clicks: sq.clicks,
-      ctr: sq.ctr, channel: sq.channel,
-    }));
-
-    const aiOrdersCount = orders.filter((o: any) => o.channelType === "AI_CHAT").length;
-    const isAttributionActive = aiOrdersCount >= 5 || process.env.NODE_ENV === "development";
-
     const missingCogsCount = products.filter((p: any) => {
       const cleanId = p.id.split("/").pop() || "";
       return cogsMap[cleanId] === undefined;
@@ -410,24 +330,15 @@ export class DashboardApplicationService {
 
     const connectedAdPlatforms = await AdSpendService.getConnectedPlatforms(shop);
     const hasConnectedAdAccount = connectedAdPlatforms.some((p) => p.isConnected);
-    const cogsRecords = await prisma.productCOGS.findMany({ where: { shop } });
+    const cogsRecords = await CogsRepository.findManyByShop(shop);
     const nativeCogsCount = cogsRecords.filter((c: any) => c.source === "shopify_native" || c.shopifyNative != null).length;
     const manualCogsCount = cogsRecords.filter((c: any) => c.source === "manual_override" || c.manualOverride != null).length;
 
     const [feeBreakdown, gstSummary, rawRecentDecisions, recentAlerts] = await Promise.all([
       ProfitService.getFeeBreakdown(shop),
       ProfitService.getGSTSummary(shop),
-      prisma.executionLog.findMany({
-        where: { shop },
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        include: { order: { select: { orderNumber: true, riskScore: true, riskLevel: true, customerName: true } } }
-      }),
-      prisma.alert.findMany({
-        where: { shop },
-        orderBy: { createdAt: "desc" },
-        take: 10
-      })
+      ExecutionLogRepository.findByShop(shop, 20),
+      AlertRepository.findManyByShop(shop, 10),
     ]);
 
     // Fallback: If execution logs are empty but orders exist, synthesize decision items from recent orders
@@ -481,9 +392,7 @@ export class DashboardApplicationService {
       netProfit, netMargin: Math.round(netMargin * 10) / 10,
       healthScore, alertsList, orderCount, topProducts: finalTopProducts,
       rtoRate: Math.round(rtoRate * 10) / 10, codRate: Math.round(codRate * 10) / 10,
-      aiChannelMetrics: [], aiReadinessScore: 85,
-      isAttributionActive: isAttributionActive,
-      chartData, searchQueries: mappedQueries,
+      chartData,
       products: products.map((p: any) => ({ id: p.id, title: p.title })),
       leaks, leakTrend,
       features,
@@ -529,7 +438,7 @@ export class DashboardApplicationService {
     return {
       shop: shop || "", host: host || "", revenue: 0, profit: 0, margin: 0, netProfit: 0, netMargin: 0,
       healthScore: 100, alertsList: [], orderCount: 0, topProducts: [], rtoRate: 0, codRate: 0,
-      aiChannelMetrics: [], aiReadinessScore: 0, isAttributionActive: false, chartData: [], searchQueries: [],
+      chartData: [],
       products: [], leaks: { totalLeak: 0, rtoLoss: 0, lowMarginLoss: 0, shippingUndercharge: 0, unassignedCOGS: 0, shippingLoss: 0, discountLoss: 0, rtoTrend: 0, shippingTrend: 0, discountTrend: 0 },
       leakTrend: [], features: [], missingCogsCount: 0, hasZeroLogisticsDefaults: false, isColdStart: true,
       prepaidCount: 0, prepaidRevenue: 0, codRevenue: 0, customerRisks: [], pincodeStats: [], ordersNeedingReview: [],

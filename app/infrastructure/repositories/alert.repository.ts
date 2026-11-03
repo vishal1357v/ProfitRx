@@ -36,6 +36,17 @@ export class AlertRepository {
   }
 
   /**
+   * Find recent alerts for a shop with shop isolation.
+   */
+  static async findManyByShop(shop: string, limit = 10): Promise<AlertRecord[]> {
+    return prisma.alert.findMany({
+      where: { shop },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+  }
+
+  /**
    * Create a store alert with shop isolation.
    */
   static async createAlert(

@@ -9,6 +9,8 @@ const NO_CHANGES: CartPaymentMethodsTransformRunResult = {
 
 type Configuration = {
   blockedPincodes?: string[];
+  rejectCodOver?: number | null;
+  requirePrepaidAbove?: number | null;
 };
 
 export function run(input: CartPaymentMethodsTransformRunInput): CartPaymentMethodsTransformRunResult {
@@ -17,26 +19,37 @@ export function run(input: CartPaymentMethodsTransformRunInput): CartPaymentMeth
   );
 
   const blockedPincodes = configuration.blockedPincodes || [];
-  if (blockedPincodes.length === 0) {
-    return NO_CHANGES;
-  }
+  const rejectCodOver = typeof configuration.rejectCodOver === "number" ? configuration.rejectCodOver : null;
+  const requirePrepaidAbove = typeof configuration.requirePrepaidAbove === "number" ? configuration.requirePrepaidAbove : null;
 
-  const zipCodes: string[] = [];
-  const deliveryGroups = input.cart?.deliveryGroups || [];
-  for (const group of deliveryGroups) {
-    const zip = group.deliveryAddress?.zip?.trim();
-    if (zip) {
-      zipCodes.push(zip);
+  let shouldBlockCod = false;
+
+  // 1. Check blocked pincodes
+  if (blockedPincodes.length > 0) {
+    const deliveryGroups = input.cart?.deliveryGroups || [];
+    for (const group of deliveryGroups) {
+      const zip = group.deliveryAddress?.zip?.trim();
+      if (zip && blockedPincodes.includes(zip)) {
+        shouldBlockCod = true;
+        break;
+      }
     }
   }
 
-  if (zipCodes.length === 0) {
-    return NO_CHANGES;
+  // 2. Check cart value thresholds (rejectCodOver, requirePrepaidAbove)
+  const cartAmountStr = (input.cart as any)?.cost?.totalAmount?.amount;
+  if (!shouldBlockCod && cartAmountStr !== undefined && cartAmountStr !== null) {
+    const cartAmount = parseFloat(cartAmountStr);
+    if (!isNaN(cartAmount)) {
+      if (rejectCodOver !== null && cartAmount > rejectCodOver) {
+        shouldBlockCod = true;
+      } else if (requirePrepaidAbove !== null && cartAmount >= requirePrepaidAbove) {
+        shouldBlockCod = true;
+      }
+    }
   }
 
-  const isBlocked = zipCodes.some(zip => blockedPincodes.includes(zip));
-
-  if (!isBlocked) {
+  if (!shouldBlockCod) {
     return NO_CHANGES;
   }
 

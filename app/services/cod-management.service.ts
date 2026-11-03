@@ -517,8 +517,13 @@ export class CODManagementService {
       };
     }
 
-    const blockedPincodes = (settings as any).codBlockedPincodes || [];
+    const blockedPincodes = Array.from(new Set([
+      ...((settings as any).codBlockedPincodes || []),
+      ...((settings as any).rulesDisableCodForPincodes || [])
+    ]));
     const isBlockingEnabled = (settings as any).codBlockingEnabled ?? false;
+    const rejectCodOver = (settings as any).rulesRejectCodOver ?? null;
+    const requirePrepaidAbove = (settings as any).rulesRequirePrepaidAbove ?? null;
 
     // 1. Fetch functionId
     const getFunctionsQuery = `
@@ -591,6 +596,8 @@ export class CODManagementService {
 
       const configJson = JSON.stringify({
         blockedPincodes: isBlockingEnabled ? blockedPincodes : [],
+        rejectCodOver: isBlockingEnabled ? rejectCodOver : null,
+        requirePrepaidAbove: isBlockingEnabled ? requirePrepaidAbove : null,
       });
 
       if (isBlockingEnabled) {

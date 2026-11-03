@@ -1,17 +1,19 @@
 import prisma from "../../db.server";
 
+export interface ShopRedactionsResult {
+  processed: number;
+  completed: number;
+  cancelledReinstalled: number;
+  failed: number;
+  deadLetterCount: number;
+  details: Array<{ shop: string; status: string; error?: string }>;
+}
+
 export interface RetentionCleanupResult {
   otpsPurged: number;
   executionLogsPurged: number;
   accessLogsPurged: number;
-  shopRedactions?: {
-    processed: number;
-    completed: number;
-    cancelledReinstalled: number;
-    failed: number;
-    deadLetterCount?: number;
-    details: Array<{ shop: string; status: string; error?: string }>;
-  };
+  shopRedactions?: ShopRedactionsResult;
   timestamp: string;
 }
 
@@ -90,13 +92,7 @@ export class RetentionCleanupService {
    * Processes all pending and failed GDPR shop redaction requests.
    * Purges all 22 shop-scoped models with tenant isolation, safe retry, and reinstall race protection.
    */
-  static async processPendingShopRedactions(): Promise<{
-    processed: number;
-    completed: number;
-    cancelledReinstalled: number;
-    failed: number;
-    details: Array<{ shop: string; status: string; error?: string }>;
-  }> {
+  static async processPendingShopRedactions(): Promise<ShopRedactionsResult> {
     const results = {
       processed: 0,
       completed: 0,

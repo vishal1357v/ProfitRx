@@ -15,3 +15,5 @@ export { SearchCommand, SearchTrigger } from "./SearchCommand";
 export { NotificationCenter } from "./NotificationCenter";
 export { ErrorPage } from "./ErrorPage";
 export { ProductTour } from "./ProductTour";
+export { ProfitTrendChart, DonutChart, LeakTrendChart } from "./charts";
+export type { ChartItem, DonutSegment, TrendItem } from "./charts";

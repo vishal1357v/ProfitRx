@@ -46,6 +46,9 @@ export class ExecutionLogRepository {
         order: {
           select: {
             orderNumber: true,
+            riskScore: true,
+            riskLevel: true,
+            customerName: true,
           },
         },
       },

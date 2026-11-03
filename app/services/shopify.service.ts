@@ -1023,8 +1023,6 @@ export class ShopifyService {
     await CustomerIntelligenceService.syncCustomerProfiles(session.shop);
     await AlertService.evaluateStoreAlerts(session.shop);
 
-    // Seed search queries if first run
-    await this.seedSearchQueriesIfEmpty(admin, session.shop);
 
     return { count };
   }
@@ -1225,36 +1223,6 @@ export class ShopifyService {
         update: { customerName: p.customerName, customerEmail: p.customerEmail, lastOrderDate: p.lastOrderDate, orderCount: p.orderCount, totalRevenue: p.totalRevenue, ltv, aov, cohortMonth: p.cohortMonth },
         create: { shop, customerId, customerName: p.customerName, customerEmail: p.customerEmail, firstOrderDate: p.firstOrderDate, lastOrderDate: p.lastOrderDate, orderCount: p.orderCount, totalRevenue: p.totalRevenue, ltv, aov, cohortMonth: p.cohortMonth, channelSource: p.channelSource },
       });
-    }
-  }
-
-  // ── Seed Search Queries ───────────────────────────────────
-  static async seedSearchQueriesIfEmpty(requestOrAdmin: Request | any, shop: string): Promise<void> {
-    try {
-      const existing = await (prisma as any).aISearchQuery.count({ where: { shop } });
-      if (existing > 0) return;
-
-      const storeProducts = await this.getProducts(requestOrAdmin);
-      const p1 = storeProducts[0]?.title || "Hercules T-Shirt";
-      const p2 = storeProducts[1]?.title || "Zeus Lightning Bolt Poster";
-      const p3 = storeProducts[2]?.title || "Ares Protein Shake";
-
-      const mockQueries = [
-        { query: `${p1} alternative`, productName: p1, rank: 2, impressions: 1240, clicks: 186, ctr: 15.0, channel: "ChatGPT" },
-        { query: `${p2} reviews`, productName: p2, rank: 1, impressions: 840, clicks: 168, ctr: 20.0, channel: "Gemini" },
-        { query: "best protein shake for muscle gain", productName: p3, rank: 3, impressions: 3200, clicks: 256, ctr: 8.0, channel: "ChatGPT" },
-        { query: `${p3} price`, productName: p3, rank: 1, impressions: 980, clicks: 392, ctr: 40.0, channel: "Copilot" },
-        { query: `buy ${p1} online`, productName: p1, rank: 1, impressions: 1890, clicks: 756, ctr: 40.0, channel: "Copilot" },
-        { query: `where to buy ${p1}`, productName: p1, rank: 2, impressions: 650, clicks: 130, ctr: 20.0, channel: "Gemini" },
-        { query: `top rated ${p3}`, productName: p3, rank: 4, impressions: 1100, clicks: 44, ctr: 4.0, channel: "ChatGPT" },
-        { query: `${p2} vs competitors`, productName: p2, rank: 5, impressions: 450, clicks: 18, ctr: 4.0, channel: "Gemini" },
-      ];
-
-      for (const mq of mockQueries) {
-        await (prisma as any).aISearchQuery.create({ data: { shop, ...mq } });
-      }
-    } catch (err) {
-      console.error("[ShopifyService] Error seeding search queries:", err);
     }
   }
 

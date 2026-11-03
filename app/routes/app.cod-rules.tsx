@@ -309,9 +309,10 @@ export default function CODRulesRoute() {
                     <Icon source={LockIcon} />
                     <Text variant="headingMd" as="h2">A. Protect High Value Orders</Text>
                   </InlineStack>
+                  <Badge tone="success">⚡ Enforced at Checkout</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Automatically reject Cash-on-Delivery or mandate Prepaid for expensive orders to eliminate high-ticket RTO losses.
+                  Automatically hides Cash-on-Delivery or mandates Prepaid at checkout when order amount exceeds your thresholds.
                 </Text>
                 
                 <Grid columns={{ xs: 1, sm: 2 }}>
@@ -347,12 +348,15 @@ export default function CODRulesRoute() {
           <Card>
             <Box padding="500">
               <BlockStack gap="400">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon source={AlertTriangleIcon} />
-                  <Text variant="headingMd" as="h2">B. Protect Repeat Offenders</Text>
+                <InlineStack align="space-between" blockAlign="center">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Icon source={AlertTriangleIcon} />
+                    <Text variant="headingMd" as="h2">B. Protect Repeat Offenders</Text>
+                  </InlineStack>
+                  <Badge tone="info">🔍 Evaluated Post-Order (Webhook)</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Automatically trigger strict verification for customers with a history of RTOs.
+                  Instantly evaluated via webhook upon order creation to challenge repeat offenders with OTP or hold fulfillment before dispatch.
                 </Text>
 
                 <BlockStack gap="200">
@@ -390,6 +394,7 @@ export default function CODRulesRoute() {
                     <Icon source={ShieldCheckMarkIcon} />
                     <Text variant="headingMd" as="h2">C. Pincode Protection</Text>
                   </InlineStack>
+                  <Badge tone="success">⚡ Enforced at Checkout</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
                   Disable COD entirely for selected high-risk pincodes.

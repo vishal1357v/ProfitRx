@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CustomerRiskApplicationService } from "./customer-risk.application";
 import { CustomerRepository } from "../../infrastructure/repositories/customer.repository";
+import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { AuditLogService } from "../../services/compliance/audit-log.service";
 
 describe("CustomerRiskApplicationService", () => {
@@ -53,6 +54,7 @@ describe("CustomerRiskApplicationService", () => {
     ];
 
     vi.spyOn(CustomerRepository, "findRiskProfilesByShop").mockResolvedValue(mockProfiles as any);
+    vi.spyOn(SettingsRepository, "getByShop").mockResolvedValue(null);
     vi.spyOn(AuditLogService, "logAccess").mockResolvedValue(undefined);
 
     const result = await CustomerRiskApplicationService.getCustomerRiskData(shop);

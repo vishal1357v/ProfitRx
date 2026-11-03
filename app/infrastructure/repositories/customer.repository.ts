@@ -63,6 +63,17 @@ export class CustomerRepository {
   }
 
   /**
+   * Fetch top risk customers sorted by risk score descending with shop isolation.
+   */
+  static async findTopRiskCustomers(shop: string, limit = 10): Promise<CustomerRiskRecord[]> {
+    return prisma.customerRisk.findMany({
+      where: { shop },
+      orderBy: { riskScore: "desc" },
+      take: limit,
+    });
+  }
+
+  /**
    * Find single customer profile by ID with shop isolation.
    */
   static async findByCustomerId(shop: string, customerId: string): Promise<CustomerProfileRecord | null> {
