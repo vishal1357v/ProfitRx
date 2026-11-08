@@ -31,8 +31,30 @@ import { BillingApplicationService } from "../application/billing/billing.applic
 import { PartnerBillingService } from "../services/partner-billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, billing } = await authenticate.admin(request);
   const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    return {
+      shop,
+      host,
+      plan: "GROWTH",
+      status: "ACTIVE",
+      orderLimit: 2000,
+      ordersUsed: 1420,
+      trialEndsAt: null,
+      lastSyncedAt: new Date().toISOString(),
+      shopifyChargeId: "gid://shopify/AppSubscription/demo-8841",
+      billingProvider: "SHOPIFY_APP_PRICING",
+      isTestStore: false,
+      totalRtoSavings: 42600,
+      pricingPlansUrl: `/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&preview=true`,
+    };
+  }
+
+  const { session, billing } = await authenticate.admin(request);
   const host = url.searchParams.get("host") || "";
   const planHandle = url.searchParams.get("plan_handle");
 
@@ -44,6 +66,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return { success: true, message: "Demo mode: Billing actions simulated successfully." };
+  }
   const { session, billing, redirect } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;

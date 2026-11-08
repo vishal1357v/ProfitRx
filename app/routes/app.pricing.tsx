@@ -24,8 +24,22 @@ import { BillingApplicationService } from "../application/billing/billing.applic
 import { PartnerBillingService } from "../services/partner-billing.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
   const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    return {
+      shop,
+      host,
+      currentPlan: "Growth",
+      pricingPlansUrl: "#",
+      planHandleParam: null,
+    };
+  }
+
+  const { billing, session } = await authenticate.admin(request);
   const forceSync = url.searchParams.get("plan_updated") === "true" || url.searchParams.get("sync") === "true";
   const isChangingPlan = url.searchParams.get("change_plan") === "true";
   const planHandle = url.searchParams.get("plan_handle");

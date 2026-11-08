@@ -25,9 +25,46 @@ import { SettingsRepository } from "../infrastructure/repositories/settings.repo
 import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    return {
+      shop,
+      codSettings: {
+        codBlockingEnabled: true,
+        codBlockedPincodes: ["841301", "800001", "201301", "226001", "110092"],
+        otpVerificationEnabled: true,
+        partialPaymentEnabled: false,
+        partialPaymentAmount: 200,
+        codFeeEnabled: false,
+        codFeeAmount: 30,
+        codFeeType: "fixed" as const,
+      },
+      storeSettings: {
+        rulesRejectCodOver: 5000,
+        rulesRequirePrepaidAbove: 10000,
+        rulesAutoFlagRepeatOffenders: true,
+        rulesAutoRequireOtp: true,
+        otpVerificationEnabled: true,
+        partialPaymentEnabled: false,
+        partialPaymentAmount: 200,
+        codFeeEnabled: false,
+        codFeeAmount: 30,
+        codFeeType: "fixed",
+      },
+      isShopifyPlus: false,
+      pincodeStats: [
+        { pincode: "841301", city: "Siwan", province: "Bihar", totalOrders: 42, rtoOrders: 28, rtoRate: 67, totalLoss: 3640 },
+        { pincode: "800001", city: "Patna", province: "Bihar", totalOrders: 78, rtoOrders: 41, rtoRate: 53, totalLoss: 5330 },
+        { pincode: "201301", city: "Noida", province: "Uttar Pradesh", totalOrders: 110, rtoOrders: 32, rtoRate: 29, totalLoss: 4160 },
+      ],
+    };
+  }
+
   const { session, billing, admin } = await authenticate.admin(request);
   const shop = session.shop;
-  const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");
@@ -106,6 +143,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return { success: true, saved: true, message: "Demo mode: COD rules simulated successfully!" };
+  }
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();
@@ -318,24 +359,26 @@ export default function CODRulesRoute() {
                 <Grid columns={{ xs: 1, sm: 2 }}>
                   <Grid.Cell>
                     <TextField
-                      label="Reject COD for orders above"
+                      label="Reject COD for orders over"
                       type="number"
                       prefix="₹"
                       value={rejectCodOver === "999999" ? "" : rejectCodOver}
                       onChange={setRejectCodOver}
                       autoComplete="off"
                       placeholder="e.g. 5000"
+                      helpText="Hides COD when cart total is strictly greater than threshold (> ₹X)"
                     />
                   </Grid.Cell>
                   <Grid.Cell>
                     <TextField
-                      label="Require Prepaid for orders above"
+                      label="Require Prepaid for orders at or above"
                       type="number"
                       prefix="₹"
                       value={requirePrepaidAbove === "999999" ? "" : requirePrepaidAbove}
                       onChange={setRequirePrepaidAbove}
                       autoComplete="off"
-                      placeholder="e.g. 5000"
+                      placeholder="e.g. 10000"
+                      helpText="Requires prepaid when cart total meets or exceeds threshold (≥ ₹X)"
                     />
                   </Grid.Cell>
                 </Grid>

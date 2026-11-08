@@ -84,7 +84,10 @@ export default function IndexRoute() {
                 <Text variant="bodyXs" as="span" tone="subdued">COD risk management &amp; profit tracking for Shopify</Text>
               </BlockStack>
             </InlineStack>
-            <Button variant="primary" url={appStoreUrl} target="_top">Install app</Button>
+            <InlineStack gap="200" blockAlign="center">
+              <Button url="/app/dashboard?preview=true">⚡ Live Interactive Demo</Button>
+              <Button variant="primary" url={appStoreUrl} target="_top">Install App</Button>
+            </InlineStack>
           </InlineStack>
 
           <Divider />
@@ -115,6 +118,12 @@ export default function IndexRoute() {
                     target="_top"
                   >
                     Install from Shopify App Store
+                  </Button>
+                  <Button
+                    fullWidth
+                    url="/app/dashboard?preview=true"
+                  >
+                    ⚡ Explore Live Demo (No Login Needed)
                   </Button>
                   <InlineStack gap="300" align="center">
                     <InlineStack gap="100" blockAlign="center">

@@ -23,9 +23,87 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    return {
+      shop,
+      summary: {
+        totalOffenders: 18,
+        highRiskCount: 6,
+        totalLoss: 14200,
+        avgRtoRate: 46.5,
+        repeatCodCount: 14,
+      },
+      customers: [
+        {
+          id: "cust-1",
+          customerId: "gid://shopify/Customer/91024",
+          phone: "+91 98765 43210",
+          email: "pooja.s@gmail.com",
+          totalOrders: 5,
+          codOrders: 5,
+          prepaidOrders: 0,
+          successfulDeliveries: 1,
+          rtoCount: 4,
+          cancellationCount: 0,
+          aov: 2450,
+          lifetimeSpend: 2450,
+          lastOrderDate: new Date().toISOString(),
+          riskScore: 88,
+          riskLevel: "CRITICAL",
+          rtoRate: 80.0,
+          estimatedLoss: 560,
+          deliveryRate: 20.0,
+        },
+        {
+          id: "cust-2",
+          customerId: "gid://shopify/Customer/91025",
+          phone: "+91 99887 76655",
+          email: "amit.kumar.99@yahoo.com",
+          totalOrders: 4,
+          codOrders: 4,
+          prepaidOrders: 0,
+          successfulDeliveries: 1,
+          rtoCount: 3,
+          cancellationCount: 0,
+          aov: 1850,
+          lifetimeSpend: 1850,
+          lastOrderDate: new Date(Date.now() - 3 * 86400000).toISOString(),
+          riskScore: 75,
+          riskLevel: "HIGH",
+          rtoRate: 75.0,
+          estimatedLoss: 420,
+          deliveryRate: 25.0,
+        },
+        {
+          id: "cust-3",
+          customerId: "gid://shopify/Customer/91026",
+          phone: "+91 98112 33445",
+          email: "vikram.singh@outlook.com",
+          totalOrders: 6,
+          codOrders: 5,
+          prepaidOrders: 1,
+          successfulDeliveries: 3,
+          rtoCount: 2,
+          cancellationCount: 1,
+          aov: 3200,
+          lifetimeSpend: 9600,
+          lastOrderDate: new Date(Date.now() - 6 * 86400000).toISOString(),
+          riskScore: 52,
+          riskLevel: "MEDIUM",
+          rtoRate: 40.0,
+          estimatedLoss: 280,
+          deliveryRate: 60.0,
+        },
+      ],
+    };
+  }
+
   const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
-  const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");
@@ -41,6 +119,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return { success: true, message: "Demo mode: Action simulated successfully." };
+  }
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();

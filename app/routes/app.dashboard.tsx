@@ -44,6 +44,14 @@ import { authenticate } from "../shopify.server";
 import { MetricCard, StatGrid, SectionHeader, EmptyStateCard, LoadingCard, RiskBadge, ProfitBadge, StatusBadge, ProfitTrendChart, DonutChart, LeakTrendChart } from "../components";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const { getDemoDashboardData } = await import("../application/dashboard/demo-dashboard.data");
+    return getDemoDashboardData();
+  }
+
   const { session } = await authenticate.admin(request);
   const { DashboardApplicationService } = await import("../application/dashboard/dashboard.application");
   const { AuditLogService } = await import("../services/compliance/audit-log.service");
@@ -448,6 +456,20 @@ export default function DashboardRoute() {
           </Layout.Section>
         )}
 
+
+        {/* Currency Notice for Non-INR Stores */}
+        {data.settings?.currency && data.settings.currency.toUpperCase() !== "INR" && (
+          <Layout.Section>
+            <Banner
+              tone="warning"
+              title={`Notice: Store Currency is ${data.settings.currency.toUpperCase()}`}
+            >
+              <p>
+                ProfitRx order risk analysis and COD protection rules are fully active for your store. However, default cost deductions (shipping, packaging, COD handling) are calibrated to Indian Rupee (INR) market rates. To ensure accurate net profit calculations in <strong>{data.settings.currency.toUpperCase()}</strong>, please review and update your default cost amounts in <Link to={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Store Settings</Link>.
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
 
         {/* Warning & Plan Banners */}
         {data.isBasicTier && (

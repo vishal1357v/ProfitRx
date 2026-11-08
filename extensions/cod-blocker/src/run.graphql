@@ -3,6 +3,7 @@ query RunInput {
     cost {
       totalAmount {
         amount
+        currencyCode
       }
     }
     deliveryGroups {

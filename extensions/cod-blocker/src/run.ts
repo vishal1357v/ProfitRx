@@ -11,6 +11,7 @@ type Configuration = {
   blockedPincodes?: string[];
   rejectCodOver?: number | null;
   requirePrepaidAbove?: number | null;
+  currency?: string | null;
 };
 
 export function run(input: CartPaymentMethodsTransformRunInput): CartPaymentMethodsTransformRunResult {
@@ -37,10 +38,24 @@ export function run(input: CartPaymentMethodsTransformRunInput): CartPaymentMeth
   }
 
   // 2. Check cart value thresholds (rejectCodOver, requirePrepaidAbove)
-  const cartAmountStr = (input.cart as any)?.cost?.totalAmount?.amount;
+  const totalAmount = (input.cart as any)?.cost?.totalAmount;
+  const cartAmountStr = totalAmount?.amount;
+  const cartCurrency = totalAmount?.currencyCode;
+  const configCurrency = configuration.currency;
+
   if (!shouldBlockCod && cartAmountStr !== undefined && cartAmountStr !== null) {
     const cartAmount = parseFloat(cartAmountStr);
-    if (!isNaN(cartAmount)) {
+
+    // Explicit Currency Contract:
+    // When a configuration specifies a target currency (e.g. "INR"), and the cart checkout currency
+    // does not match (e.g. international presentment currency "USD" or "EUR"), prevent comparison
+    // between amounts expressed in different currencies. Do NOT silently assume an exchange rate.
+    const currencyMatches =
+      !configCurrency ||
+      !cartCurrency ||
+      cartCurrency.toUpperCase() === configCurrency.toUpperCase();
+
+    if (!isNaN(cartAmount) && currencyMatches) {
       if (rejectCodOver !== null && cartAmount > rejectCodOver) {
         shouldBlockCod = true;
       } else if (requirePrepaidAbove !== null && cartAmount >= requirePrepaidAbove) {

@@ -8,6 +8,7 @@ import { FeatureConfidenceCalculator } from "../../services/order-features/featu
 import { ProfitService } from "../../services/profit.service";
 import { CanonicalEconomicsCalculator } from "../../services/economics/canonical-economics.calculator";
 import { CODManagementService } from "../../services/cod-management.service";
+import { ShopifyService } from "../../services/shopify.service";
 import { EventBus } from "../../infrastructure/events/event.bus";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
 
@@ -416,6 +417,47 @@ export class OrderDetailApplicationService {
           };
         }
       }
+    }
+
+    // ── Execution Wiring: Lift blocking tags if ALLOW_COD ───────
+    if (action === "ALLOW_COD") {
+      const untagResult = await ShopifyService.untagOrder(shop, orderId, [
+        "ProfitRx-COD-Blocked",
+        "ProfitRx-Prepaid-Required",
+      ]);
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: untagResult.success ? "SUCCESS" : "FAILED",
+        message: untagResult.success
+          ? `Lifted COD block on Shopify Admin for Order #${order.orderNumber}.`
+          : `Failed to remove block tags on Shopify Admin.`,
+        data: { action: "ALLOW_COD", userErrors: (untagResult as any).userErrors },
+      });
+      return {
+        success: untagResult.success,
+        message: `Order #${order.orderNumber} decision updated: COD block reversed on Shopify.`,
+      };
+    }
+
+    // ── Execution Wiring: Tag COD block if BLOCK_COD ─────────────
+    if (action === "BLOCK_COD") {
+      const tagResult = await ShopifyService.tagOrder(shop, orderId, "ProfitRx-COD-Blocked");
+      await ExecutionLogRepository.createLog({
+        shop,
+        orderId,
+        step: "EXECUTION",
+        status: tagResult.success ? "SUCCESS" : "FAILED",
+        message: tagResult.success
+          ? `Tagged order #${order.orderNumber} as ProfitRx-COD-Blocked on Shopify Admin.`
+          : `Failed to tag order as blocked on Shopify Admin.`,
+        data: { action: "BLOCK_COD" },
+      });
+      return {
+        success: tagResult.success,
+        message: `Order #${order.orderNumber} decision updated: COD blocked on Shopify.`,
+      };
     }
 
     // ── Execution Wiring: Mark partial payment if PARTIAL_PAYMENT ─

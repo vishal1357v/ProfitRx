@@ -449,6 +449,7 @@ export class DashboardApplicationService {
       totalRtoSavings: 0, monthlySubscriptionCost: 0, netRoiSavings: 0, blockedCodCount: 0,
       roasData: { totalRevenue: 0, totalAdSpend: 0, blendedROAS: 0, trueCACRaw: 0, profitAdjustedROAS: 0, cacPaybackOrders: 0, byChannel: [] },
       settings: {
+        currency: "INR",
         whatsappEnabled: false,
         whatsappPhone: "",
         syncCapped: false,

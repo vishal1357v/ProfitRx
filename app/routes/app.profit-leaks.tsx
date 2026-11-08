@@ -26,9 +26,18 @@ import { ProfitLeaksApplicationService } from "../application/analytics/profit-l
 import { BillingApplicationService } from "../application/billing/billing.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    const data = await ProfitLeaksApplicationService.getProfitLeaksData(shop);
+    return { ...data, shop, host };
+  }
+
   const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
-  const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");

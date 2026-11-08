@@ -122,12 +122,31 @@ export class ShopifyService {
             node {
               id
               name
-              totalPriceSet { presentmentMoney { amount } }
-              subtotalPriceSet { presentmentMoney { amount } }
-              totalTaxSet { presentmentMoney { amount } }
-              totalDiscountsSet { presentmentMoney { amount } }
+              totalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              subtotalPriceSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalTaxSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              totalDiscountsSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
               shippingLines(first: 1) {
-                edges { node { originalPriceSet { presentmentMoney { amount } } } }
+                edges {
+                  node {
+                    originalPriceSet {
+                      shopMoney { amount currencyCode }
+                      presentmentMoney { amount currencyCode }
+                    }
+                  }
+                }
               }
               createdAt
               displayFinancialStatus
@@ -169,7 +188,10 @@ export class ShopifyService {
                       id
                     }
                     quantity
-                    discountedTotalSet { presentmentMoney { amount } }
+                    discountedTotalSet {
+                      shopMoney { amount currencyCode }
+                      presentmentMoney { amount currencyCode }
+                    }
                   }
                 }
                 pageInfo {
@@ -589,11 +611,16 @@ export class ShopifyService {
   private static mapOrder(node: any, rtoDetectionPattern: string): ShopifyOrder {
     const orderId = node.id.split("/").pop();
     const shippingPrice = parseFloat(
+      node.shippingLines?.edges?.[0]?.node?.originalPriceSet?.shopMoney?.amount ||
       node.shippingLines?.edges?.[0]?.node?.originalPriceSet?.presentmentMoney?.amount ||
       node.shippingLines?.edges?.[0]?.node?.price ||
       "0"
     );
-    const discountAmount = parseFloat(node.totalDiscountsSet?.presentmentMoney?.amount || "0");
+    const discountAmount = parseFloat(
+      node.totalDiscountsSet?.shopMoney?.amount ||
+      node.totalDiscountsSet?.presentmentMoney?.amount ||
+      "0"
+    );
     const gateway = node.paymentGatewayNames?.[0] || null;
     const customerId = node.customer?.id?.split("/").pop() || null;
     let pincode = node.shippingAddress?.zip?.replace(/\s/g, "") || null;
@@ -623,9 +650,9 @@ export class ShopifyService {
     return {
       id: orderId,
       name: node.name,
-      totalPrice: parseFloat(node.totalPriceSet.presentmentMoney.amount),
-      subtotalPrice: parseFloat(node.subtotalPriceSet.presentmentMoney.amount),
-      totalTax: parseFloat(node.totalTaxSet.presentmentMoney.amount),
+      totalPrice: parseFloat(node.totalPriceSet?.shopMoney?.amount || node.totalPriceSet?.presentmentMoney?.amount || "0"),
+      subtotalPrice: parseFloat(node.subtotalPriceSet?.shopMoney?.amount || node.subtotalPriceSet?.presentmentMoney?.amount || "0"),
+      totalTax: parseFloat(node.totalTaxSet?.shopMoney?.amount || node.totalTaxSet?.presentmentMoney?.amount || "0"),
       shippingPrice,
       discountAmount,
       isCOD: isCodGateway(gateway),
@@ -638,7 +665,7 @@ export class ShopifyService {
         productId: edge.node.product?.id?.split("/")?.pop() || null,
         title: edge.node.title,
         quantity: edge.node.quantity,
-        price: parseFloat(edge.node.discountedTotalSet.presentmentMoney.amount),
+        price: parseFloat(edge.node.discountedTotalSet?.shopMoney?.amount || edge.node.discountedTotalSet?.presentmentMoney?.amount || "0"),
       })) || [],
       customerId,
       channelType,
@@ -651,12 +678,13 @@ export class ShopifyService {
     };
   }
 
-  // ── Sync Shop Plan Name ──────────────────────────────────
+  // ── Sync Shop Plan Name & Currency ────────────────────────
   static async syncShopPlanName(admin: any, shop: string): Promise<string> {
     try {
       const res = await admin.graphql(`
         query {
           shop {
+            currencyCode
             plan {
               displayName
             }
@@ -665,15 +693,16 @@ export class ShopifyService {
       `);
       const data = await res.json() as any;
       const planName = data?.data?.shop?.plan?.displayName || "Basic";
+      const shopCurrency = data?.data?.shop?.currencyCode || "INR";
       const existingSettings = await (prisma.storeSettings as any).findUnique({ where: { shop } });
       if (existingSettings) {
         await (prisma.storeSettings as any).update({
           where: { shop },
-          data: { shopifyPlanName: planName },
+          data: { shopifyPlanName: planName, currency: shopCurrency },
         });
       } else {
         await (prisma.storeSettings as any).create({
-          data: { shop, shopifyPlanName: planName, defaultCOGSPct: 40 },
+          data: { shop, shopifyPlanName: planName, currency: shopCurrency, defaultCOGSPct: 40 },
         });
       }
       return planName;
@@ -830,6 +859,56 @@ export class ShopifyService {
         });
       }
       count++;
+
+      // Persist OrderLineItem records and assigned COGS snapshots
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          const rawItemId = (item.id || "").split("/").pop() || `${order.id}_item`;
+          const cleanProdId = item.productId || null;
+          let unitCogs = 0;
+          if (cleanProdId && cogsDict[cleanProdId] !== undefined) {
+            unitCogs = cogsDict[cleanProdId];
+          } else {
+            unitCogs = (item.price / Math.max(item.quantity, 1)) * (settings.defaultCOGSPct / 100);
+          }
+          const totalCogs = unitCogs * item.quantity;
+
+          try {
+            await (prisma as any).orderLineItem.upsert({
+              where: {
+                shop_shopifyLineItemId: {
+                  shop: session.shop,
+                  shopifyLineItemId: rawItemId,
+                },
+              },
+              create: {
+                shop: session.shop,
+                orderId: order.id,
+                shopifyLineItemId: rawItemId,
+                productId: cleanProdId,
+                title: item.title || "Product",
+                quantity: item.quantity || 1,
+                unitPrice: item.price / Math.max(item.quantity, 1),
+                originalUnitPrice: item.price / Math.max(item.quantity, 1),
+                cogsPerUnitAtOrder: unitCogs,
+                totalCOGSAtOrder: totalCogs,
+              },
+              update: {
+                orderId: order.id,
+                productId: cleanProdId,
+                title: item.title || "Product",
+                quantity: item.quantity || 1,
+                unitPrice: item.price / Math.max(item.quantity, 1),
+                originalUnitPrice: item.price / Math.max(item.quantity, 1),
+                cogsPerUnitAtOrder: unitCogs,
+                totalCOGSAtOrder: totalCogs,
+              },
+            });
+          } catch (liErr: any) {
+            console.warn(`[ShopifyService.syncOrders] Failed to upsert line item ${rawItemId}: ${liErr.message}`);
+          }
+        }
+      }
 
       // Ensure ExecutionLog exists so merchant operations & activity center have real decision audit entries
       try {
@@ -1014,6 +1093,56 @@ export class ShopifyService {
         });
       }
       count++;
+
+      // Persist OrderLineItem records and assigned COGS snapshots
+      if (order.lineItems && order.lineItems.length > 0) {
+        for (const item of order.lineItems) {
+          const rawItemId = (item.id || "").split("/").pop() || `${order.id}_item`;
+          const cleanProdId = item.productId || null;
+          let unitCogs = 0;
+          if (cleanProdId && cogsDict[cleanProdId] !== undefined) {
+            unitCogs = cogsDict[cleanProdId];
+          } else {
+            unitCogs = (item.price / Math.max(item.quantity, 1)) * (settings.defaultCOGSPct / 100);
+          }
+          const totalCogs = unitCogs * item.quantity;
+
+          try {
+            await (prisma as any).orderLineItem.upsert({
+              where: {
+                shop_shopifyLineItemId: {
+                  shop: session.shop,
+                  shopifyLineItemId: rawItemId,
+                },
+              },
+              create: {
+                shop: session.shop,
+                orderId: order.id,
+                shopifyLineItemId: rawItemId,
+                productId: cleanProdId,
+                title: item.title || "Product",
+                quantity: item.quantity || 1,
+                unitPrice: item.price / Math.max(item.quantity, 1),
+                originalUnitPrice: item.price / Math.max(item.quantity, 1),
+                cogsPerUnitAtOrder: unitCogs,
+                totalCOGSAtOrder: totalCogs,
+              },
+              update: {
+                orderId: order.id,
+                productId: cleanProdId,
+                title: item.title || "Product",
+                quantity: item.quantity || 1,
+                unitPrice: item.price / Math.max(item.quantity, 1),
+                originalUnitPrice: item.price / Math.max(item.quantity, 1),
+                cogsPerUnitAtOrder: unitCogs,
+                totalCOGSAtOrder: totalCogs,
+              },
+            });
+          } catch (liErr: any) {
+            console.warn(`[ShopifyService.syncOrdersForShop] Failed to upsert line item ${rawItemId}: ${liErr.message}`);
+          }
+        }
+      }
     }
 
     // Update pincode stats
@@ -1549,6 +1678,46 @@ export class ShopifyService {
       return { success: !data.data?.orderUpdate?.userErrors?.length, data };
     } catch (err) {
       console.error("[ShopifyService.tagOrder] exception:", err);
+      return { success: false, error: err };
+    }
+  }
+
+  /**
+   * Remove tags from a Shopify Order (e.g. for ALLOW_COD reversal)
+   */
+  static async untagOrder(shop: string, orderId: string, tags: string | string[]) {
+    if (process.env.NODE_ENV === "test" || shop.startsWith("test.")) {
+      return { success: true };
+    }
+
+    try {
+      const { admin } = await unauthenticated.admin(shop);
+      const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+      const tagList = Array.isArray(tags) ? tags : [tags];
+
+      const response = await admin.graphql(`
+        mutation RemoveOrderTag($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        variables: {
+          id: gid,
+          tags: tagList,
+        }
+      });
+      const data = await response.json() as any;
+      const userErrors = data.data?.tagsRemove?.userErrors || [];
+      return { success: userErrors.length === 0, userErrors, data };
+    } catch (err) {
+      console.error("[ShopifyService.untagOrder] exception:", err);
       return { success: false, error: err };
     }
   }

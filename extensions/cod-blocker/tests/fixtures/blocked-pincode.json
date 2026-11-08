@@ -6,7 +6,8 @@
       "cart": {
         "cost": {
           "totalAmount": {
-            "amount": "1000.00"
+            "amount": "1000.00",
+            "currencyCode": "INR"
           }
         },
         "deliveryGroups": [

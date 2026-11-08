@@ -16,9 +16,51 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    return {
+      hasAccess: true,
+      shop,
+      host,
+      totalOrders: 1420,
+      codStats: {
+        orders: 740,
+        revenue: 1105000,
+        profit: 176800,
+        margin: 16.0,
+        rtoRate: 14.2,
+        aov: 1493,
+      },
+      prepaidStats: {
+        orders: 680,
+        revenue: 1380000,
+        profit: 305600,
+        margin: 22.1,
+        rtoRate: 0.8,
+        aov: 2029,
+      },
+      pincodeStats: [
+        { pincode: "841301", city: "Siwan", province: "Bihar", totalOrders: 42, codOrders: 38, rtoCount: 22, totalLoss: 3300, rtoRate: 57.9, riskLevel: "CRITICAL" },
+        { pincode: "800001", city: "Patna", province: "Bihar", totalOrders: 56, codOrders: 45, rtoCount: 19, totalLoss: 2850, rtoRate: 42.2, riskLevel: "HIGH" },
+        { pincode: "201301", city: "Noida", province: "Uttar Pradesh", totalOrders: 88, codOrders: 62, rtoCount: 16, totalLoss: 2400, rtoRate: 25.8, riskLevel: "MEDIUM" },
+        { pincode: "226001", city: "Lucknow", province: "Uttar Pradesh", totalOrders: 64, codOrders: 48, rtoCount: 11, totalLoss: 1650, rtoRate: 22.9, riskLevel: "MEDIUM" },
+        { pincode: "110001", city: "New Delhi", province: "Delhi", totalOrders: 145, codOrders: 60, rtoCount: 4, totalLoss: 600, rtoRate: 6.7, riskLevel: "LOW" },
+        { pincode: "400001", city: "Mumbai", province: "Maharashtra", totalOrders: 180, codOrders: 75, rtoCount: 5, totalLoss: 750, rtoRate: 6.7, riskLevel: "LOW" },
+        { pincode: "560001", city: "Bangalore", province: "Karnataka", totalOrders: 195, codOrders: 70, rtoCount: 3, totalLoss: 450, rtoRate: 4.3, riskLevel: "LOW" },
+      ],
+      pendingCODWithRisk: [
+        { id: "gid://shopify/Order/849201", orderNumber: 1482, value: 6499, pincode: "841301", city: "Siwan", riskScore: 78, riskLevel: "HIGH", topReason: "High RTO pincode (57.9% return rate)" },
+        { id: "gid://shopify/Order/849195", orderNumber: 1481, value: 2250, pincode: "201301", city: "Noida", riskScore: 48, riskLevel: "MEDIUM", topReason: "Moderate return risk in Sector 18" },
+      ],
+    };
+  }
+
   const { session, billing } = await authenticate.admin(request);
   const shop = session.shop;
-  const url = new URL(request.url);
   let host = url.searchParams.get("host") || "";
   if (!host && session?.shop) {
     const storeHandle = session.shop.replace(".myshopify.com", "");

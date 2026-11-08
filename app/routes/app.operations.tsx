@@ -37,8 +37,144 @@ import { AuditLogService } from "../services/compliance/audit-log.service";
 export const headers: HeadersFunction = (headersArgs) => boundary.headers(headersArgs);
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    const demoOrders: OperationOrderDTO[] = [
+      {
+        id: "gid://shopify/Order/849201",
+        orderNumber: 1482,
+        totalPrice: 6499,
+        isCOD: true,
+        gateway: "Cash on Delivery",
+        financialStatus: "pending",
+        fulfillmentStatus: "unfulfilled",
+        customerName: "Pooja Sharma",
+        city: "Siwan",
+        province: "Bihar",
+        pincode: "841301",
+        riskScore: 78,
+        riskLevel: "HIGH",
+        confidence: 88,
+        merchantRecommendation: "FORCE_PREPAID",
+        protectionMode: "ACTIVE_INTERVENTION",
+        executionStatus: "INTERVENED",
+        expectedProfit: 1650,
+        expectedProfitState: "CONFIRMED",
+        rtoExposure: 1420,
+        rtoExposureState: "AT_RISK",
+        expectedValue: 1240,
+        hasRealCogs: true,
+        needsAttention: true,
+        attentionReason: "Cart amount ₹6,499 exceeds COD threshold (₹5,000) & high-RTO pincode",
+        createdAt: new Date().toISOString(),
+        age: "8m ago",
+      },
+      {
+        id: "gid://shopify/Order/849195",
+        orderNumber: 1481,
+        totalPrice: 2250,
+        isCOD: true,
+        gateway: "Cash on Delivery",
+        financialStatus: "pending",
+        fulfillmentStatus: "unfulfilled",
+        customerName: "Rahul Verma",
+        city: "Noida",
+        province: "Uttar Pradesh",
+        pincode: "201301",
+        riskScore: 48,
+        riskLevel: "MEDIUM",
+        confidence: 72,
+        merchantRecommendation: "OTP_VERIFY",
+        protectionMode: "ACTIVE_INTERVENTION",
+        executionStatus: "CONFIRMED",
+        expectedProfit: 620,
+        expectedProfitState: "CONFIRMED",
+        rtoExposure: 450,
+        rtoExposureState: "MONITORED",
+        expectedValue: 370,
+        hasRealCogs: true,
+        needsAttention: false,
+        attentionReason: null,
+        createdAt: new Date(Date.now() - 24 * 60 * 1000).toISOString(),
+        age: "24m ago",
+      },
+      {
+        id: "gid://shopify/Order/849182",
+        orderNumber: 1480,
+        totalPrice: 3890,
+        isCOD: false,
+        gateway: "Razorpay (UPI)",
+        financialStatus: "paid",
+        fulfillmentStatus: "unfulfilled",
+        customerName: "Sneha Patel",
+        city: "Ahmedabad",
+        province: "Gujarat",
+        pincode: "380015",
+        riskScore: 12,
+        riskLevel: "LOW",
+        confidence: 95,
+        merchantRecommendation: "ALLOW_PREPAID",
+        protectionMode: "ACTIVE_INTERVENTION",
+        executionStatus: "CONFIRMED",
+        expectedProfit: 1120,
+        expectedProfitState: "CONFIRMED",
+        rtoExposure: 0,
+        rtoExposureState: "SAFE",
+        expectedValue: 1120,
+        hasRealCogs: true,
+        needsAttention: false,
+        attentionReason: null,
+        createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString(),
+        age: "42m ago",
+      },
+    ];
+
+    return {
+      shop,
+      host,
+      orders: demoOrders,
+      actionQueue: [demoOrders[0]],
+      codVerifications: [
+        {
+          id: "ver-1",
+          orderId: "gid://shopify/Order/849195",
+          orderNumber: 1481,
+          phone: "+91 98111 22334",
+          channel: "WHATSAPP",
+          status: "VERIFIED",
+          attempts: 1,
+          verifiedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+          createdAt: new Date(Date.now() - 24 * 60 * 1000).toISOString(),
+        },
+      ],
+      executionLogs: [
+        {
+          id: "log-1",
+          orderId: "gid://shopify/Order/849201",
+          action: "FORCE_PREPAID",
+          status: "SUCCESS",
+          details: "COD hidden; payment link sent via WhatsApp",
+          createdAt: new Date(Date.now() - 7 * 60 * 1000).toISOString(),
+        },
+      ],
+      protectionMode: "ACTIVE_INTERVENTION",
+      summary: {
+        totalOrders: 1420,
+        totalCodOrders: 740,
+        needsAttentionCount: 1,
+        atRiskCodCount: 24,
+        atRiskCodExposure: 42600,
+        failedActionCount: 0,
+        pendingReviewCount: 1,
+      },
+    };
+  }
+
+  const { session } = await authenticate.admin(request);
   const host = url.searchParams.get("host") || "";
 
   const meta = AuditLogService.extractRequestMeta(request);
@@ -56,6 +192,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return Response.json({ success: true, message: "Demo mode: Action simulated successfully." });
+  }
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();

@@ -23,6 +23,14 @@ import { authenticate } from "../shopify.server";
 import { SettingsApplicationService } from "../application/settings/settings.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    return SettingsApplicationService.getSettingsData(shop, "merchant@example.com");
+  }
+
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const email = (session as any).email || "";
@@ -31,6 +39,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return Response.json({ success: true, message: "Demo mode: Settings saved successfully." });
+  }
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const formData = await request.formData();

@@ -124,6 +124,7 @@ export class ProfitService {
    */
   static getSettings(settings: any) {
     return {
+      currency: (settings?.currency || "INR").toUpperCase(),
       defaultCOGSPct: settings?.defaultCOGSPct ?? 40,
       defaultForwardShipping: settings?.defaultForwardShipping ?? 60,
       defaultReturnShipping: settings?.defaultReturnShipping ?? 70,

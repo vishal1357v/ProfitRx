@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Session } from "@shopify/shopify-api";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import { decryptToken, encryptToken } from "./token-encryption.server";
+import { TokenLifecycleService, ShopifyTokenRevokedError } from "./token-lifecycle.service";
 
 function withTransformedTokens(
   session: Session,
@@ -41,9 +42,25 @@ export class EncryptedPrismaSessionStorage<T extends PrismaClient> extends Prism
 
   override async loadSession(id: string): Promise<Session | undefined> {
     const session = await super.loadSession(id);
-    return session
-      ? withTransformedTokens(session, (token) => decryptToken(token) ?? undefined)
-      : undefined;
+    if (!session) return undefined;
+
+    const decryptedSession = withTransformedTokens(session, (token) => decryptToken(token) ?? undefined);
+
+    // For offline sessions, check if token needs rotation or legacy migration
+    if (!decryptedSession.isOnline) {
+      try {
+        return await TokenLifecycleService.refreshSessionIfNeeded(decryptedSession);
+      } catch (refreshErr) {
+        if (refreshErr instanceof ShopifyTokenRevokedError) {
+          console.warn(`[EncryptedPrismaSessionStorage] Session for ${decryptedSession.shop} requires re-auth: ${refreshErr.message}`);
+          return decryptedSession;
+        }
+        console.error(`[EncryptedPrismaSessionStorage] Error verifying token freshness for ${decryptedSession.shop}:`, refreshErr);
+        return decryptedSession;
+      }
+    }
+
+    return decryptedSession;
   }
 
   override async findSessionsByShop(shop: string): Promise<Session[]> {

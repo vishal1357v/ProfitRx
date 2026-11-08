@@ -30,9 +30,22 @@ import { RtoAnalyticsApplicationService } from "../application/analytics/rto-ana
 import { AuditLogService } from "../services/compliance/audit-log.service";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    const analyticsData = await RtoAnalyticsApplicationService.getRtoAnalytics(shop, undefined, { page: 1, pageSize: 25 });
+    return {
+      ...analyticsData,
+      shop,
+      host,
+    };
+  }
+
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
-  const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
   const page = parseInt(url.searchParams.get("page") || "1", 10);
   const pageSize = parseInt(url.searchParams.get("pageSize") || "25", 10);

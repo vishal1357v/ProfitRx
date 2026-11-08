@@ -10,8 +10,16 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const shop = "glam-aura-india.myshopify.com";
+    const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
+    return { shop, host };
+  }
+
+  const { session } = await authenticate.admin(request);
   const host = url.searchParams.get("host") || "";
   return { shop: session.shop, host };
 };

@@ -38,18 +38,20 @@ function RemixLink({ url, children, external, ...props }: any) {
     );
   }
 
-  // Auto-append shop and host params if missing from relative URL
+  // Auto-append shop, host, and preview params if missing from relative URL
   let targetUrl = url;
   if (typeof window !== "undefined" && url.startsWith("/")) {
     const currentParams = new URLSearchParams(window.location.search);
     const shopParam = currentParams.get("shop");
     const hostParam = currentParams.get("host");
+    const previewParam = currentParams.get("preview") || currentParams.get("demo");
 
-    if (shopParam || hostParam) {
+    if (shopParam || hostParam || previewParam) {
       const [path, existingQuery] = url.split("?");
       const targetParams = new URLSearchParams(existingQuery || "");
       if (shopParam && !targetParams.has("shop")) targetParams.set("shop", shopParam);
       if (hostParam && !targetParams.has("host")) targetParams.set("host", hostParam);
+      if (previewParam && !targetParams.has("preview")) targetParams.set("preview", "true");
       targetUrl = `${path}?${targetParams.toString()}`;
     }
   }
@@ -67,6 +69,22 @@ import { syncSubscriptionWithShopify } from "../services/subscription-sync.servi
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    const demoShop = "glam-aura-india.myshopify.com";
+    const demoHost = Buffer.from("admin.shopify.com/store/glam-aura-india").toString("base64");
+    return {
+      apiKey: process.env.SHOPIFY_API_KEY || "demo_preview_key",
+      shop: demoShop,
+      host: demoHost,
+      features: ["ALL_FEATURES"],
+      plan: "GROWTH",
+      billingStatus: "ACTIVE",
+      isPreview: true,
+    };
+  }
+
   let host = url.searchParams.get("host") || "";
   const shopParam = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
 
@@ -162,17 +180,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     features,
     plan: localSub.plan,
     billingStatus,
+    isPreview: false,
   };
 };
 
 
 export default function App() {
-  const { apiKey, shop, host, features = [], billingStatus } = useLoaderData<typeof loader>();
+  const { apiKey, shop, host, features = [], billingStatus, isPreview = false } = useLoaderData<typeof loader>();
   const location = useLocation();
   const navigation = useNavigation();
   const isNavigating = navigation.state !== "idle";
 
-  const isDunningActive = ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
+  const isDunningActive = !isPreview && ["FROZEN", "DECLINED", "FAILED", "CANCELED"].includes((billingStatus || "").toUpperCase());
 
   // Popover Group States
   const [activePopover, setActivePopover] = useState<string | null>(null);
@@ -220,43 +239,75 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  const isOperationsActive = ["/app/operations", "/app/orders", "/app/cod-dashboard"].some(
+  const isOperationsActive = ["/app/operations", "/app/orders"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
   const isProtectionActive = ["/app/cod-rules", "/app/rto-heatmap", "/app/customer-risk"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isProfitActive = ["/app/profit-leaks", "/app/cogs"].some(
+  const isAnalyticsActive = ["/app/rto", "/app/customers", "/app/roas", "/app/reports", "/app/cod-dashboard", "/app/profit-leaks"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isAnalyticsActive = ["/app/rto", "/app/customers", "/app/roas", "/app/reports", "/app/cod-dashboard"].some(
+  const isConfigurationActive = ["/app/cogs", "/app/settings", "/app/health", "/app/alerts"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isSystemActive = ["/app/health", "/app/alerts", "/app/billing", "/app/settings", "/app/pricing"].some(
+  const isBillingActive = ["/app/billing", "/app/pricing"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
 
   return (
-    <AppProvider apiKey={apiKey} embedded>
+    <AppProvider apiKey={apiKey} embedded={!isPreview}>
       <NavMenu>
         <a href="/app/dashboard" rel="home">Dashboard</a>
         <a href="/app/operations">Operations</a>
         <a href="/app/cod-rules">COD Rules</a>
-        <a href="/app/customer-risk">Customer Risk</a>
         <a href="/app/rto-heatmap">Pincode Risk</a>
-        <a href="/app/cod-dashboard">COD Analytics</a>
+        <a href="/app/customer-risk">Customer Risk</a>
+        <a href="/app/rto">RTO Analytics</a>
         <a href="/app/profit-leaks">Profit Leaks</a>
         <a href="/app/cogs">COGS Catalog</a>
-        <a href="/app/rto">RTO Analytics</a>
-        <a href="/app/customers">Customers</a>
-        <a href="/app/roas">Marketing ROAS</a>
-        <a href="/app/reports">Reports</a>
-        <a href="/app/health">Store Health</a>
-        <a href="/app/alerts">Alerts</a>
-        <a href="/app/billing">Billing</a>
         <a href="/app/settings">Settings</a>
+        <a href="/app/billing">Billing</a>
       </NavMenu>
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
+        {/* Live Demo Standalone Banner */}
+        {isPreview && (
+          <div style={{
+            background: "linear-gradient(90deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%)",
+            borderBottom: "1px solid rgba(129, 140, 248, 0.35)",
+            padding: "8px 20px",
+            color: "#ffffff",
+          }}>
+            <InlineStack align="space-between" blockAlign="center">
+              <InlineStack gap="200" blockAlign="center">
+                <span style={{ fontSize: "16px" }}>⚡</span>
+                <span style={{ fontWeight: 700, fontSize: "13px", color: "#a5b4fc", letterSpacing: "0.02em" }}>
+                  PROFITRX STANDALONE PREVIEW
+                </span>
+                <span style={{ opacity: 0.4 }}>|</span>
+                <span style={{ fontSize: "12px", color: "#e2e8f0" }}>
+                  Viewing live interface with simulated D2C store data (No Shopify Admin login needed)
+                </span>
+              </InlineStack>
+              <InlineStack gap="200" blockAlign="center">
+                <span style={{
+                  fontSize: "11px",
+                  background: "rgba(16, 185, 129, 0.2)",
+                  color: "#34d399",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  fontWeight: 600,
+                }}>
+                  ● Standalone Mode Active
+                </span>
+                <a href="/_index" style={{ color: "#93c5fd", fontSize: "12px", textDecoration: "none" }}>
+                  Exit Preview ↗
+                </a>
+              </InlineStack>
+            </InlineStack>
+          </div>
+        )}
         {/* Top Dunning Banner for RBI Mandate Failures — Simple Warning */}
         {isDunningActive && (
           <div style={{ padding: "12px 20px 0 20px" }}>
@@ -421,66 +472,20 @@ export default function App() {
                         icon: ShieldCheckMarkIcon,
                       },
                       {
-                        content: "Customer Risk & Serial Offenders",
-                        url: `/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: PersonIcon,
-                      },
-                      {
                         content: "Pincode Risk Heatmap",
                         url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: LocationIcon,
                       },
-                    ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
-                  />
-                </Popover>
-
-                {/* Popover Group 2: Profit */}
-                <Popover
-                  active={activePopover === "profit"}
-                  activator={
-                    <button
-                      onClick={() => togglePopover("profit")}
-                      className={`gg-nav-link ${isProfitActive ? "active" : ""}`}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        fontSize: "13px",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        color: "inherit",
-                        whiteSpace: "nowrap",
-                        transition: "all 0.2s ease",
-                      }}
-                    >
-                      <Icon source={SearchIcon} tone={isProfitActive ? "primary" : "subdued"} />
-                      <span>Profit</span>
-                      <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
-                    </button>
-                  }
-                  onClose={() => setActivePopover(null)}
-                >
-                  <ActionList
-                    items={[
                       {
-                        content: "Profit Leaks Diagnostic",
-                        url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: SearchIcon,
-                      },
-                      {
-                        content: "COGS Catalog",
-                        url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: ProductIcon,
+                        content: "Customer Risk & Serial Offenders",
+                        url: `/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PersonIcon,
                       },
                     ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
                   />
                 </Popover>
 
-                {/* Popover Group 3: Analytics */}
+                {/* Popover Group 2: Analytics */}
                 <Popover
                   active={activePopover === "analytics"}
                   activator={
@@ -513,14 +518,19 @@ export default function App() {
                   <ActionList
                     items={[
                       {
+                        content: "RTO Analytics",
+                        url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: DeliveryIcon,
+                      },
+                      {
                         content: "COD Analytics Dashboard",
                         url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: ShieldCheckMarkIcon,
                       },
                       {
-                        content: "RTO Analytics",
-                        url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: DeliveryIcon,
+                        content: "Profit Leaks Diagnostic",
+                        url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: SearchIcon,
                       },
                       {
                         content: "Customer Intelligence (LTV)",
@@ -541,13 +551,13 @@ export default function App() {
                   />
                 </Popover>
 
-                {/* Popover Group 4: Settings */}
+                {/* Popover Group 3: Configuration */}
                 <Popover
-                  active={activePopover === "settings"}
+                  active={activePopover === "config"}
                   activator={
                     <button
-                      onClick={() => togglePopover("settings")}
-                      className={`gg-nav-link ${isSystemActive ? "active" : ""}`}
+                      onClick={() => togglePopover("config")}
+                      className={`gg-nav-link ${isConfigurationActive ? "active" : ""}`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -564,8 +574,8 @@ export default function App() {
                         transition: "all 0.2s ease",
                       }}
                     >
-                      <Icon source={SettingsIcon} tone={isSystemActive ? "primary" : "subdued"} />
-                      <span>Settings</span>
+                      <Icon source={SettingsIcon} tone={isConfigurationActive ? "primary" : "subdued"} />
+                      <span>Configuration</span>
                       <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
                     </button>
                   }
@@ -573,6 +583,11 @@ export default function App() {
                 >
                   <ActionList
                     items={[
+                      {
+                        content: "Product COGS Catalog",
+                        url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ProductIcon,
+                      },
                       {
                         content: "Store & Cost Settings",
                         url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
@@ -588,14 +603,29 @@ export default function App() {
                         url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: NotificationIcon,
                       },
-                      {
-                        content: "Plans & Billing",
-                        url: `/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: PaymentIcon,
-                      },
                     ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
                   />
                 </Popover>
+
+                {/* Direct Link 3: Billing */}
+                <ReactRouterLink
+                  to={`/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                  className={`gg-nav-link ${isBillingActive ? "active" : ""}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    textDecoration: "none",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon source={PaymentIcon} tone={isBillingActive ? "primary" : "subdued"} />
+                  <span>Billing</span>
+                </ReactRouterLink>
               </div>
 
               {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}

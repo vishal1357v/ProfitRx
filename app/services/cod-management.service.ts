@@ -598,6 +598,7 @@ export class CODManagementService {
         blockedPincodes: isBlockingEnabled ? blockedPincodes : [],
         rejectCodOver: isBlockingEnabled ? rejectCodOver : null,
         requirePrepaidAbove: isBlockingEnabled ? requirePrepaidAbove : null,
+        currency: (settings as any)?.currency || "INR",
       });
 
       if (isBlockingEnabled) {
