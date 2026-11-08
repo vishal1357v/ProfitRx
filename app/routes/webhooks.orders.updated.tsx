@@ -5,6 +5,7 @@ import { ProfitService } from "../services/profit.service";
 import { SettingsRepository } from "../infrastructure/repositories/settings.repository";
 import { OrderRepository } from "../infrastructure/repositories/order.repository";
 import { RtoRepository } from "../infrastructure/repositories/rto.repository";
+import { DecisionEngineApplicationService } from "../application/decision/decision-engine.application";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
@@ -18,6 +19,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     // 1. Sync the updated order into our DB
     await ShopifyService.syncOrderPayload(shop, payload);
+
+    // 2. Track decision outcome feedback loop (idempotent)
+    try {
+      await DecisionEngineApplicationService.processOrderOutcome(shop, payload);
+    } catch (outcomeErr) {
+      console.warn(`[orders/updated webhook] Error processing decision outcome for ${shop}:`, outcomeErr);
+    }
 
     const order = payload as any;
     const orderId = (order.id || "").toString();
@@ -46,19 +54,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             ({ defaultForwardShipping: 60, defaultReturnShipping: 70 } as any)
         );
 
-        await RtoRepository.create({
-          shop,
-          orderId,
-          orderNumber,
-          eventType: "RTO",
-          reason: "Fulfillment shipment status or order tags matched RTO keyword pattern",
-          amount: rtoLossEstimate,
-          status: "CONFIRMED",
-        });
+        try {
+          await RtoRepository.create({
+            shop,
+            orderId,
+            orderNumber,
+            eventType: "RTO",
+            reason: "Fulfillment shipment status or order tags matched RTO keyword pattern",
+            amount: rtoLossEstimate,
+            status: "CONFIRMED",
+          });
 
-        console.log(
-          `[orders/updated webhook] Auto-created RTOEvent for order #${orderNumber} in ${shop}`
-        );
+          console.log(
+            `[orders/updated webhook] Auto-created RTOEvent for order #${orderNumber} in ${shop}`
+          );
+        } catch (createErr: any) {
+          // Idempotent: ignore unique constraint if created concurrently
+          console.log(`[orders/updated webhook] RTOEvent already exists for order #${orderNumber}`);
+        }
 
         // 3. Refresh pincode stats in real-time so heatmap reflects this RTO immediately
         try {

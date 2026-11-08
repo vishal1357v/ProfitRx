@@ -17,3 +17,5 @@ export { ErrorPage } from "./ErrorPage";
 export { ProductTour } from "./ProductTour";
 export { ProfitTrendChart, DonutChart, LeakTrendChart } from "./charts";
 export type { ChartItem, DonutSegment, TrendItem } from "./charts";
+export { OrderDecisionCard } from "./decision/OrderDecisionCard";
+

@@ -32,6 +32,6 @@ describe("ExpectedValueStep", () => {
     expect(result.expectedValue).toBeDefined();
     expect(typeof result.expectedValue).toBe("number");
     expect(result.expectedValueResult).toBeDefined();
-    expect(result.expectedValueResult?.rtoProbability).toBe(0.35);
+    expect(result.expectedValueResult?.rtoProbability).toBe(0.21); // Calibrated monotonic probability from 35/100 risk score
   });
 });

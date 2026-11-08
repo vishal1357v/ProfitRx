@@ -10,6 +10,7 @@ import {
   MerchantInterventionSettings,
 } from "../../../services/decision-engine/types";
 import { FinancialAssumptions } from "../../../services/expected-value/types";
+import { calibrateRiskScoreToProbability } from "../../../utils/risk-calibration";
 
 export class DecisionStep implements PipelineStep<OrderPipelineData> {
   name = "DecisionEngine";
@@ -55,8 +56,11 @@ export class DecisionStep implements PipelineStep<OrderPipelineData> {
         metadata: data.metadata || { orderId: context.orderId || "", shop: context.shopId },
       } as any;
 
+      const isCodOrder = data.features?.isCOD ?? true;
+      const calProb = calibrateRiskScoreToProbability(data.riskScore, isCodOrder);
+
       const riskResult = data.riskResult || ({
-        probability: data.riskScore / 100,
+        probability: calProb,
         riskLevel: data.riskScore >= 70 ? "CRITICAL" : data.riskScore >= 50 ? "HIGH" : data.riskScore >= 30 ? "MEDIUM" : "LOW",
         confidence: data.confidence ?? 0.85,
         topFactors: [],
@@ -67,8 +71,8 @@ export class DecisionStep implements PipelineStep<OrderPipelineData> {
         expectedValue: data.expectedValue,
         expectedROI: 0,
         expectedLoss: 0,
-        deliveryProbability: 1 - (data.riskScore / 100),
-        rtoProbability: data.riskScore / 100,
+        deliveryProbability: 1 - calProb,
+        rtoProbability: calProb,
         deliveredScenario: {} as any,
         rtoScenario: {} as any,
         assumptions: {} as any,
@@ -83,7 +87,7 @@ export class DecisionStep implements PipelineStep<OrderPipelineData> {
       const interventionSettings: MerchantInterventionSettings = {
         enabledActions: ["ALLOW_COD", "OTP_VERIFY", "WHATSAPP_VERIFY", "PARTIAL_PAYMENT", "PREPAID_ONLY", "BLOCK_COD"],
         preferredAdvanceAmount: 100,
-        otpCost: 2,
+        otpCost: policy.otpCost ?? 10,
         otpConversionMultiplier: 0.95,
         otpRiskMultiplier: 0.5,
         whatsappCost: 1,
@@ -94,8 +98,9 @@ export class DecisionStep implements PipelineStep<OrderPipelineData> {
         partialPaymentRiskMultiplier: 0.4,
       };
 
+      const damagePct = policy.inventoryDamagePct ?? 10;
       const financialAssumptions: FinancialAssumptions = {
-        inventoryRecoveryRate: 0.9,
+        inventoryRecoveryRate: Math.max(0, Math.min(1, 1 - (damagePct / 100))),
         refundsShippingOnRTO: false,
         chargesCodFeeOnRTO: false,
         includesAdCost: false,

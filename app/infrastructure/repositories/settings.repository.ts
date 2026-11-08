@@ -10,6 +10,8 @@ export interface MerchantPolicy {
   requirePrepaidAboveValue: number;
   autoFlagRepeatOffenders: boolean;
   autoRequireOtp: boolean;
+  inventoryDamagePct: number; // Configurable percentage (default 10% damage/shrinkage estimate)
+  otpCost: number; // Configurable OTP cost (default ₹10 estimate)
 }
 
 export class SettingsRepository {
@@ -30,6 +32,8 @@ export class SettingsRepository {
         requirePrepaidAboveValue: 999999,
         autoFlagRepeatOffenders: false,
         autoRequireOtp: false,
+        inventoryDamagePct: 10,
+        otpCost: 10,
       };
     }
 
@@ -39,6 +43,10 @@ export class SettingsRepository {
         ? (rawMode as ProtectionMode)
         : "OBSERVE";
 
+    const extraConfig = (settings?.shippingSlabs as any)?._financialAssumptions || {};
+    const inventoryDamagePct = typeof extraConfig.inventoryDamagePct === "number" ? extraConfig.inventoryDamagePct : 10;
+    const otpCost = typeof extraConfig.otpCost === "number" ? extraConfig.otpCost : 10;
+
     return {
       protectionMode,
       blockCodAboveValue: settings.rulesRejectCodOver || 999999,
@@ -47,6 +55,8 @@ export class SettingsRepository {
       requirePrepaidAboveValue: settings.rulesRequirePrepaidAbove || 999999,
       autoFlagRepeatOffenders: settings.rulesAutoFlagRepeatOffenders,
       autoRequireOtp: settings.rulesAutoRequireOtp,
+      inventoryDamagePct,
+      otpCost,
     };
   }
   

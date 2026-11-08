@@ -37,7 +37,7 @@ export class CodBlockExecutor implements ActionExecutor {
         provider: "ShopifyAdminGraphQL",
         retryable: false,
         timestamp: new Date(),
-        message: "Order tagged as ProfitRx-COD-Blocked on Shopify Admin.",
+        message: "Order tagged as ProfitRx-COD-Blocked on Shopify Admin (fulfillment hold flag; order payment gateway is immutable after creation).",
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

@@ -37,7 +37,7 @@ export class PrepaidExecutor implements ActionExecutor {
         provider: "ShopifyAdminGraphQL",
         retryable: false,
         timestamp: new Date(),
-        message: "Order tagged as ProfitRx-Prepaid-Required on Shopify Admin.",
+        message: "Order tagged as ProfitRx-Prepaid-Required on Shopify Admin (fulfillment hold flag; order payment gateway is immutable after creation).",
         metrics: {
           executionTimeMs: performance.now() - startTime,
           retryCount: 0,

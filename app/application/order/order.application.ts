@@ -10,20 +10,40 @@ import { EventBus } from "../../infrastructure/events/event.bus";
 import { OrderRepository } from "../../infrastructure/repositories/order.repository";
 
 export class OrderApplicationService {
+  private static processingLocks = new Map<string, number>();
+
   /**
    * The single E2E entrypoint for processing an order.
    * Runs the strict pipeline and emits events.
+   * Completely idempotent: duplicate webhooks for the same order are cleanly skipped.
    */
   static async processOrder(context: ExecutionContext, rawOrder: any): Promise<void> {
-    const pipeline = new Pipeline<OrderPipelineData>();
-
-    pipeline.addStep(new FeatureStep());
-    pipeline.addStep(new RiskStep());
-    pipeline.addStep(new ExpectedValueStep());
-    pipeline.addStep(new DecisionStep());
-    pipeline.addStep(new ExecutionStep());
+    const orderId = String(rawOrder?.id || context.orderId);
+    const lockKey = `${context.shopId}:${orderId}:PROCESS_ORDER`;
+    const now = Date.now();
+    const activeLock = this.processingLocks.get(lockKey);
+    if (activeLock && activeLock > now) {
+      console.log(`[OrderApplicationService] Concurrency lock: order ${orderId} is currently being processed. Skipping concurrent execution.`);
+      return;
+    }
+    this.processingLocks.set(lockKey, now + 30000); // 30s lock
 
     try {
+      // Check if order was already evaluated in database
+      const existingOrder = await OrderRepository.findById(context.shopId, orderId);
+      if (existingOrder?.merchantRecommendation && existingOrder?.riskScore !== null) {
+        console.log(`[OrderApplicationService] Order ${orderId} already evaluated (decision: ${existingOrder.merchantRecommendation}). Skipping duplicate processing.`);
+        return;
+      }
+
+      const pipeline = new Pipeline<OrderPipelineData>();
+
+      pipeline.addStep(new FeatureStep());
+      pipeline.addStep(new RiskStep());
+      pipeline.addStep(new ExpectedValueStep());
+      pipeline.addStep(new DecisionStep());
+      pipeline.addStep(new ExecutionStep());
+
       const result = await pipeline.execute(context, { rawOrder });
 
       if (result.finalDecision) {
@@ -68,6 +88,8 @@ export class OrderApplicationService {
       console.error(`[OrderPipeline] Failed for trace ${context.traceId}`, error);
       // Publish failure event for audit
       throw error;
+    } finally {
+      this.processingLocks.delete(lockKey);
     }
   }
 }

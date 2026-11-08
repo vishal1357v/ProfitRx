@@ -9,6 +9,11 @@ import { CODManagementService } from "../../services/cod-management.service";
 import { ShopifyService } from "../../services/shopify.service";
 import { EventBus } from "../../infrastructure/events/event.bus";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
+import {
+  DecisionEngineApplicationService,
+} from "../decision/decision-engine.application";
+import { DecisionPerformanceSummary } from "../../infrastructure/repositories/decision-record.repository";
+import { calibrateRiskScoreToProbability } from "../../utils/risk-calibration";
 
 export interface OperationOrderDTO {
   id: string;
@@ -55,6 +60,7 @@ export interface OperationsDataDTO {
     failedActionCount: number;
     pendingReviewCount: number;
   };
+  decisionSummary: DecisionPerformanceSummary;
 }
 
 function getRelativeAge(date: Date): string {
@@ -83,11 +89,24 @@ export class OperationsApplicationService {
     const settings = ProfitService.getSettings(rawSettings);
     const protectionMode = policy.protectionMode || "OBSERVE";
 
-    // 2. Fetch Orders (recent 50) and Execution Logs (recent 100) in parallel
-    const [recentOrders, codVerifications, executionLogs] = await Promise.all([
+    // 2. Fetch Orders (recent 50), Execution Logs (recent 100), and Decision Summary in parallel
+    const [recentOrders, codVerifications, executionLogs, decisionSummary] = await Promise.all([
       OrderRepository.findByShop(shop, 50),
       CodOrderRepository.findByShop(shop, { limit: 50 }),
       ExecutionLogRepository.findByShop(shop, 100),
+      DecisionEngineApplicationService.getDecisionSummary(shop).catch(() => ({
+        totalReviewed: 0,
+        acceptedCount: 0,
+        overriddenCount: 0,
+        deliveredCount: 0,
+        rtoCount: 0,
+        cancelledCount: 0,
+        actualRtoLoss: 0,
+        totalDeliveredProfit: 0,
+        totalVerifiedSavings: 0,
+        estimatedEVTotal: 0,
+        realizedProfitTotal: 0,
+      })),
     ]);
 
     // Build latest execution log map per order
@@ -131,7 +150,7 @@ export class OperationsApplicationService {
         defaultGatewayFeePct: settings.defaultGatewayFeePct,
         gatewayFixedFee: settings.gatewayFixedFee,
         shopifyPlanName: settings.shopifyPlanName,
-        rtoProbability: riskScore / 100,
+        rtoProbability: calibrateRiskScoreToProbability(riskScore, o.isCOD),
       });
 
       // Match execution status
@@ -241,6 +260,7 @@ export class OperationsApplicationService {
         failedActionCount,
         pendingReviewCount,
       },
+      decisionSummary,
     };
   }
 
@@ -254,167 +274,15 @@ export class OperationsApplicationService {
     action: string,
     reason = "Operations review action"
   ): Promise<{ success: boolean; message: string }> {
-    const order = await OrderRepository.findById(shop, orderId);
-    if (!order) {
-      return { success: false, message: "Order not found" };
-    }
-
-    const previousRecommendation = order.merchantRecommendation || "ALLOW_COD";
-
-    await OrderRepository.updateDecision(shop, orderId, {
-      merchantRecommendation: action,
-    });
-
-    await ExecutionLogRepository.createLog({
+    return DecisionEngineApplicationService.overrideDecision({
       shop,
       orderId,
-      step: "MERCHANT_OVERRIDE",
-      status: "SUCCESS",
-      message: `Merchant manually decided: ${action}. Reason: ${reason}`,
-      data: {
-        previousDecision: previousRecommendation,
-        newDecision: action,
-        reason,
-        actor: "MERCHANT",
-        timestamp: new Date().toISOString(),
-      },
+      action: action as any,
+      reason,
+      actor: "MERCHANT_OPERATIONS",
     });
-
-    const context = ExecutionContextFactory.create(shop, orderId, `ops_act_${Date.now()}`);
-    await EventBus.publish({
-      type: "DECISION_MADE",
-      context,
-      payload: {
-        action,
-        confidence: 1.0,
-        expectedValue: 0,
-        riskScore: order.riskScore || 0,
-        isOverride: true,
-        overrideReason: reason,
-      },
-    });
-
-    // ── Execution Wiring: Dispatch live OTP if OTP_VERIFY ─────────
-    if (action === "OTP_VERIFY") {
-      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-      let phone: string | null = null;
-
-      const existingCod = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
-      if (existingCod?.phone) {
-        phone = existingCod.phone;
-      }
-      if (!phone && order.customerId) {
-        const customerRisk = await CustomerRepository.findByCustomerId(shop, order.customerId) as any;
-        if (customerRisk?.phone) phone = customerRisk.phone;
-      }
-      if (!phone) {
-        const storeSettings = await SettingsRepository.getByShop(shop);
-        if (storeSettings?.whatsappPhone) phone = storeSettings.whatsappPhone;
-      }
-
-      if (phone) {
-        const otpResult = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
-        if (otpResult.success) {
-          await ExecutionLogRepository.createLog({
-            shop,
-            orderId,
-            step: "EXECUTION",
-            status: "SUCCESS",
-            message: `OTP challenge dispatched to ${phone} via ${otpResult.provider || "gateway"}.`,
-            data: { phone, provider: otpResult.provider },
-          });
-          return {
-            success: true,
-            message: `Order #${order.orderNumber} decision updated: OTP verification dispatched to ${phone}.`,
-          };
-        } else {
-          await ExecutionLogRepository.createLog({
-            shop,
-            orderId,
-            step: "EXECUTION",
-            status: "FAILED",
-            message: otpResult.message || "Failed to dispatch OTP verification.",
-            data: { phone, provider: otpResult.provider },
-          });
-          return {
-            success: false,
-            message: `Order decision updated, but OTP dispatch warning: ${otpResult.message}`,
-          };
-        }
-      }
-    }
-
-    // ── Execution Wiring: Lift blocking tags if ALLOW_COD ───────
-    if (action === "ALLOW_COD") {
-      const untagResult = await ShopifyService.untagOrder(shop, orderId, [
-        "ProfitRx-COD-Blocked",
-        "ProfitRx-Prepaid-Required",
-      ]);
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: untagResult.success ? "SUCCESS" : "FAILED",
-        message: untagResult.success
-          ? `Lifted COD block on Shopify Admin for Order #${order.orderNumber}.`
-          : `Failed to remove block tags on Shopify Admin.`,
-        data: { action: "ALLOW_COD", userErrors: (untagResult as any).userErrors },
-      });
-      return {
-        success: untagResult.success,
-        message: `Order #${order.orderNumber} decision updated: COD block reversed on Shopify.`,
-      };
-    }
-
-    // ── Execution Wiring: Tag COD block if BLOCK_COD ─────────────
-    if (action === "BLOCK_COD") {
-      const tagResult = await ShopifyService.tagOrder(shop, orderId, "ProfitRx-COD-Blocked");
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: tagResult.success ? "SUCCESS" : "FAILED",
-        message: tagResult.success
-          ? `Tagged order #${order.orderNumber} as ProfitRx-COD-Blocked on Shopify Admin.`
-          : `Failed to tag order as blocked on Shopify Admin.`,
-        data: { action: "BLOCK_COD" },
-      });
-      return {
-        success: tagResult.success,
-        message: `Order #${order.orderNumber} decision updated: COD blocked on Shopify.`,
-      };
-    }
-
-    // ── Execution Wiring: Mark partial payment if PARTIAL_PAYMENT ─
-    if (action === "PARTIAL_PAYMENT") {
-      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-      const settings = await SettingsRepository.getByShop(shop);
-      const depositAmount = settings?.partialPaymentAmount || 50;
-
-      await CodOrderRepository.upsert(shop, {
-        orderId: cleanOrderId,
-        phone: "",
-        status: "PARTIAL_PAYMENT_PENDING",
-        partialAmount: depositAmount,
-      });
-
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: "SUCCESS",
-        message: `Partial payment deposit of ₹${depositAmount} requested for Order #${order.orderNumber}.`,
-        data: { depositAmount },
-      });
-
-      return {
-        success: true,
-        message: `Order #${order.orderNumber} updated to require ₹${depositAmount} partial payment deposit.`,
-      };
-    }
-
-    return { success: true, message: `Order #${order.orderNumber} decision updated to ${action}` };
   }
 }
+
 
 

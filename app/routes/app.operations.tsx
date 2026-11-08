@@ -21,6 +21,8 @@ import {
   ButtonGroup,
   Modal,
   Tooltip,
+  Icon,
+  Divider,
 } from "@shopify/polaris";
 import {
   SearchIcon,
@@ -171,6 +173,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         failedActionCount: 0,
         pendingReviewCount: 1,
       },
+      decisionSummary: {
+        totalReviewed: 1420,
+        acceptedCount: 1380,
+        overriddenCount: 40,
+        deliveredCount: 1120,
+        rtoCount: 180,
+        cancelledCount: 120,
+        actualRtoLoss: 25200,
+        totalDeliveredProfit: 345000,
+        totalVerifiedSavings: 18400,
+        estimatedEVTotal: 310000,
+        realizedProfitTotal: 319800,
+      },
     };
   }
 
@@ -220,6 +235,7 @@ export default function OperationsRoute() {
     executionLogs = [],
     protectionMode = "OBSERVE",
     summary,
+    decisionSummary,
     shop,
     host,
   } = useLoaderData<typeof loader>();
@@ -653,6 +669,86 @@ export default function OperationsRoute() {
           </Layout.Section>
         </Layout>
 
+        {/* Decision Engine Performance & Outcome Tracking Summary */}
+        {decisionSummary && decisionSummary.totalReviewed > 0 && (
+          <Card>
+            <BlockStack gap="200">
+              <InlineStack align="space-between" blockAlign="center" wrap>
+                <InlineStack gap="150" blockAlign="center">
+                  <Icon source={ShieldCheckMarkIcon} tone="success" />
+                  <Text variant="headingSm" as="h3">
+                    Decision Engine Performance & Outcome Feedback
+                  </Text>
+                </InlineStack>
+                <Badge tone="success">{`${decisionSummary.totalReviewed} Orders Decided`}</Badge>
+              </InlineStack>
+              <Divider />
+              <InlineStack align="space-between" wrap>
+                <Box minWidth="130px">
+                  <BlockStack gap="025">
+                    <Text variant="bodyXs" tone="subdued" as="span">Recommendations</Text>
+                    <Text variant="bodySm" fontWeight="bold" as="p">
+                      {decisionSummary.acceptedCount} Accepted / {decisionSummary.overriddenCount} Overridden
+                    </Text>
+                    <Text variant="bodyXs" tone="subdued" as="span">
+                      {decisionSummary.totalReviewed > 0
+                        ? `${Math.round((decisionSummary.acceptedCount / decisionSummary.totalReviewed) * 100)}% adherence`
+                        : "0%"}
+                    </Text>
+                  </BlockStack>
+                </Box>
+                <Box minWidth="130px">
+                  <BlockStack gap="025">
+                    <Text variant="bodyXs" tone="subdued" as="span">Delivery vs RTO</Text>
+                    <Text variant="bodySm" fontWeight="bold" as="p">
+                      {decisionSummary.deliveredCount} Delivered / {decisionSummary.rtoCount} RTO
+                    </Text>
+                    <Text variant="bodyXs" tone="subdued" as="span">
+                      {decisionSummary.deliveredCount + decisionSummary.rtoCount > 0
+                        ? `${Math.round((decisionSummary.rtoCount / (decisionSummary.deliveredCount + decisionSummary.rtoCount)) * 100)}% RTO rate`
+                        : "Pending outcomes"}
+                    </Text>
+                  </BlockStack>
+                </Box>
+                <Box minWidth="140px">
+                  <BlockStack gap="025">
+                    <Text variant="bodyXs" tone="subdued" as="span">Actual RTO Costs</Text>
+                    <Text variant="bodySm" fontWeight="bold" tone="critical" as="p">
+                      -₹{decisionSummary.actualRtoLoss.toLocaleString("en-IN")}
+                    </Text>
+                    <Text variant="bodyXs" tone="subdued" as="span">Freight & damage lost</Text>
+                  </BlockStack>
+                </Box>
+                <Box minWidth="140px">
+                  <BlockStack gap="025">
+                    <Text variant="bodyXs" tone="subdued" as="span">Realized vs Estimated EV</Text>
+                    <Text
+                      variant="bodySm"
+                      fontWeight="bold"
+                      tone={decisionSummary.realizedProfitTotal >= 0 ? "success" : "critical"}
+                      as="p"
+                    >
+                      ₹{decisionSummary.realizedProfitTotal.toLocaleString("en-IN")} / ₹{decisionSummary.estimatedEVTotal.toLocaleString("en-IN")}
+                    </Text>
+                    <Text variant="bodyXs" tone="subdued" as="span">Actual vs Expected</Text>
+                  </BlockStack>
+                </Box>
+                {decisionSummary.totalVerifiedSavings > 0 && (
+                  <Box minWidth="140px">
+                    <BlockStack gap="025">
+                      <Text variant="bodyXs" tone="subdued" as="span">Verified RTO Savings</Text>
+                      <Text variant="bodySm" fontWeight="bold" tone="success" as="p">
+                        +₹{decisionSummary.totalVerifiedSavings.toLocaleString("en-IN")}
+                      </Text>
+                      <Text variant="bodyXs" tone="subdued" as="span">Verified loss avoided</Text>
+                    </BlockStack>
+                  </Box>
+                )}
+              </InlineStack>
+            </BlockStack>
+          </Card>
+        )}
+
         {/* Tabbed Control Queue */}
         <Card padding="0">
           <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
@@ -838,30 +934,68 @@ export default function OperationsRoute() {
           {activeModalOrder && (
             <BlockStack gap="400">
               <Banner tone="info">
-                <Text variant="bodyMd" as="p">
-                  Recommended Action: <strong>{activeModalOrder.merchantRecommendation}</strong>.
-                  Estimated delivered profit: <strong>₹{Math.round(activeModalOrder.expectedProfit)}</strong> |
-                  RTO Loss Exposure: <strong>₹{Math.round(activeModalOrder.rtoExposure)}</strong>.
-                </Text>
+                <BlockStack gap="100">
+                  <Text variant="bodyMd" as="p">
+                    ProfitRx Recommended Action: <strong>{activeModalOrder.merchantRecommendation}</strong>.
+                  </Text>
+                  {activeModalOrder.attentionReason && (
+                    <Text variant="bodySm" as="p">
+                      <strong>Flagged Reason:</strong> {activeModalOrder.attentionReason}
+                    </Text>
+                  )}
+                </BlockStack>
               </Banner>
 
+              {/* Economic Summary Box */}
+              <Box padding="300" background="bg-surface-secondary" borderRadius="150">
+                <BlockStack gap="150">
+                  <Text variant="bodyXs" fontWeight="bold" tone="subdued" as="span">
+                    ORDER DECISION ECONOMICS
+                  </Text>
+                  <InlineStack align="space-between">
+                    <Text variant="bodySm" as="span">Gross Order Value:</Text>
+                    <Text variant="bodySm" fontWeight="semibold" as="span">₹{Math.round(activeModalOrder.totalPrice).toLocaleString("en-IN")}</Text>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text variant="bodySm" as="span">Estimated Contribution if Delivered:</Text>
+                    <Text variant="bodySm" fontWeight="semibold" tone="success" as="span">+₹{Math.round(activeModalOrder.expectedProfit).toLocaleString("en-IN")}</Text>
+                  </InlineStack>
+                  <InlineStack align="space-between">
+                    <Text variant="bodySm" as="span">Financial Exposure if Returned (RTO):</Text>
+                    <Text variant="bodySm" fontWeight="semibold" tone="critical" as="span">-₹{Math.round(activeModalOrder.rtoExposure).toLocaleString("en-IN")}</Text>
+                  </InlineStack>
+                  <Divider />
+                  <InlineStack align="space-between">
+                    <Text variant="bodySm" fontWeight="bold" as="span">Net Expected Payoff ($EV$):</Text>
+                    <Text variant="bodySm" fontWeight="bold" tone={activeModalOrder.expectedValue >= 0 ? "success" : "critical"} as="span">
+                      {activeModalOrder.expectedValue >= 0 ? "+₹" : "-₹"}
+                      {Math.abs(Math.round(activeModalOrder.expectedValue)).toLocaleString("en-IN")}
+                    </Text>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+
               <Select
-                label="Selected Decision"
+                label="Selected Decision Action"
                 options={[
                   { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
                   { label: "Dispatch WhatsApp/SMS OTP Verification", value: "OTP_VERIFY" },
                   { label: "Require Partial Payment / Upfront Deposit", value: "PARTIAL_PAYMENT" },
                   { label: "Require Full Prepaid Payment", value: "PREPAID_ONLY" },
-                  { label: "Block COD (Tag/Hold Order)", value: "BLOCK_COD" },
+                  { label: "Block COD (Hold/Cancel Order)", value: "BLOCK_COD" },
                 ]}
                 value={selectedAction}
                 onChange={setSelectedAction}
                 helpText={
                   selectedAction === "OTP_VERIFY"
-                    ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS."
+                    ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS (~₹10 estimated verification cost)."
                     : selectedAction === "PARTIAL_PAYMENT"
                     ? "Requires an advance deposit via UPI before fulfillment."
-                    : undefined
+                    : selectedAction === "PREPAID_ONLY"
+                    ? "Tags order as ProfitRx-Prepaid-Required to hold fulfillment until advance payment is collected (existing order gateway is immutable via Shopify API)."
+                    : selectedAction === "BLOCK_COD"
+                    ? "Tags order as ProfitRx-COD-Blocked to hold fulfillment or cancel (checkout COD blocking before order creation is handled by Shopify Function)."
+                    : "Removes restriction tags and clears order for normal courier fulfillment."
                 }
               />
 

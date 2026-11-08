@@ -85,6 +85,17 @@ export class CustomerRepository {
   }
 
   /**
+   * Find single customer risk record by customer ID with shop isolation.
+   */
+  static async findRiskByCustomerId(shop: string, customerId: string): Promise<CustomerRiskRecord | null> {
+    return prisma.customerRisk.findUnique({
+      where: {
+        shop_customerId: { shop, customerId },
+      },
+    });
+  }
+
+  /**
    * Update customer risk level and score with shop isolation.
    */
   static async updateRiskLevel(

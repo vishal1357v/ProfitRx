@@ -37,6 +37,8 @@ import {
 import { authenticate } from "../shopify.server";
 import { OrderDetailApplicationService } from "../application/order/order-detail.application";
 import { AuditLogService } from "../services/compliance/audit-log.service";
+import { OrderDecisionCard } from "../components/decision/OrderDecisionCard";
+
 
 export const headers = (headersArgs: any) => boundary.headers(headersArgs);
 
@@ -113,6 +115,14 @@ export default function OrderIntelligenceRoute() {
   let riskTone: "success" | "warning" | "critical" = "success";
   if (riskScore >= 50) riskTone = "critical";
   else if (riskScore >= 30) riskTone = "warning";
+
+  const handleCustomOverride = (act: string, rsn: string) => {
+    const formData = new FormData();
+    formData.append("intent", "override_decision");
+    formData.append("action", act);
+    formData.append("reason", rsn);
+    submit(formData, { method: "post" });
+  };
 
   const handleConfirmOverride = () => {
     const formData = new FormData();
@@ -233,241 +243,13 @@ export default function OrderIntelligenceRoute() {
           {/* Main Left Column (70%) */}
           <Layout.Section>
             <BlockStack gap="400">
-              {/* SECTION 1: DECISION SUMMARY */}
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="headingMd" as="h2">
-                      ProfitRx Recommendation
-                    </Text>
-                    {getRecommendationBadge(intelligence.decision)}
-                  </InlineStack>
-
-                  <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-                    <Text variant="bodyMd" as="p" fontWeight="medium">
-                      {intelligence.economicJustification}
-                    </Text>
-                  </Box>
-
-                  <Divider />
-
-                  {/* 4-Key Metrics Grid with Explicit Precision Badges */}
-                  <InlineStack align="space-between" wrap>
-                    <Box minWidth="140px">
-                      <BlockStack gap="050">
-                        <Text variant="bodyXs" tone="subdued" as="span">
-                          RTO Risk Probability
-                        </Text>
-                        <Text variant="headingLg" tone={textRiskTone} as="p">
-                          {Math.round(riskScore)}%
-                        </Text>
-                        <Badge tone={riskTone}>{intelligence.riskLevel}</Badge>
-                      </BlockStack>
-                    </Box>
-
-                    <Box minWidth="140px">
-                      <BlockStack gap="050">
-                        <Text variant="bodyXs" tone="subdued" as="span">
-                          Expected Value ($EV$)
-                        </Text>
-                        <Text
-                          variant="headingLg"
-                          tone={economics.expectedValue.value >= 0 ? "success" : "critical"}
-                          as="p"
-                        >
-                          {economics.expectedValue.value >= 0
-                            ? `+₹${Math.round(economics.expectedValue.value)}`
-                            : `-₹${Math.abs(Math.round(economics.expectedValue.value))}`}
-                        </Text>
-                        {getStateBadge(economics.expectedValue.state)}
-                      </BlockStack>
-                    </Box>
-
-                    <Box minWidth="140px">
-                      <BlockStack gap="050">
-                        <Text variant="bodyXs" tone="subdued" as="span">
-                          Delivered Profit
-                        </Text>
-                        <Text
-                          variant="headingLg"
-                          tone={economics.deliveredProfit.value >= 0 ? "success" : "critical"}
-                          as="p"
-                        >
-                          +₹{Math.round(economics.deliveredProfit.value)}
-                        </Text>
-                        {getStateBadge(economics.deliveredProfit.state)}
-                      </BlockStack>
-                    </Box>
-
-                    <Box minWidth="140px">
-                      <BlockStack gap="050">
-                        <Text variant="bodyXs" tone="subdued" as="span">
-                          RTO Loss Exposure
-                        </Text>
-                        <Text variant="headingLg" tone="critical" as="p">
-                          -₹{Math.round(economics.rtoLossExposure.value)}
-                        </Text>
-                        {getStateBadge(economics.rtoLossExposure.state)}
-                      </BlockStack>
-                    </Box>
-                  </InlineStack>
-                </BlockStack>
-              </Card>
-
-              {/* SECTION 2: RISK EVIDENCE & FACTORS */}
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="headingMd" as="h2">
-                      Risk Evidence & Context
-                    </Text>
-                    <Badge tone="info">{`Evidence Quality: ${intelligence.evidenceQuality}%`}</Badge>
-                  </InlineStack>
-
-                  <Text variant="bodySm" tone="subdued" as="p">
-                    Deterministic risk signals extracted at the time of order creation:
-                  </Text>
-
-                  <BlockStack gap="200">
-                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
-                      <InlineStack align="space-between">
-                        <Text variant="bodySm" fontWeight="semibold" as="span">
-                          Payment Method Risk
-                        </Text>
-                        <Badge tone={order.isCOD ? "attention" : "success"}>
-                          {order.isCOD ? "COD (+30% Baseline RTO)" : "Prepaid (Zero Remittance Risk)"}
-                        </Badge>
-                      </InlineStack>
-                    </Box>
-
-                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
-                      <InlineStack align="space-between">
-                        <Text variant="bodySm" fontWeight="semibold" as="span">
-                          Destination Pincode
-                        </Text>
-                        <Text variant="bodySm" as="span">
-                          {order.pincode ? `${order.pincode} (${order.city || "Region"}, ${order.province || ""})` : "Missing Pincode"}
-                        </Text>
-                      </InlineStack>
-                    </Box>
-
-                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
-                      <InlineStack align="space-between">
-                        <Text variant="bodySm" fontWeight="semibold" as="span">
-                          COGS Source Quality
-                        </Text>
-                        <Badge tone={economics.cogs.state === "ACTUAL" ? "success" : "warning"}>
-                          {economics.cogs.source}
-                        </Badge>
-                      </InlineStack>
-                    </Box>
-
-                    <Box padding="200" background="bg-surface-secondary" borderRadius="100">
-                      <InlineStack align="space-between">
-                        <Text variant="bodySm" fontWeight="semibold" as="span">
-                          Shipping Cost Basis
-                        </Text>
-                        <Badge tone={economics.forwardShipping.state === "ACTUAL" ? "success" : "warning"}>
-                          {economics.forwardShipping.source}
-                        </Badge>
-                      </InlineStack>
-                    </Box>
-                  </BlockStack>
-                </BlockStack>
-              </Card>
-
-              {/* SECTION 3: CANONICAL UNIT ECONOMICS BREAKDOWN */}
-              <Card>
-                <BlockStack gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="headingMd" as="h2">
-                      Canonical Unit Economics
-                    </Text>
-                    <Badge tone="info">Deterministic Deduplication</Badge>
-                  </InlineStack>
-
-                  <Text variant="bodySm" tone="subdued" as="p">
-                    Standardized financial breakdown if delivered vs if returned (RTO):
-                  </Text>
-
-                  <DataTable
-                    columnContentTypes={["text", "numeric", "text"]}
-                    headings={["Financial Component", "Amount", "Data Precision"]}
-                    rows={[
-                      [
-                        "Gross Order Revenue",
-                        `+₹${Math.round(economics.revenue.value).toLocaleString("en-IN")}`,
-                        <Badge tone="success" key="rev">ACTUAL</Badge>,
-                      ],
-                      [
-                        "Customer Paid Shipping",
-                        `+₹${Math.round(economics.customerPaidShipping.value)}`,
-                        <Badge tone="success" key="cps">ACTUAL</Badge>,
-                      ],
-                      [
-                        "Product COGS",
-                        `-₹${Math.round(economics.cogs.value).toLocaleString("en-IN")}`,
-                        getStateBadge(economics.cogs.state),
-                      ],
-                      [
-                        "Forward Shipping Freight",
-                        `-₹${Math.round(economics.forwardShipping.value)}`,
-                        getStateBadge(economics.forwardShipping.state),
-                      ],
-                      [
-                        "Packaging & Materials",
-                        `-₹${Math.round(economics.packaging.value)}`,
-                        getStateBadge(economics.packaging.state),
-                      ],
-                      order.isCOD
-                        ? [
-                            "COD Handling Fee",
-                            `-₹${Math.round(economics.codFee.value)}`,
-                            getStateBadge(economics.codFee.state),
-                          ]
-                        : [
-                            "Gateway Fee + 18% GST",
-                            `-₹${Math.round(economics.gatewayFee.value)}`,
-                            getStateBadge(economics.gatewayFee.state),
-                          ],
-                      [
-                        <Text variant="bodyMd" fontWeight="bold" as="span" key="del-lbl">
-                          = Delivered Contribution Margin
-                        </Text>,
-                        <Text variant="bodyMd" fontWeight="bold" tone="success" as="span" key="del-val">
-                          +₹{Math.round(economics.deliveredProfit.value).toLocaleString("en-IN")}
-                        </Text>,
-                        getStateBadge(economics.deliveredProfit.state),
-                      ],
-                    ]}
-                  />
-
-                  <Divider />
-
-                  <Text variant="headingSm" as="h3">
-                    Reverse Logistics Loss (If RTO Occurs)
-                  </Text>
-
-                  <DataTable
-                    columnContentTypes={["text", "numeric", "text"]}
-                    headings={["RTO Loss Component", "Loss Exposure", "Basis"]}
-                    rows={[
-                      ["Forward Shipping (Lost)", `-₹${Math.round(economics.forwardShipping.value)}`, "Freight"],
-                      ["Return Reverse Freight", `-₹${Math.round(economics.returnShipping.value)}`, "Courier"],
-                      ["Packaging Material Lost", `-₹${Math.round(economics.packaging.value)}`, "Damage"],
-                      [
-                        <Text variant="bodyMd" fontWeight="bold" as="span" key="rto-lbl">
-                          = Total RTO Loss Exposure
-                        </Text>,
-                        <Text variant="bodyMd" fontWeight="bold" tone="critical" as="span" key="rto-val">
-                          -₹{Math.round(economics.rtoLossExposure.value).toLocaleString("en-IN")}
-                        </Text>,
-                        <Badge tone="critical" key="rto-b">EXPOSURE</Badge>,
-                      ],
-                    ]}
-                  />
-                </BlockStack>
-              </Card>
+              {data.decisionCard && (
+                <OrderDecisionCard
+                  decision={data.decisionCard}
+                  onOverrideAction={handleCustomOverride}
+                  isSubmitting={isSubmitting}
+                />
+              )}
 
               {/* SECTION 5: TRUTHFUL EXECUTION TIMELINE */}
               <Card>

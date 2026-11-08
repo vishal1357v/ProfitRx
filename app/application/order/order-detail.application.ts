@@ -11,6 +11,11 @@ import { CODManagementService } from "../../services/cod-management.service";
 import { ShopifyService } from "../../services/shopify.service";
 import { EventBus } from "../../infrastructure/events/event.bus";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
+import {
+  DecisionEngineApplicationService,
+  OrderDecisionCardDTO,
+} from "../decision/decision-engine.application";
+import { calibrateRiskScoreToProbability } from "../../utils/risk-calibration";
 
 export interface OrderIntelligenceDTO {
   order: {
@@ -119,6 +124,7 @@ export interface OrderIntelligenceDTO {
     actualRto: boolean;
     createdAt: string;
   }>;
+  decisionCard?: OrderDecisionCardDTO | null;
   settings: any;
   shop: string;
 }
@@ -139,12 +145,13 @@ export class OrderDetailApplicationService {
       return null;
     }
 
-    // 2. Fetch associated Logs, Learnings, and Store Settings in parallel
-    const [executionLogs, learningRecords, rawSettings, policy] = await Promise.all([
+    // 2. Fetch associated Logs, Learnings, Store Settings, and Decision Card in parallel
+    const [executionLogs, learningRecords, rawSettings, policy, decisionCard] = await Promise.all([
       ExecutionLogRepository.findByOrderId(shop, order.id),
       LearningRecordRepository.findByOrderId(shop, order.id),
       SettingsRepository.getByShop(shop),
       SettingsRepository.getMerchantPolicy(shop),
+      DecisionEngineApplicationService.getOrderDecisionCard(shop, order.id).catch(() => null),
     ]);
 
     const settings = ProfitService.getSettings(rawSettings);
@@ -195,7 +202,7 @@ export class OrderDetailApplicationService {
       defaultGatewayFeePct: settings.defaultGatewayFeePct,
       gatewayFixedFee: settings.gatewayFixedFee,
       shopifyPlanName: settings.shopifyPlanName,
-      rtoProbability: riskScore / 100,
+      rtoProbability: calibrateRiskScoreToProbability(riskScore, order.isCOD),
     });
 
     const hasRealCogs = econResult.cogs.state === "ACTUAL";
@@ -230,9 +237,9 @@ export class OrderDetailApplicationService {
     if (decision === "ALLOW_COD") {
       economicJustification = `Positive expected payoff of ₹${Math.round(expectedValue)}. The estimated delivered profit (₹${Math.round(profitIfDelivered)}) comfortably exceeds expected RTO exposure (₹${Math.round(lossIfRto * pRto)}).`;
     } else if (decision === "OTP_VERIFY") {
-      economicJustification = `Elevated RTO risk (${Math.round(pRto * 100)}%) creates ₹${Math.round(lossIfRto * pRto)} expected loss. Low-cost OTP verification is economically justified to confirm buyer intent.`;
+      economicJustification = `Elevated RTO risk (${Math.round(pRto * 100)}%) creates ₹${Math.round(lossIfRto * pRto)} expected loss. Low-cost OTP verification (~₹10 estimated cost) is economically justified to confirm buyer intent.`;
     } else if (decision === "PREPAID_ONLY" || decision === "BLOCK_COD") {
-      economicJustification = `Negative expected value (₹${Math.round(expectedValue)}). High RTO probability (${Math.round(pRto * 100)}%) exposes store to ₹${Math.round(lossIfRto)} freight and damage loss.`;
+      economicJustification = `Negative expected value (₹${Math.round(expectedValue)}). High RTO probability (${Math.round(pRto * 100)}%) exposes store to ₹${Math.round(lossIfRto)} estimated freight and damage loss.`;
     } else {
       economicJustification = `Order risk evaluated at ${Math.round(pRto * 100)}% with expected value of ₹${Math.round(expectedValue)}.`;
     }
@@ -315,6 +322,7 @@ export class OrderDetailApplicationService {
         actualRto: rec.actualRto,
         createdAt: rec.createdAt.toISOString(),
       })),
+      decisionCard,
       settings,
       shop,
     };
@@ -329,166 +337,14 @@ export class OrderDetailApplicationService {
     action: string,
     reason: string = "Manual merchant review override"
   ): Promise<{ success: boolean; message: string }> {
-    const order = await OrderRepository.findById(shop, orderId);
-    if (!order) {
-      return { success: false, message: "Order not found" };
-    }
-
-    // 1. Update the order decision recommendation
-    await OrderRepository.updateDecision(shop, orderId, {
-      merchantRecommendation: action,
-    });
-
-    // 2. Persist audit log
-    await ExecutionLogRepository.createLog({
+    return DecisionEngineApplicationService.overrideDecision({
       shop,
       orderId,
-      step: "MERCHANT_OVERRIDE",
-      status: "SUCCESS",
-      message: `Merchant manually changed decision to ${action}. Reason: ${reason}`,
-      data: {
-        overriddenAction: action,
-        previousAction: order.merchantRecommendation,
-        reason,
-        timestamp: new Date().toISOString(),
-      },
+      action: action as any,
+      reason,
+      actor: "MERCHANT",
     });
-
-    // 3. Publish event for analytics and learning records
-    const context = ExecutionContextFactory.create(shop, orderId, `override_${Date.now()}`);
-    await EventBus.publish({
-      type: "DECISION_MADE",
-      context,
-      payload: {
-        action,
-        confidence: 1.0,
-        expectedValue: 0,
-        riskScore: order.riskScore || 0,
-        isOverride: true,
-        overrideReason: reason,
-      },
-    });
-
-    // ── Execution Wiring: Dispatch live OTP if OTP_VERIFY ─────────
-    if (action === "OTP_VERIFY") {
-      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-      let phone: string | null = null;
-
-      const existingCod = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
-      if (existingCod?.phone) {
-        phone = existingCod.phone;
-      }
-      if (!phone && order.customerId) {
-        const customerRisk = await CustomerRepository.findByCustomerId(shop, order.customerId) as any;
-        if (customerRisk?.phone) phone = customerRisk.phone;
-      }
-      if (!phone) {
-        const storeSettings = await SettingsRepository.getByShop(shop);
-        if (storeSettings?.whatsappPhone) phone = storeSettings.whatsappPhone;
-      }
-
-      if (phone) {
-        const otpResult = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
-        if (otpResult.success) {
-          await ExecutionLogRepository.createLog({
-            shop,
-            orderId,
-            step: "EXECUTION",
-            status: "SUCCESS",
-            message: `OTP challenge dispatched to ${phone} via ${otpResult.provider || "gateway"}.`,
-            data: { phone, provider: otpResult.provider },
-          });
-          return {
-            success: true,
-            message: `Order decision updated: OTP verification dispatched to ${phone}.`,
-          };
-        } else {
-          await ExecutionLogRepository.createLog({
-            shop,
-            orderId,
-            step: "EXECUTION",
-            status: "FAILED",
-            message: otpResult.message || "Failed to dispatch OTP verification.",
-            data: { phone, provider: otpResult.provider },
-          });
-          return {
-            success: false,
-            message: `Order decision updated, but OTP dispatch warning: ${otpResult.message}`,
-          };
-        }
-      }
-    }
-
-    // ── Execution Wiring: Lift blocking tags if ALLOW_COD ───────
-    if (action === "ALLOW_COD") {
-      const untagResult = await ShopifyService.untagOrder(shop, orderId, [
-        "ProfitRx-COD-Blocked",
-        "ProfitRx-Prepaid-Required",
-      ]);
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: untagResult.success ? "SUCCESS" : "FAILED",
-        message: untagResult.success
-          ? `Lifted COD block on Shopify Admin for Order #${order.orderNumber}.`
-          : `Failed to remove block tags on Shopify Admin.`,
-        data: { action: "ALLOW_COD", userErrors: (untagResult as any).userErrors },
-      });
-      return {
-        success: untagResult.success,
-        message: `Order #${order.orderNumber} decision updated: COD block reversed on Shopify.`,
-      };
-    }
-
-    // ── Execution Wiring: Tag COD block if BLOCK_COD ─────────────
-    if (action === "BLOCK_COD") {
-      const tagResult = await ShopifyService.tagOrder(shop, orderId, "ProfitRx-COD-Blocked");
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: tagResult.success ? "SUCCESS" : "FAILED",
-        message: tagResult.success
-          ? `Tagged order #${order.orderNumber} as ProfitRx-COD-Blocked on Shopify Admin.`
-          : `Failed to tag order as blocked on Shopify Admin.`,
-        data: { action: "BLOCK_COD" },
-      });
-      return {
-        success: tagResult.success,
-        message: `Order #${order.orderNumber} decision updated: COD blocked on Shopify.`,
-      };
-    }
-
-    // ── Execution Wiring: Mark partial payment if PARTIAL_PAYMENT ─
-    if (action === "PARTIAL_PAYMENT") {
-      const cleanOrderId = orderId.replace("gid://shopify/Order/", "");
-      const settings = await SettingsRepository.getByShop(shop);
-      const depositAmount = settings?.partialPaymentAmount || 50;
-
-      await CodOrderRepository.upsert(shop, {
-        orderId: cleanOrderId,
-        phone: "",
-        status: "PARTIAL_PAYMENT_PENDING",
-        partialAmount: depositAmount,
-      });
-
-      await ExecutionLogRepository.createLog({
-        shop,
-        orderId,
-        step: "EXECUTION",
-        status: "SUCCESS",
-        message: `Partial payment deposit of ₹${depositAmount} requested for Order #${order.orderNumber}.`,
-        data: { depositAmount },
-      });
-
-      return {
-        success: true,
-        message: `Order #${order.orderNumber} updated to require ₹${depositAmount} partial payment deposit.`,
-      };
-    }
-
-    return { success: true, message: `Order decision updated to ${action}` };
   }
 }
+
 

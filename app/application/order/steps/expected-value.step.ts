@@ -4,6 +4,7 @@ import { OrderPipelineData } from "../order-pipeline.types";
 import { ExpectedValueService } from "../../../services/expected-value/expected-value.service";
 import { SettingsRepository } from "../../../infrastructure/repositories/settings.repository";
 import { FinancialAssumptions } from "../../../services/expected-value/types";
+import { calibrateRiskScoreToProbability } from "../../../utils/risk-calibration";
 
 export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
   name = "ExpectedValueCalculation";
@@ -14,12 +15,16 @@ export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
     // Retrieve real merchant settings from repository
     const settings = await SettingsRepository.getByShop(context.shopId);
 
+    const damagePct = (settings as any)?.inventoryDamagePct ?? (settings as any)?.shippingSlabs?._financialAssumptions?.inventoryDamagePct ?? 10;
     const assumptions: FinancialAssumptions = {
-      inventoryRecoveryRate: 0.9, // 10% inventory damage/shrinkage assumption
+      inventoryRecoveryRate: Math.max(0, Math.min(1, 1 - (damagePct / 100))), // Configurable inventory damage (default 10% damage -> 90% recovery)
       refundsShippingOnRTO: false,
       chargesCodFeeOnRTO: false,
       includesAdCost: false,
     };
+
+    const isCodOrder = data.features?.isCOD ?? true;
+    const calProb = calibrateRiskScoreToProbability(data.riskScore, isCodOrder);
 
     const featureResult = {
       features: data.features || {},
@@ -34,7 +39,7 @@ export class ExpectedValueStep implements PipelineStep<OrderPipelineData> {
     const riskResult =
       data.riskResult ||
       ({
-        probability: (data.riskScore || 0) / 100,
+        probability: calProb,
         riskLevel:
           data.riskScore >= 70
             ? "CRITICAL"
