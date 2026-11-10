@@ -135,6 +135,9 @@ async function verifyAll() {
 
     console.log(`  Heading: "${routeResult.heading}"`);
     console.log(`  Console Errors: ${consoleErrors.length}`);
+    if (consoleErrors.length > 0) {
+      console.log(`  Console Errors detail:`, consoleErrors);
+    }
     console.log(`  Network Errors: ${networkErrors.length}`);
     console.log(`  Error Banner: ${routeResult.hasErrorBanner ? "YES (FAIL)" : "None (PASS)"}`);
 

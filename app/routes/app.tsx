@@ -82,7 +82,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop: demoShop,
       host: demoHost,
       features: ["ALL_FEATURES"],
-      plan: "GROWTH",
+      plan: "PRO",
       billingStatus: "ACTIVE",
       isPreview: true,
     };
@@ -170,18 +170,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     localSub = { plan: "FREE", status: "ACTIVE", orderLimit: 50, ordersUsed: 0 };
   }
 
-  // ── Step 3: Derive features from the SYNCED plan (no stale DB read) ────────
-  const normalizedPlan = normalizePlanName(localSub.plan);
-  const features: string[] = PLAN_FEATURES[normalizedPlan] || [];
+  const isBypassed = process.env.BYPASS_BILLING === "true";
+  const activePlan = isBypassed ? "PRO" : localSub.plan;
+  const activeStatus = isBypassed ? "ACTIVE" : (localSub.status || "ACTIVE");
 
-  const billingStatus = localSub.status || "ACTIVE";
+  // ── Step 3: Derive features from the plan (no stale DB read) ────────
+  const normalizedPlan = normalizePlanName(activePlan);
+  const features: string[] = isBypassed ? PLAN_FEATURES["PRO"] : (PLAN_FEATURES[normalizedPlan] || []);
+
+  const billingStatus = activeStatus;
 
   return {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     shop: session.shop,
     host,
     features,
-    plan: localSub.plan,
+    plan: activePlan,
     billingStatus,
     isPreview: false,
   };

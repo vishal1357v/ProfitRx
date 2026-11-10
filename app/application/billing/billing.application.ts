@@ -50,12 +50,17 @@ export class BillingApplicationService {
       (settings?.shopifyPlanName || "").toLowerCase().includes("test") ||
       shop.includes("test");
 
+    const isBypassed = process.env.BYPASS_BILLING === "true";
+    const activePlan = isBypassed ? "PRO" : subscription.plan;
+    const activeStatus = isBypassed ? "ACTIVE" : subscription.status;
+    const activeLimit = isBypassed ? null : subscription.orderLimit;
+
     return {
       shop,
       host,
-      plan: subscription.plan,
-      status: subscription.status,
-      orderLimit: subscription.orderLimit,
+      plan: activePlan,
+      status: activeStatus,
+      orderLimit: activeLimit,
       ordersUsed: subscription.ordersUsed,
       trialEndsAt: subscription.trialEndsAt ? subscription.trialEndsAt.toISOString() : null,
       lastSyncedAt: subscription.updatedAt ? subscription.updatedAt.toISOString() : new Date().toISOString(),

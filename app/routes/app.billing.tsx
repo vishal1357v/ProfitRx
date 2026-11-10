@@ -40,9 +40,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       shop,
       host,
-      plan: "GROWTH",
+      plan: "PRO",
       status: "ACTIVE",
-      orderLimit: 2000,
+      orderLimit: null,
       ordersUsed: 1420,
       trialEndsAt: null,
       lastSyncedAt: new Date().toISOString(),

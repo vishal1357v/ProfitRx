@@ -90,7 +90,15 @@ export class DashboardApplicationService {
 
   try {
     // Perform active subscription check with Shopify App Pricing (Partner API)
-    const subscription = await syncSubscriptionWithShopify(shop, billing, forceSync, planHandle);
+    let subscription = await syncSubscriptionWithShopify(shop, billing, forceSync, planHandle);
+    if (process.env.BYPASS_BILLING === "true") {
+      subscription = {
+        ...subscription,
+        plan: "PRO",
+        status: "ACTIVE",
+        orderLimit: null,
+      };
+    }
     const isFreeTier = (subscription?.plan || "FREE") === "FREE";
     const isBasicTier = isFreeTier || (subscription?.plan || "") === "STARTER";
     const planName = subscription?.plan === "PRO" ? "Pro" : subscription?.plan === "GROWTH" ? "Growth" : subscription?.plan === "STARTER" ? "Starter" : "Free";
@@ -100,7 +108,7 @@ export class DashboardApplicationService {
     const trialEndsAt = subscription?.trialEndsAt ? subscription.trialEndsAt.toISOString() : null;
 
     const normalizedPlan = normalizePlanName(subscription.plan);
-    const features: string[] = PLAN_FEATURES[normalizedPlan] || [];
+    const features: string[] = process.env.BYPASS_BILLING === "true" ? PLAN_FEATURES["PRO"] : (PLAN_FEATURES[normalizedPlan] || []);
 
     let orders = await OrderRepository.findByShop(shop);
 
