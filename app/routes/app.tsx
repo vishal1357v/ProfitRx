@@ -69,6 +69,7 @@ function RemixLink({ url, children, external, ...props }: any) {
 import { authenticate } from "../shopify.server";
 import { getFeatureList, getSubscription, normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
+import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let url = new URL(request.url);
@@ -124,27 +125,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
 
       // If status is 500 / 4xx ("Unexpected Server Error" / missing session),
-      // attempt automatic OAuth recovery if shop parameter is present and not already retried
+      // escape the iframe and trigger top-level OAuth re-auth directly
       if (shopFallback && !reauthFailed) {
-        console.warn(`[app.tsx] Session validation returned HTTP ${status}. Triggering OAuth re-auth for ${shopFallback}...`);
-        throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
+        console.warn(`[app.tsx] Session validation returned HTTP ${status}. Triggering top-level OAuth re-auth for ${shopFallback}...`);
+        const installUrl = getShopifyInstallUrl(shopFallback);
+        throw escapeIframeAndRedirect(installUrl, shopFallback);
       }
 
-      // Last resort: no shop param to recover with — redirect to login instead
-      // of propagating the raw Shopify SDK error as a 500
-      console.warn(`[app.tsx] Auth response HTTP ${status} with no shop param. Redirecting to login.`);
-      throw redirect("/auth/login");
+      // Last resort: no shop param to recover with — escape iframe to login
+      console.warn(`[app.tsx] Auth response HTTP ${status} with no shop param. Escaping iframe to login.`);
+      throw escapeIframeAndRedirect("/auth/login");
     }
 
     console.error("[app.tsx authenticate.admin error]:", authErr?.message || authErr);
 
     if (shopFallback && !reauthFailed) {
-      throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(hostFallback)}&reauth_failed=true`);
+      const installUrl = getShopifyInstallUrl(shopFallback);
+      throw escapeIframeAndRedirect(installUrl, shopFallback);
     }
 
     // Last resort: redirect to login rather than showing a raw 500 error page
-    console.warn("[app.tsx] Auth failed with no shop param to recover. Redirecting to login.");
-    throw redirect("/auth/login");
+    console.warn("[app.tsx] Auth failed with no shop param to recover. Escaping iframe to login.");
+    throw escapeIframeAndRedirect("/auth/login");
   }
 
   const { billing, session, redirect: shopifyRedirect } = authResult;
@@ -754,6 +756,11 @@ export function ErrorBoundary() {
   const location = useLocation();
   const [recoveryShop, setRecoveryShop] = useState("");
 
+  // Allow App Bridge bounce/breakout HTML scripts to execute rather than trapping inside an error banner
+  if (isRouteErrorResponse(error) && typeof error.data === "string" && (error.data.includes("<script") || error.data.includes("app-bridge"))) {
+    return <div dangerouslySetInnerHTML={{ __html: error.data }} />;
+  }
+
   console.error("[ProfitRx Error Diagnostic]:", error);
 
   let errorTitle = "Runtime Exception";
@@ -811,7 +818,13 @@ export function ErrorBoundary() {
     let domain = recoveryShop.trim().toLowerCase();
     if (!domain) return;
     if (!domain.includes(".")) domain = `${domain}.myshopify.com`;
-    window.location.href = `/auth/login?shop=${encodeURIComponent(domain)}`;
+    const storeHandle = domain.replace(".myshopify.com", "");
+    const installUrl = `https://admin.shopify.com/store/${storeHandle}/oauth/install?client_id=08f8a7442c2182a3a390f753591c06f3`;
+    if (window.top && window.top !== window.self) {
+      window.top.location.href = installUrl;
+    } else {
+      window.location.href = installUrl;
+    }
   };
 
   return (
@@ -832,8 +845,8 @@ export function ErrorBoundary() {
                         <Badge tone="info">{currentShop}</Badge>
                         <Button
                           variant="primary"
-                          url={`/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`}
-                          external
+                          url={getShopifyInstallUrl(currentShop)}
+                          target="_top"
                         >
                           Re-Authorize {currentShop.replace(".myshopify.com", "")} →
                         </Button>
@@ -920,10 +933,10 @@ export function ErrorBoundary() {
                       <Button
                         variant="primary"
                         url={currentShop
-                          ? `/auth/login?shop=${encodeURIComponent(currentShop)}&host=${encodeURIComponent(currentHost || "")}`
+                          ? getShopifyInstallUrl(currentShop)
                           : "/auth/login"
                         }
-                        external
+                        target="_top"
                       >
                         Re-authorize session
                       </Button>

@@ -1164,6 +1164,11 @@ export default function OperationsRoute() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  if (isRouteErrorResponse(error) && typeof error.data === "string" && (error.data.includes("<script") || error.data.includes("app-bridge"))) {
+    return <div dangerouslySetInnerHTML={{ __html: error.data }} />;
+  }
+
   let errorMessage = "An unexpected error occurred while loading orders and operations.";
 
   if (isRouteErrorResponse(error)) {
@@ -1171,6 +1176,10 @@ export function ErrorBoundary() {
   } else if (error instanceof Error) {
     errorMessage = error.message;
   }
+
+  const currentShop = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("shop") : null;
+  const storeHandle = currentShop ? currentShop.replace(".myshopify.com", "") : null;
+  const reauthUrl = storeHandle ? `https://admin.shopify.com/store/${storeHandle}/oauth/install?client_id=08f8a7442c2182a3a390f753591c06f3` : null;
 
   return (
     <Page title="Merchant Control Center">
@@ -1180,7 +1189,14 @@ export function ErrorBoundary() {
             <Banner tone="critical" title="Failed to Load Operations Control Center">
               <p>{errorMessage}</p>
             </Banner>
-            <Button onClick={() => window.location.reload()}>Retry</Button>
+            <InlineStack gap="300">
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+              {reauthUrl && (
+                <Button variant="primary" url={reauthUrl} target="_top">
+                  Re-Authorize App &rarr;
+                </Button>
+              )}
+            </InlineStack>
           </BlockStack>
         </Box>
       </Card>

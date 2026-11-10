@@ -16,6 +16,7 @@ import { ProfitIntelligenceService } from "../../services/profit-intelligence.se
 import { normalizePlanName, PLAN_FEATURES } from "../../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../../services/subscription-sync.service";
 import { AdSpendService } from "../../services/ad-spend.service";
+import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../../utils/auth-redirect.server";
 
 const isCodGateway = (gateway: string | null) => {
   if (!gateway) return false;
@@ -68,8 +69,9 @@ export class DashboardApplicationService {
       }
 
       if (shopFallback && !reauthFailed) {
-        console.warn(`[dashboard.tsx] Session validation returned HTTP ${status}. Redirecting to re-auth for ${shopFallback}...`);
-        throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+        console.warn(`[dashboard.tsx] Session validation returned HTTP ${status}. Escaping iframe for re-auth for ${shopFallback}...`);
+        const installUrl = getShopifyInstallUrl(shopFallback);
+        throw escapeIframeAndRedirect(installUrl, shopFallback);
       }
 
       throw authErr;
@@ -78,7 +80,8 @@ export class DashboardApplicationService {
     console.error("[dashboard.tsx loader authenticate.admin FAILED]:", authErr);
 
     if (shopFallback && !reauthFailed) {
-      throw redirect(`/auth/login?shop=${encodeURIComponent(shopFallback)}&host=${encodeURIComponent(host)}&reauth_failed=true`);
+      const installUrl = getShopifyInstallUrl(shopFallback);
+      throw escapeIframeAndRedirect(installUrl, shopFallback);
     }
 
     throw authErr;

@@ -10,18 +10,37 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { LoginErrorType } from "@shopify/shopify-app-react-router/server";
-import { login } from "../shopify.server";
+import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const errors = await login(request);
+  const url = new URL(request.url);
+  const shop = url.searchParams.get("shop");
 
-  return errors;
+  if (shop) {
+    const installUrl = getShopifyInstallUrl(shop);
+    throw escapeIframeAndRedirect(installUrl, shop);
+  }
+
+  return {} as { shop?: LoginErrorType };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const errors = await login(request);
+  const formData = await request.formData();
+  const shop = (formData.get("shop") as string) || "";
 
-  return errors;
+  if (!shop.trim()) {
+    return { shop: LoginErrorType.MissingShop };
+  }
+
+  const cleanShop = shop.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const fullShop = cleanShop.includes(".") ? cleanShop : `${cleanShop}.myshopify.com`;
+
+  if (!fullShop.endsWith(".myshopify.com")) {
+    return { shop: LoginErrorType.InvalidShop };
+  }
+
+  const installUrl = getShopifyInstallUrl(fullShop);
+  throw escapeIframeAndRedirect(installUrl, fullShop);
 };
 
 export default function AuthLogin() {
