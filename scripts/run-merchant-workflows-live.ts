@@ -229,12 +229,12 @@ async function main() {
       riskScore: dbOrder.riskScore,
       riskLevel: dbOrder.riskLevel,
       recommendation: dbOrder.merchantRecommendation,
-      protectionMode: dbOrder.protectionMode,
-      expectedProfit: dbOrder.expectedProfit,
-      rtoLossExposure: dbOrder.rtoLossExposure,
+      protectionMode: (dbOrder as any).protectionMode,
+      expectedProfit: (dbOrder as any).expectedProfit,
+      rtoLossExposure: (dbOrder as any).rtoLossExposure,
     });
 
-    return `Order evaluated: Risk=${dbOrder.riskScore}% (${dbOrder.riskLevel}), Recommendation=${dbOrder.merchantRecommendation}, Expected Profit=₹${dbOrder.expectedProfit}`;
+    return `Order evaluated: Risk=${dbOrder.riskScore}% (${dbOrder.riskLevel}), Recommendation=${dbOrder.merchantRecommendation}, Expected Profit=₹${(dbOrder as any).expectedProfit}`;
   });
 
   // ── STEP 4: OTP Verification Workflow ────────────────────────────────────────
