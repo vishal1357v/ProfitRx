@@ -145,10 +145,38 @@ export function normalizeShopifyRequest(request: Request): Request {
   const url = new URL(request.url);
   let modified = false;
 
-  const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+  let shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
   let host = url.searchParams.get("host") || "";
 
-  // If host is missing but shop is known, synthesize the base64 host
+  // 1. If shop is missing but host is present, decode base64 host to derive shop
+  if (!shop && host) {
+    try {
+      const decodedHost = Buffer.from(host, "base64").toString("utf8");
+      const match = decodedHost.match(/admin\.shopify\.com\/store\/([a-zA-Z0-9-]+)/);
+      if (match && match[1]) {
+        shop = `${match[1]}.myshopify.com`;
+        url.searchParams.set("shop", shop);
+        modified = true;
+      }
+    } catch (_) {}
+  }
+
+  // 2. If shop is still missing, attempt extraction from Referer header
+  if (!shop) {
+    const referer = request.headers.get("referer") || "";
+    const match = referer.match(/admin\.shopify\.com\/store\/([a-zA-Z0-9-]+)/);
+    if (match && match[1]) {
+      shop = `${match[1]}.myshopify.com`;
+      url.searchParams.set("shop", shop);
+      if (!host) {
+        host = Buffer.from(`admin.shopify.com/store/${match[1]}`).toString("base64");
+        url.searchParams.set("host", host);
+      }
+      modified = true;
+    }
+  }
+
+  // 3. If host is missing but shop is known, synthesize the base64 host
   if (!host && shop) {
     const storeHandle = shop.replace(".myshopify.com", "");
     host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");

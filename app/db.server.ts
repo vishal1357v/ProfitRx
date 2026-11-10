@@ -20,7 +20,9 @@ function createPrismaClient(): PrismaClient {
   if (connectionString) {
     try {
       if (connectionString.includes("neon.tech")) {
-        const adapter = new PrismaNeonHttp(connectionString, {});
+        // PrismaNeonHttp communicates over HTTPS to Neon's SQL API, which requires the non-pooler endpoint
+        const httpConnectionString = connectionString.replace("-pooler", "");
+        const adapter = new PrismaNeonHttp(httpConnectionString, {});
         return new PrismaClient({ adapter });
       }
       const pool = new pg.Pool({ connectionString });

@@ -77,8 +77,9 @@ export class OrderRepository {
       return exactOrder as OrderWithLineItems;
     }
 
-    // 2. Fall back to order number if no exact ID matched
-    if (!isNaN(orderNum)) {
+    // 2. Fall back to order number if no exact ID matched (only if within valid 32-bit integer range)
+    const MAX_PG_INT = 2147483647;
+    if (!isNaN(orderNum) && Number.isSafeInteger(orderNum) && orderNum > 0 && orderNum <= MAX_PG_INT) {
       const orderByNum = await prisma.order.findFirst({
         where: {
           shop,
@@ -119,6 +120,10 @@ export class OrderRepository {
    * Find a single order by its sequential Shopify order number with shop isolation.
    */
   static async findByOrderNumber(shop: string, orderNumber: number): Promise<any | null> {
+    const MAX_PG_INT = 2147483647;
+    if (isNaN(orderNumber) || !Number.isSafeInteger(orderNumber) || orderNumber <= 0 || orderNumber > MAX_PG_INT) {
+      return null;
+    }
     return prisma.order.findFirst({
       where: { shop, orderNumber },
     });
