@@ -4,7 +4,7 @@ import path from "node:path";
 let cachedStyles = "";
 
 export function getGlobalStyles(): string {
-  if (cachedStyles) return cachedStyles;
+  if (cachedStyles && process.env.NODE_ENV === "production") return cachedStyles;
   try {
     // Read the global.css file content dynamically on the server
     const cssPath = path.join(process.cwd(), "app", "styles", "global.css");

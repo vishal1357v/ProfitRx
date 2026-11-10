@@ -173,7 +173,7 @@ export default function DashboardRoute() {
       subtitle={`${data.shop?.replace(".myshopify.com", "") || "Store"} • ${data.orderCount} orders evaluated (${data.syncWindow?.from || "Recent"} – ${data.syncWindow?.to || "Today"})`}
       primaryAction={
         <Button variant="primary" onClick={handleSyncOrders} loading={syncing}>
-          Sync orders
+          Sync Orders
         </Button>
       }
       secondaryActions={[

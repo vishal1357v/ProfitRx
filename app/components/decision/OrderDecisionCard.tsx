@@ -58,16 +58,19 @@ export function OrderDecisionCard({
   const getRecommendationBadge = (action: string) => {
     switch (action) {
       case "ALLOW_COD":
-        return <Badge tone="success" size="large">ALLOW COD (Fulfill Normally)</Badge>;
+        return <Badge tone="success" size="large">Allow Cash on Delivery</Badge>;
       case "VERIFY":
       case "OTP_VERIFY":
-        return <Badge tone="attention" size="large">VERIFY INTENT (Dispatch OTP)</Badge>;
+      case "REQUIRE_OTP":
+        return <Badge tone="attention" size="large">WhatsApp OTP Required</Badge>;
       case "PREPAID_ONLY":
-        return <Badge tone="warning" size="large">REQUIRE PREPAID PAYMENT</Badge>;
+      case "FORCE_PREPAID":
+      case "REQUIRE_PREPAID":
+        return <Badge tone="warning" size="large">Require Prepaid Payment</Badge>;
       case "BLOCK_COD":
-        return <Badge tone="critical" size="large">BLOCK COD (Hold Order)</Badge>;
+        return <Badge tone="critical" size="large">Block Cash on Delivery</Badge>;
       default:
-        return <Badge size="large">{action}</Badge>;
+        return <Badge size="large">{action.replace(/_/g, " ")}</Badge>;
     }
   };
 

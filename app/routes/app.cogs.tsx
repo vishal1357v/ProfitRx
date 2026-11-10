@@ -42,8 +42,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (isPreview) {
     const shop = "glam-aura-india.myshopify.com";
     try {
-      return await CogsApplicationService.getCogsCatalog(shop);
-    } catch {
+      const res = await CogsApplicationService.getCogsCatalog(shop);
+      if (res && res.products && res.products.length > 0) return res;
+    } catch {}
       return {
         products: [
           {
@@ -88,7 +89,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         lastUpdated: new Date().toLocaleDateString(),
       };
     }
-  }
 
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;

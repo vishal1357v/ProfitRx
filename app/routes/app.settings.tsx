@@ -9,7 +9,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Button,
-  Grid, TextField, Select, Banner, Divider, Badge,
+  Grid, InlineGrid, TextField, Select, Banner, Divider, Badge,
   Box, Icon, Frame, Toast, Tabs, Checkbox,
 } from "@shopify/polaris";
 import {
@@ -172,11 +172,11 @@ export default function SettingsRoute() {
   };
 
   const tabs = [
-    { id: "costs-shipping", content: "💰 Costs & Shipping", panelID: "costs-panel" },
-    { id: "gst-compliance", content: "🇮🇳 GST Compliance", panelID: "gst-panel" },
-    { id: "notifications", content: "💬 WhatsApp & OTP", panelID: "notifications-panel" },
-    { id: "alerts-keywords", content: "🔔 Alerts & Courier", panelID: "alerts-panel" },
-    { id: "data-protection", content: "🛡️ Data Protection (DPA)", panelID: "dpa-panel" },
+    { id: "costs-shipping", content: "Costs & Shipping", panelID: "costs-panel" },
+    { id: "gst-compliance", content: "GST Compliance", panelID: "gst-panel" },
+    { id: "notifications", content: "WhatsApp & OTP", panelID: "notifications-panel" },
+    { id: "alerts-keywords", content: "Alerts & Courier", panelID: "alerts-panel" },
+    { id: "data-protection", content: "Data Protection (DPA)", panelID: "dpa-panel" },
   ];
 
   const handleSave = () => {
@@ -229,7 +229,7 @@ export default function SettingsRoute() {
                         <BlockStack gap="400">
                           <InlineStack gap="150" blockAlign="center">
                             <Icon source={FinanceIcon} />
-                            <Text variant="headingMd" as="h2">💰 Payment Gateway & Logistics Cost Rules</Text>
+                            <Text variant="headingMd" as="h2">Payment Gateway & Logistics Cost Rules</Text>
                           </InlineStack>
                           <Text variant="bodySm" as="p" tone="subdued">
                             Override average shipping, COD handling, and payment gateway fees (Razorpay, PayU, CCAvenue) to ensure high true net profit tracking.
@@ -238,7 +238,7 @@ export default function SettingsRoute() {
 
                           {/* Weight Slabs Editor */}
                           <BlockStack gap="200">
-                            <Text variant="headingSm" as="h3">⚖️ Weight-Based Logistics Slabs (Optional)</Text>
+                            <Text variant="headingSm" as="h3">Weight-Based Logistics Slabs (Optional)</Text>
                             <Text variant="bodySm" as="p" tone="subdued">
                               Define shipping costs based on total order weight. Slabs are matched in ascending order (e.g. 500g, 1000g). If matched, they override the flat forward & return shipping averages below.
                             </Text>
@@ -316,74 +316,62 @@ export default function SettingsRoute() {
                             Set flat average logistics defaults below for orders that do not map to any weight slabs:
                           </Text>
 
-                          <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 3 }}>
-                            <Grid.Cell>
-                              <TextField
-                                label="Forward Shipping Cost"
-                                value={forwardShipping}
-                                onChange={setForwardShipping}
-                                type="number"
-                                prefix="₹"
-                                helpText="Average cost paid to courier to ship forward (e.g. ₹60)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                            <Grid.Cell>
-                              <TextField
-                                label="Return Shipping Cost (RTO)"
-                                value={returnShipping}
-                                onChange={setReturnShipping}
-                                type="number"
-                                prefix="₹"
-                                helpText="Average cost paid to courier to return package (e.g. ₹70)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                            <Grid.Cell>
-                              <TextField
-                                label="COD Handling Fee"
-                                value={codHandling}
-                                onChange={setCodHandling}
-                                type="number"
-                                prefix="₹"
-                                helpText="Flat fee charged by courier on COD orders (e.g. ₹40)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                            <Grid.Cell>
-                              <TextField
-                                label="Packaging Cost"
-                                value={packaging}
-                                onChange={setPackaging}
-                                type="number"
-                                prefix="₹"
-                                helpText="Box, tape, label material cost per order (e.g. ₹10)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                            <Grid.Cell>
-                              <TextField
-                                label="Payment Gateway Fee"
-                                value={gatewayFee}
-                                onChange={setGatewayFee}
-                                type="number"
-                                suffix="%"
-                                helpText="Gateway % fee (Razorpay / PayU default 2%)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                            <Grid.Cell>
-                              <TextField
-                                label="Gateway Fixed Fee"
-                                value={gatewayFixed}
-                                onChange={setGatewayFixed}
-                                type="number"
-                                prefix="₹"
-                                helpText="Fixed per-transaction charge (e.g. ₹0 - ₹3)."
-                                autoComplete="off"
-                              />
-                            </Grid.Cell>
-                          </Grid>
+                          <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+                            <TextField
+                              label="Forward Shipping Cost"
+                              value={forwardShipping}
+                              onChange={setForwardShipping}
+                              type="number"
+                              prefix="₹"
+                              helpText="Average cost paid to courier to ship forward (e.g. ₹60)."
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="Return Shipping Cost (RTO)"
+                              value={returnShipping}
+                              onChange={setReturnShipping}
+                              type="number"
+                              prefix="₹"
+                              helpText="Average cost paid to courier to return package (e.g. ₹70)."
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="COD Handling Fee"
+                              value={codHandling}
+                              onChange={setCodHandling}
+                              type="number"
+                              prefix="₹"
+                              helpText="Flat fee charged by courier on COD orders (e.g. ₹40)."
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="Packaging Cost"
+                              value={packaging}
+                              onChange={setPackaging}
+                              type="number"
+                              prefix="₹"
+                              helpText="Box, tape, label material cost per order (e.g. ₹10)."
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="Payment Gateway Fee"
+                              value={gatewayFee}
+                              onChange={setGatewayFee}
+                              type="number"
+                              suffix="%"
+                              helpText="Gateway % fee (Razorpay / PayU default 2%)."
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="Gateway Fixed Fee"
+                              value={gatewayFixed}
+                              onChange={setGatewayFixed}
+                              type="number"
+                              prefix="₹"
+                              helpText="Fixed per-transaction charge (e.g. ₹0 - ₹3)."
+                              autoComplete="off"
+                            />
+                          </InlineGrid>
                         </BlockStack>
                       </Box>
                     </Card>
@@ -412,7 +400,7 @@ export default function SettingsRoute() {
                               external
                               variant="primary"
                             >
-                              Download GSTR-1 CSV Report 📄
+                              Download GSTR-1 CSV Report
                             </Button>
                           </InlineStack>
 
@@ -469,7 +457,7 @@ export default function SettingsRoute() {
                           <InlineStack align="space-between" blockAlign="center">
                             <InlineStack gap="200" blockAlign="center">
                               <Icon source={NotificationIcon} />
-                              <Text variant="headingMd" as="h2">💬 WhatsApp & OTP Verification</Text>
+                              <Text variant="headingMd" as="h2">WhatsApp & OTP Verification</Text>
                               <Badge tone={waEnabled || otpEnabled ? "success" : "attention"}>
                                 {waEnabled || otpEnabled ? "Protection Active" : "Disabled"}
                               </Badge>
@@ -570,7 +558,7 @@ export default function SettingsRoute() {
                             <BlockStack gap="300">
                               <InlineStack gap="150" blockAlign="center">
                                 <Icon source={DeliveryIcon} />
-                                <Text variant="headingMd" as="h2">🚚 Courier Custom Keywords</Text>
+                                <Text variant="headingMd" as="h2">Courier Custom Keywords</Text>
                               </InlineStack>
                               <Text variant="bodySm" as="p" tone="subdued">
                                 Enter comma-separated keywords written by courier apps (Delhivery, Shiprocket, Bluedart) to detect RTO status.
@@ -633,7 +621,7 @@ export default function SettingsRoute() {
                         <BlockStack gap="400">
                           <InlineStack gap="150" blockAlign="center">
                             <Icon source={ShieldCheckMarkIcon} />
-                            <Text variant="headingMd" as="h2">🛡️ Merchant Data Processing Agreement (DPA)</Text>
+                            <Text variant="headingMd" as="h2">Merchant Data Processing Agreement (DPA)</Text>
                           </InlineStack>
                           <Text variant="bodySm" as="p" tone="subdued">
                             To satisfy Shopify Level 2 Protected Customer Data standards and applicable privacy legislation, ProfitRx operates under a legally binding Data Processing Agreement establishing data roles, sub-processors, and technical security controls.

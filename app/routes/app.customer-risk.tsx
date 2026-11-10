@@ -220,21 +220,21 @@ export default function CustomerRiskRoute() {
         {isCritical || isHigh ? (
           <Button
             size="slim"
-            variant="secondary"
-            loading={isSubmitting}
-            onClick={() => handleCustomerAction(c.customerId, "ALLOW_COD")}
-          >
-            Allow Normal COD
-          </Button>
-        ) : (
-          <Button
-            size="slim"
             variant="primary"
             tone="critical"
             loading={isSubmitting}
             onClick={() => handleCustomerAction(c.customerId, "FORCE_PREPAID")}
           >
             Block COD
+          </Button>
+        ) : (
+          <Button
+            size="slim"
+            variant="secondary"
+            loading={isSubmitting}
+            onClick={() => handleCustomerAction(c.customerId, "ALLOW_COD")}
+          >
+            Allow COD
           </Button>
         )}
       </InlineStack>,

@@ -735,13 +735,15 @@ export default function OperationsRoute() {
         >
           <InlineStack align="space-between" blockAlign="center">
             <Text variant="bodyMd" as="p">
-              <strong>Protection Mode: {protectionMode}</strong> —{" "}
+              <strong>Protection Mode: {protectionMode.replace(/_/g, " ")}</strong> —{" "}
               {protectionMode === "OBSERVE" &&
-                "ProfitRx evaluates order risk and EV recommendations without mutating Shopify."}
+                "ProfitRx evaluates order risk and recommendations without altering Shopify."}
               {protectionMode === "REVIEW" &&
-                "Risky COD orders are queued for your review before external action is taken."}
+                "Risky COD orders are queued for your review before customer confirmation."}
               {protectionMode === "AUTOMATED" &&
-                "Verified actions execute automatically according to your protection rules."}
+                "Verified actions execute automatically according to your COD protection rules."}
+              {(protectionMode === "ACTIVE_INTERVENTION" || !["OBSERVE", "REVIEW", "AUTOMATED"].includes(protectionMode)) &&
+                "High-risk orders require customer confirmation before packing parcels."}
             </Text>
             <Button size="micro" onClick={() => navigate(`/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`)}>
               Configure Mode
@@ -865,7 +867,7 @@ export default function OperationsRoute() {
                 </Box>
                 <Box minWidth="140px">
                   <BlockStack gap="025">
-                    <Text variant="bodyXs" tone="subdued" as="span">Realized vs Estimated EV</Text>
+                    <Text variant="bodyXs" tone="subdued" as="span">Realized vs Estimated Net Profit</Text>
                     <Text
                       variant="bodySm"
                       fontWeight="bold"

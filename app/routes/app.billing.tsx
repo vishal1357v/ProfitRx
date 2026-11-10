@@ -16,6 +16,7 @@ import {
   ProgressBar,
   Divider,
   Grid,
+  InlineGrid,
   Badge,
   Banner,
   Box,
@@ -24,7 +25,7 @@ import {
 import {
   CheckIcon,
   XIcon,
-  FinanceIcon,
+  ShieldCheckMarkIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { BillingApplicationService } from "../application/billing/billing.application";
@@ -183,7 +184,7 @@ export default function BillingPage() {
             <InlineStack align="space-between" blockAlign="center" wrap>
               <BlockStack gap="100">
                 <InlineStack gap="150" blockAlign="center">
-                  <Icon source={FinanceIcon} tone="success" />
+                  <Icon source={ShieldCheckMarkIcon} tone="success" />
                   <Text variant="headingMd" as="h2">Estimated Courier Losses Prevented</Text>
                   {totalRtoSavings > 0 && <Badge tone="success">Estimated Exposure Avoided</Badge>}
                 </InlineStack>
@@ -247,11 +248,11 @@ export default function BillingPage() {
 
                     <InlineStack align="space-between" blockAlign="center" wrap>
                       <Text variant="bodyXs" as="span" tone="subdued">
-                        Billing Provider: <strong>{billingProvider}</strong>
+                        Billing: <strong>Shopify Official App Billing</strong>
                       </Text>
                       {shopifyChargeId && (
                         <Text variant="bodyXs" as="span" tone="subdued">
-                          Shopify Subscription ID: <code style={{ fontSize: 11 }}>{shopifyChargeId.replace("gid://shopify/AppSubscription/", "")}</code>
+                          Subscription ID: <code style={{ fontSize: 11 }}>{shopifyChargeId.replace("gid://shopify/AppSubscription/", "")}</code>
                         </Text>
                       )}
                       <Text variant="bodyXs" as="span" tone="subdued">
@@ -286,7 +287,7 @@ export default function BillingPage() {
                               }
                             }}
                           >
-                            Change Plan (Shopify App Pricing)
+                            Upgrade / Change Plan
                           </Button>
                         </Form>
                         <Button url={`/app/pricing?shop=${shop}&host=${host}&change_plan=true`} variant="secondary" fullWidth>
@@ -323,45 +324,45 @@ export default function BillingPage() {
 
         {/* Features Breakdown */}
         <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-            <Grid.Cell>
+          <InlineGrid columns={planInfo.lacks.length > 0 ? { xs: 1, md: 2 } : { xs: 1 }} gap="400">
+            <Card>
+              <Box padding="400">
+                <BlockStack gap="300">
+                  <Text variant="headingMd" as="h2">Included in Your Tier</Text>
+                  <BlockStack gap="200">
+                    {planInfo.includes.map((feat, idx) => (
+                      <InlineStack gap="200" key={idx} blockAlign="center" wrap={false}>
+                        <div style={{ flexShrink: 0, width: 20 }}>
+                          <Icon source={CheckIcon} tone="success" />
+                        </div>
+                        <Text variant="bodySm" as="span">{feat}</Text>
+                      </InlineStack>
+                    ))}
+                  </BlockStack>
+                </BlockStack>
+              </Box>
+            </Card>
+
+            {planInfo.lacks.length > 0 && (
               <Card>
                 <Box padding="400">
                   <BlockStack gap="300">
-                    <Text variant="headingMd" as="h2">Included in Your Tier</Text>
-                    <BlockStack gap="150">
-                      {planInfo.includes.map((feat, idx) => (
-                        <InlineStack gap="150" key={idx} blockAlign="center">
-                          <Icon source={CheckIcon} tone="success" />
-                          <Text variant="bodySm" as="span">{feat}</Text>
+                    <Text variant="headingMd" as="h2">Locked (Requires Upgrade)</Text>
+                    <BlockStack gap="200">
+                      {planInfo.lacks.map((feat, idx) => (
+                        <InlineStack gap="200" key={idx} blockAlign="center" wrap={false}>
+                          <div style={{ flexShrink: 0, width: 20 }}>
+                            <Icon source={XIcon} tone="critical" />
+                          </div>
+                          <Text variant="bodySm" tone="subdued" as="span">{feat}</Text>
                         </InlineStack>
                       ))}
                     </BlockStack>
                   </BlockStack>
                 </Box>
               </Card>
-            </Grid.Cell>
-
-            <Grid.Cell>
-              {planInfo.lacks.length > 0 && (
-                <Card>
-                  <Box padding="400">
-                    <BlockStack gap="300">
-                      <Text variant="headingMd" as="h2">Locked (Requires Upgrade)</Text>
-                      <BlockStack gap="150">
-                        {planInfo.lacks.map((feat, idx) => (
-                          <InlineStack gap="150" key={idx} blockAlign="center">
-                            <Icon source={XIcon} tone="critical" />
-                            <Text variant="bodySm" tone="subdued" as="span">{feat}</Text>
-                          </InlineStack>
-                        ))}
-                      </BlockStack>
-                    </BlockStack>
-                  </Box>
-                </Card>
               )}
-            </Grid.Cell>
-          </Grid>
+          </InlineGrid>
         </Layout.Section>
       </Layout>
     </Page>

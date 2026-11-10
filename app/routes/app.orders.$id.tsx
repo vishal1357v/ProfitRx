@@ -348,30 +348,41 @@ export default function OrderIntelligenceRoute() {
   const getRecommendationBadge = (rec: string) => {
     switch (rec) {
       case "ALLOW_COD":
-        return <Badge tone="success" size="large">ALLOW COD (Fulfill Normally)</Badge>;
+        return <Badge tone="success" size="large">Allow Cash on Delivery</Badge>;
+      case "VERIFY":
       case "OTP_VERIFY":
-        return <Badge tone="attention" size="large">OTP VERIFY (Confirm Intent)</Badge>;
+      case "REQUIRE_OTP":
+        return <Badge tone="attention" size="large">WhatsApp OTP Required</Badge>;
       case "PREPAID_ONLY":
-        return <Badge tone="warning" size="large">REQUIRE PREPAID PAYMENT</Badge>;
+      case "FORCE_PREPAID":
+      case "REQUIRE_PREPAID":
+        return <Badge tone="warning" size="large">Require Prepaid Payment</Badge>;
       case "BLOCK_COD":
-        return <Badge tone="critical" size="large">BLOCK COD</Badge>;
+        return <Badge tone="critical" size="large">Block Cash on Delivery</Badge>;
       default:
-        return <Badge size="large">{rec}</Badge>;
+        return <Badge size="large">{rec.replace(/_/g, " ")}</Badge>;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "SUCCESS":
-        return <Badge tone="success">Success</Badge>;
+        return <Badge tone="success">Confirmed & Protected</Badge>;
+      case "PENDING_REVIEW":
       case "PENDING_MERCHANT_REVIEW":
-        return <Badge tone="warning">Pending Review</Badge>;
+        return <Badge tone="attention">Needs Review</Badge>;
+      case "OTP_SENT":
+        return <Badge tone="info">WhatsApp OTP Sent</Badge>;
+      case "OTP_VERIFIED":
+        return <Badge tone="success">OTP Verified</Badge>;
       case "ADVISORY_ONLY":
         return <Badge tone="info">Advisory Only</Badge>;
       case "FAILED":
-        return <Badge tone="critical">Failed</Badge>;
+        return <Badge tone="critical">Action Failed</Badge>;
+      case "BLOCKED":
+        return <Badge tone="critical">COD Blocked</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge tone="info">{status.replace(/_/g, " ")}</Badge>;
     }
   };
 
@@ -570,18 +581,25 @@ export default function OrderIntelligenceRoute() {
                 </BlockStack>
               </Card>
 
-              {/* Actions Card */}
+              {/* Fulfillment & Navigation Card */}
               <Card>
-                <BlockStack gap="200">
+                <BlockStack gap="300">
                   <Text variant="headingSm" as="h3">
-                    Merchant Actions
+                    Fulfillment Status
                   </Text>
                   <Divider />
-                  <Button fullWidth onClick={() => setIsOverrideModalOpen(true)}>
-                    Change What to Do with Order
-                  </Button>
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="bodySm" as="span" tone="subdued">Fulfillment</Text>
+                    <Badge tone={order.fulfillmentStatus === "fulfilled" ? "success" : "attention"}>
+                      {order.fulfillmentStatus ? order.fulfillmentStatus.toUpperCase() : "UNFULFILLED"}
+                    </Badge>
+                  </InlineStack>
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="bodySm" as="span" tone="subdued">COD Decision</Text>
+                    {getStatusBadge(order.executionStatus)}
+                  </InlineStack>
                   <Button fullWidth variant="plain" onClick={() => navigate(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`)}>
-                    Back to Orders to Check
+                    ← Back to Orders Queue
                   </Button>
                 </BlockStack>
               </Card>

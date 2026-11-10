@@ -8,7 +8,7 @@ export const headers: HeadersFunction = (headersArgs) => {
 };
 
 import {
-  Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
+  Page, Layout, Card, Text, BlockStack, InlineStack, Grid, InlineGrid,
   Badge, Button, TextField, Select, DataTable, Banner, Divider,
   Box, Icon, Checkbox
 } from "@shopify/polaris";
@@ -356,32 +356,28 @@ export default function CODRulesRoute() {
                   Hides Cash-on-Delivery or requires full payment when the cart amount exceeds your limit.
                 </Text>
                 
-                <Grid columns={{ xs: 1, sm: 2 }}>
-                  <Grid.Cell>
-                    <TextField
-                      label="Turn off COD for orders over"
-                      type="number"
-                      prefix="₹"
-                      value={rejectCodOver === "999999" ? "" : rejectCodOver}
-                      onChange={setRejectCodOver}
-                      autoComplete="off"
-                      placeholder="e.g. 5000"
-                      helpText="Hides COD option at checkout when total is above this amount."
-                    />
-                  </Grid.Cell>
-                  <Grid.Cell>
-                    <TextField
-                      label="Require Full Payment for orders above"
-                      type="number"
-                      prefix="₹"
-                      value={requirePrepaidAbove === "999999" ? "" : requirePrepaidAbove}
-                      onChange={setRequirePrepaidAbove}
-                      autoComplete="off"
-                      placeholder="e.g. 10000"
-                      helpText="Only allows prepaid payment when total meets or exceeds this amount."
-                    />
-                  </Grid.Cell>
-                </Grid>
+                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                  <TextField
+                    label="Turn off COD for orders over"
+                    type="number"
+                    prefix="₹"
+                    value={rejectCodOver === "999999" ? "" : rejectCodOver}
+                    onChange={setRejectCodOver}
+                    autoComplete="off"
+                    placeholder="e.g. 5000"
+                    helpText="Hides COD option at checkout when total is above this amount."
+                  />
+                  <TextField
+                    label="Require Full Payment for orders above"
+                    type="number"
+                    prefix="₹"
+                    value={requirePrepaidAbove === "999999" ? "" : requirePrepaidAbove}
+                    onChange={setRequirePrepaidAbove}
+                    autoComplete="off"
+                    placeholder="e.g. 10000"
+                    helpText="Only allows prepaid payment when total meets or exceeds this amount."
+                  />
+                </InlineGrid>
               </BlockStack>
             </Box>
           </Card>
@@ -533,29 +529,25 @@ export default function CODRulesRoute() {
 
                   {otpVerificationEnabled && (
                     <Box paddingBlockStart="200" paddingInlineStart="400">
-                      <Grid columns={{ xs: 1, sm: 2 }}>
-                        <Grid.Cell>
-                          <Select
-                            label="When to send WhatsApp code"
-                            options={[
-                              { label: "Very Risky Orders Only (>60% Risk)", value: "CRITICAL" },
-                              { label: "Medium & High Risk Orders (>40% Risk)", value: "HIGH" },
-                              { label: "All Flagged Orders (>20% Risk)", value: "MEDIUM" },
-                            ]}
-                            value={otpRiskThreshold}
-                            onChange={setOtpRiskThreshold}
-                            helpText="Orders above this return risk score will require WhatsApp confirmation."
-                          />
-                        </Grid.Cell>
-                        <Grid.Cell>
-                          <Checkbox
-                            label="Skip confirmation for trusted repeat buyers"
-                            checked={otpBypassLowRisk}
-                            onChange={setOtpBypassLowRisk}
-                            helpText="Do not challenge loyal customers who have 2+ past successful deliveries."
-                          />
-                        </Grid.Cell>
-                      </Grid>
+                      <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                        <Select
+                          label="When to send WhatsApp code"
+                          options={[
+                            { label: "Very Risky Orders Only (>60% Risk)", value: "CRITICAL" },
+                            { label: "Medium & High Risk Orders (>40% Risk)", value: "HIGH" },
+                            { label: "All Flagged Orders (>20% Risk)", value: "MEDIUM" },
+                          ]}
+                          value={otpRiskThreshold}
+                          onChange={setOtpRiskThreshold}
+                          helpText="Orders above this return risk score will require WhatsApp confirmation."
+                        />
+                        <Checkbox
+                          label="Skip confirmation for trusted repeat buyers"
+                          checked={otpBypassLowRisk}
+                          onChange={setOtpBypassLowRisk}
+                          helpText="Do not challenge loyal customers who have 2+ past successful deliveries."
+                        />
+                      </InlineGrid>
                     </Box>
                   )}
                 </BlockStack>
@@ -581,76 +573,72 @@ export default function CODRulesRoute() {
                   Automatically tags risky orders in Shopify as 'ProfitRx-Deposit-Required' so your fulfillment team can request an advance deposit before shipping.
                 </Text>
 
-                <Grid columns={{ xs: 1, sm: 2 }}>
-                  <Grid.Cell>
-                    <Card background="bg-surface-secondary">
-                      <Box padding="400">
-                        <BlockStack gap="300">
-                          <Checkbox
-                            label="Tag high-risk orders for advance deposit follow-up"
-                            checked={partialPaymentEnabled}
-                            onChange={setPartialPaymentEnabled}
-                            helpText="Applies the 'ProfitRx-Deposit-Required' tag in Shopify Admin so your team knows to collect an advance token before dispatch."
+                <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+                  <Card background="bg-surface-secondary">
+                    <Box padding="400">
+                      <BlockStack gap="300">
+                        <Checkbox
+                          label="Tag high-risk orders for advance deposit follow-up"
+                          checked={partialPaymentEnabled}
+                          onChange={setPartialPaymentEnabled}
+                          helpText="Applies the 'ProfitRx-Deposit-Required' tag in Shopify Admin so your team knows to collect an advance token before dispatch."
+                        />
+                        {partialPaymentEnabled && (
+                          <TextField
+                            label="Suggested Deposit Amount (₹)"
+                            type="number"
+                            prefix="₹"
+                            value={partialPaymentAmount}
+                            onChange={setPartialPaymentAmount}
+                            autoComplete="off"
+                            placeholder="50"
+                            helpText="Reference deposit amount noted for your customer support or dispatch team."
                           />
-                          {partialPaymentEnabled && (
-                            <TextField
-                              label="Suggested Deposit Amount (₹)"
-                              type="number"
-                              prefix="₹"
-                              value={partialPaymentAmount}
-                              onChange={setPartialPaymentAmount}
-                              autoComplete="off"
-                              placeholder="50"
-                              helpText="Reference deposit amount noted for your customer support or dispatch team."
-                            />
-                          )}
-                        </BlockStack>
-                      </Box>
-                    </Card>
-                  </Grid.Cell>
+                        )}
+                      </BlockStack>
+                    </Box>
+                  </Card>
 
-                  <Grid.Cell>
-                    <Card background="bg-surface-secondary">
-                      <Box padding="400">
-                        <BlockStack gap="300">
-                          <Checkbox
-                            label="Enable Extra COD Handling Fee"
-                            checked={codFeeEnabled}
-                            onChange={setCodFeeEnabled}
-                            helpText="Pass courier cash-collection fees to customers selecting Cash on Delivery."
-                          />
-                          {codFeeEnabled && (
-                            <InlineStack gap="300">
-                              <div style={{ flex: 1 }}>
-                                <TextField
-                                  label="COD Fee Amount"
-                                  type="number"
-                                  prefix={codFeeType === "fixed" ? "₹" : undefined}
-                                  suffix={codFeeType === "percentage" ? "%" : undefined}
-                                  value={codFeeAmount}
-                                  onChange={setCodFeeAmount}
-                                  autoComplete="off"
-                                  placeholder="30"
-                                />
-                              </div>
-                              <div style={{ width: 140 }}>
-                                <Select
-                                  label="Fee Type"
-                                  options={[
-                                    { label: "Fixed (₹)", value: "fixed" },
-                                    { label: "Percentage (%)", value: "percentage" },
-                                  ]}
-                                  value={codFeeType}
-                                  onChange={setCodFeeType}
-                                />
-                              </div>
-                            </InlineStack>
-                          )}
-                        </BlockStack>
-                      </Box>
-                    </Card>
-                  </Grid.Cell>
-                </Grid>
+                  <Card background="bg-surface-secondary">
+                    <Box padding="400">
+                      <BlockStack gap="300">
+                        <Checkbox
+                          label="Enable Extra COD Handling Fee"
+                          checked={codFeeEnabled}
+                          onChange={setCodFeeEnabled}
+                          helpText="Pass courier cash-collection fees to customers selecting Cash on Delivery."
+                        />
+                        {codFeeEnabled && (
+                          <InlineStack gap="300">
+                            <div style={{ flex: 1 }}>
+                              <TextField
+                                label="COD Fee Amount"
+                                type="number"
+                                prefix={codFeeType === "fixed" ? "₹" : undefined}
+                                suffix={codFeeType === "percentage" ? "%" : undefined}
+                                value={codFeeAmount}
+                                onChange={setCodFeeAmount}
+                                autoComplete="off"
+                                placeholder="30"
+                              />
+                            </div>
+                            <div style={{ width: 140 }}>
+                              <Select
+                                label="Fee Type"
+                                options={[
+                                  { label: "Fixed (₹)", value: "fixed" },
+                                  { label: "Percentage (%)", value: "percentage" },
+                                ]}
+                                value={codFeeType}
+                                onChange={setCodFeeType}
+                              />
+                            </div>
+                          </InlineStack>
+                        )}
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                </InlineGrid>
               </BlockStack>
             </Box>
           </Card>

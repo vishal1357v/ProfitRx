@@ -985,12 +985,15 @@ body.dark-theme .theme-text-primary { color: var(--gg-text-primary) !important; 
    22. MOBILE RESPONSIVENESS OVERRIDES
    ============================================================ */
 
-/* Hide NavMenu <a> children before App Bridge picks them up.
+/* Hide NavMenu <a> children and ui-nav-menu custom elements before App Bridge picks them up.
    App Bridge moves them into the Shopify Admin sidebar — any
    that remain in the DOM are invisible placeholders. */
+ui-nav-menu,
+ui-nav-menu a,
 [data-shopify-nav-menu] > a,
 .Polaris-Navigation__Item,
-nav[aria-label="App navigation"] > a {
+nav[aria-label="App navigation"] > a,
+nav[aria-label="App navigation"] {
   display: none !important;
 }
 
@@ -1356,11 +1359,9 @@ nav[aria-label="App navigation"] > a {
     min-height: 40px;
   }
 
-  /* Full-bleed cards on tiny screens */
+  /* Mobile cards retain clean rounded corners */
   .Polaris-Card {
-    border-radius: 0 !important;
-    margin-left: -12px;
-    margin-right: -12px;
+    border-radius: 8px !important;
   }
 }
 

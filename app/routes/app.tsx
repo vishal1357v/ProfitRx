@@ -49,10 +49,12 @@ function RemixLink({ url, children, external, ...props }: any) {
 
     const shopParam = currentParams.get("shop");
     const hostParam = currentParams.get("host");
+    const embeddedParam = currentParams.get("embedded");
     const previewParam = currentParams.get("preview") || currentParams.get("demo");
 
     if (shopParam && !targetParams.has("shop")) targetParams.set("shop", shopParam);
     if (hostParam && !targetParams.has("host")) targetParams.set("host", hostParam);
+    if (embeddedParam && !targetParams.has("embedded")) targetParams.set("embedded", embeddedParam);
     if (previewParam && !targetParams.has("preview")) targetParams.set("preview", "true");
 
     const searchStr = targetParams.toString();
@@ -117,11 +119,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (authErr instanceof Response) {
       const status = authErr.status;
       const isRedirect = status >= 300 && status < 400;
+      const location = authErr.headers?.get("Location") || "";
+      const isExternalOAuth = location.includes("admin.shopify.com") || location.includes("accounts.shopify.com");
       const isReauthHeader = authErr.headers?.has("X-Shopify-API-Request-Failure-Reauthorize") || authErr.headers?.has("X-Shopify-App-Redirect");
 
-      // Pass-through intentional 3xx redirects or App Bridge exit-iframe re-auth responses
-      if (isRedirect || isReauthHeader) {
+      // Pass-through intentional internal redirects (e.g. /auth/session-token) or App Bridge exit-iframe headers
+      if ((isRedirect && !isExternalOAuth) || isReauthHeader) {
         throw authErr;
+      }
+
+      // If redirecting to admin.shopify.com or accounts.shopify.com, NEVER pass raw 302 to iframe
+      if (isExternalOAuth) {
+        console.warn(`[app.tsx] Intercepted external 302 to ${location}. Escaping iframe.`);
+        throw escapeIframeAndRedirect(location, shopFallback);
       }
 
       // If status is 500 / 4xx ("Unexpected Server Error" / missing session),

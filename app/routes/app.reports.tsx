@@ -67,9 +67,9 @@ export default function ReportsHub() {
                           <Text variant="headingSm" as="h3">{report.label}</Text>
                         </InlineStack>
                         <Text variant="bodySm" as="p" tone="subdued">{report.description}</Text>
-                        <InlineStack gap="100">
-                          <Badge tone="info">CSV</Badge>
-                          <Badge tone="info">Excel</Badge>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text variant="bodyXs" tone="subdued" as="span">Formats: CSV, Excel</Text>
+                          <Text variant="bodySm" as="span" fontWeight="bold">Download &rarr;</Text>
                         </InlineStack>
                       </BlockStack>
                     </Box>

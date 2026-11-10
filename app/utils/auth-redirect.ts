@@ -28,18 +28,30 @@ export function escapeIframeAndRedirect(destinationUrl: string, shop?: string): 
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Authorizing ProfitRx...</title>
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   <script>
     (function() {
       var dest = ${JSON.stringify(destinationUrl)};
+      // 1. Try Shopify App Bridge v4 open() via postMessage to Shopify Admin parent window
+      try {
+        if (window.shopify && typeof window.shopify.open === "function") {
+          window.shopify.open(dest, "_top");
+          return;
+        }
+      } catch (e) {}
+
+      // 2. Try window.top location navigation
       try {
         if (window.top && window.top !== window.self) {
           window.top.location.href = dest;
           return;
         }
-      } catch (e) {
-        // Fall back to window.location if frame access is blocked
-      }
-      window.location.href = dest;
+      } catch (e) {}
+
+      // 3. IMPORTANT: NEVER fallback to window.location.href = dest!
+      // Navigating the iframe directly to accounts.shopify.com or admin.shopify.com
+      // causes "accounts.shopify.com refused to connect" because of X-Frame-Options: DENY.
+      // Instead, the merchant clicks the prominent breakout button below.
     })();
   </script>
 </head>
@@ -61,3 +73,4 @@ export function escapeIframeAndRedirect(destinationUrl: string, shop?: string): 
     },
   });
 }
+

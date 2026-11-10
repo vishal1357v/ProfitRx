@@ -360,7 +360,7 @@ export default function ROASRoute() {
                             </InlineStack>
                           ) : (
                             <Button variant="primary" onClick={() => handleOpenConnectModal(p)}>
-                              Connect {p.platform.toUpperCase()}
+                              Connect {p.name}
                             </Button>
                           )}
                         </BlockStack>

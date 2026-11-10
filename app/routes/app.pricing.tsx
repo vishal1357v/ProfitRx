@@ -33,7 +33,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       shop,
       host,
-      currentPlan: "Growth",
+      currentPlan: "Pro",
       pricingPlansUrl: "#",
       planHandleParam: null,
     };
@@ -192,23 +192,18 @@ export default function Pricing() {
         </Layout.Section>
 
         <Layout.Section>
-          <div style={{ marginBottom: "20px", textAlign: "center" }}>
-            <Text variant="headingLg" as="h1">
-              Select Your Subscription Plan
-            </Text>
-            <div style={{ marginTop: "8px" }}>
-              <InlineStack gap="300" align="center" blockAlign="center">
-                <Text variant="bodyMd" as="span" tone="subdued" fontWeight="medium">
-                  💡 Try any plan risk-free for 14 days. Instant setup, cancel anytime.
-                </Text>
-                <Form method="POST" style={{ display: "inline-flex" }}>
-                  <input type="hidden" name="intent" value="sync_subscription" />
-                  <Button variant="plain" submit loading={isSyncing}>
-                    🔄 Refresh Subscription Status
-                  </Button>
-                </Form>
-              </InlineStack>
-            </div>
+          <div style={{ marginBottom: "16px", textAlign: "center" }}>
+            <InlineStack gap="300" align="center" blockAlign="center">
+              <Text variant="bodyMd" as="span" tone="subdued" fontWeight="medium">
+                💡 Try any plan risk-free for 14 days. Instant setup, cancel anytime.
+              </Text>
+              <Form method="POST" style={{ display: "inline-flex" }}>
+                <input type="hidden" name="intent" value="sync_subscription" />
+                <Button variant="plain" submit loading={isSyncing}>
+                  🔄 Refresh Status
+                </Button>
+              </Form>
+            </InlineStack>
           </div>
         </Layout.Section>
 

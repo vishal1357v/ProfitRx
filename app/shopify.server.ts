@@ -127,7 +127,91 @@ const shopify = shopifyApp({
 export default shopify;
 export const apiVersion = ApiVersion.April26;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
-export const authenticate = shopify.authenticate;
+
+/**
+ * Normalizes requests arriving from Shopify Admin inside an iframe.
+ *
+ * In Shopify App Bridge v4, the embedded app runs within an iframe.
+ * If embedded=1 is missing from the query string (e.g. initial navigation from
+ * Shopify Admin menu links or direct sub-route visits), Shopify's SDK will attempt
+ * a 302 redirect to admin.shopify.com.
+ * Inside an iframe, that redirect cascades to accounts.shopify.com, which sets
+ * X-Frame-Options: DENY and crashes the UI with "accounts.shopify.com refused to connect".
+ *
+ * This function ensures embedded=1 and host are always set whenever the request
+ * is detected to come from Shopify Admin.
+ */
+export function normalizeShopifyRequest(request: Request): Request {
+  const url = new URL(request.url);
+  let modified = false;
+
+  const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+  let host = url.searchParams.get("host") || "";
+
+  // If host is missing but shop is known, synthesize the base64 host
+  if (!host && shop) {
+    const storeHandle = shop.replace(".myshopify.com", "");
+    host = Buffer.from(`admin.shopify.com/store/${storeHandle}`).toString("base64");
+    url.searchParams.set("host", host);
+    modified = true;
+  }
+
+  // Detect embedded context:
+  // 1. Host param or shop param is present
+  // 2. Sec-Fetch-Dest header is "iframe"
+  // 3. Referer is admin.shopify.com or myshopify.com
+  const isEmbedded =
+    Boolean(host) ||
+    Boolean(shop) ||
+    request.headers.get("sec-fetch-dest") === "iframe" ||
+    (request.headers.get("referer") || "").includes("admin.shopify.com");
+
+  if (isEmbedded && url.searchParams.get("embedded") !== "1") {
+    url.searchParams.set("embedded", "1");
+    modified = true;
+  }
+
+  if (shop && !url.searchParams.has("shop")) {
+    url.searchParams.set("shop", shop);
+    modified = true;
+  }
+
+  return modified ? new Request(url.toString(), request) : request;
+}
+
+const rawAuthenticateAdmin = shopify.authenticate.admin;
+
+const wrappedAuthenticateAdmin = (async (request: Request) => {
+  const normalizedRequest = normalizeShopifyRequest(request);
+  try {
+    return await rawAuthenticateAdmin(normalizedRequest);
+  } catch (err: any) {
+    if (err instanceof Response) {
+      const status = err.status;
+      const location = err.headers.get("Location") || "";
+
+      // Intercept 302 redirects to admin.shopify.com or accounts.shopify.com inside embedded iframes.
+      // A raw 302 inside an iframe will hit X-Frame-Options: DENY on accounts.shopify.com and crash.
+      if (
+        status >= 300 &&
+        status < 400 &&
+        (location.includes("admin.shopify.com") || location.includes("accounts.shopify.com"))
+      ) {
+        const url = new URL(request.url);
+        const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
+        console.warn(`[shopify.server.ts] Intercepted 3xx redirect to ${location} inside embedded iframe. Escaping iframe.`);
+        const { escapeIframeAndRedirect } = await import("./utils/auth-redirect");
+        throw escapeIframeAndRedirect(location, shop);
+      }
+    }
+    throw err;
+  }
+}) as typeof shopify.authenticate.admin;
+
+export const authenticate = {
+  ...shopify.authenticate,
+  admin: wrappedAuthenticateAdmin,
+};
 export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
