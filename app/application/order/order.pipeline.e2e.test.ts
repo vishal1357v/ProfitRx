@@ -45,6 +45,41 @@ vi.mock("../../db.server", () => {
         findMany: vi.fn(),
         create: vi.fn(),
       },
+      subscription: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "sub-1",
+          shop: "merchant-demo.myshopify.com",
+          plan: "PRO",
+          status: "ACTIVE",
+          orderLimit: null,
+          ordersUsed: 10,
+          updatedAt: new Date(),
+        }),
+        upsert: vi.fn().mockResolvedValue({
+          id: "sub-1",
+          shop: "merchant-demo.myshopify.com",
+          plan: "PRO",
+          status: "ACTIVE",
+          orderLimit: null,
+          ordersUsed: 10,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: "sub-1",
+          shop: "merchant-demo.myshopify.com",
+          plan: "PRO",
+          status: "ACTIVE",
+          orderLimit: null,
+          ordersUsed: 11,
+        }),
+        create: vi.fn().mockResolvedValue({
+          id: "sub-1",
+          shop: "merchant-demo.myshopify.com",
+          plan: "PRO",
+          status: "ACTIVE",
+          orderLimit: null,
+          ordersUsed: 10,
+        }),
+      },
     },
   };
 });

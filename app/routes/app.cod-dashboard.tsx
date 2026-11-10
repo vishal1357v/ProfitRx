@@ -41,14 +41,15 @@ export default function CODProfitDashboardRoute() {
 
   return (
     <Page
-      title="💸 COD Profit Dashboard"
+      title="Cash on Delivery Profit Overview"
+      subtitle="See how much money you keep from Cash on Delivery vs online UPI orders after courier freight."
       secondaryActions={[
         {
-          content: "📋 Operations Center",
+          content: "Orders to Check",
           url: "/app/operations",
         },
         {
-          content: "🛡️ COD Rules",
+          content: "COD Protection Rules",
           url: `/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         },
       ]}
@@ -58,20 +59,17 @@ export default function CODProfitDashboardRoute() {
         <Layout.Section>
           <div
             style={{
-              padding: "24px",
-              borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(0,0,0,0))",
-              border: "1px solid rgba(239,68,68,0.3)",
+              padding: "20px",
+              borderRadius: "8px",
+              background: "rgba(239,68,68,0.04)",
+              border: "1px solid rgba(239,68,68,0.25)",
             }}
           >
             <InlineStack align="space-between" blockAlign="center">
               <BlockStack gap="100">
-                <InlineStack gap="200" blockAlign="center">
-                  <span style={{ fontSize: 26 }}>🚨</span>
-                  <Text variant="headingLg" as="h1">
-                    {data.headline}
-                  </Text>
-                </InlineStack>
+                <Text variant="headingLg" as="h1">
+                  {data.headline}
+                </Text>
                 <Text variant="bodyMd" as="p" tone="subdued">
                   True net profit for COD orders calculated after deducting COD handling fees, return freight, product loss, and packaging costs.
                 </Text>
@@ -95,14 +93,11 @@ export default function CODProfitDashboardRoute() {
               <Card>
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 22 }}>🚚</span>
-                      <Text variant="headingMd" as="h2">
-                        Cash on Delivery (COD)
-                      </Text>
-                    </InlineStack>
+                    <Text variant="headingMd" as="h2">
+                      Cash on Delivery (COD)
+                    </Text>
                     <Badge tone={data.cod.rtoRate >= 20 ? "critical" : "warning"}>
-                      {`${data.cod.rtoRate}% RTO Rate`}
+                      {`${data.cod.rtoRate}% Return Rate`}
                     </Badge>
                   </InlineStack>
 
@@ -111,7 +106,7 @@ export default function CODProfitDashboardRoute() {
                   <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2 }}>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">COD Orders</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">COD Orders</Text>
                         <Text variant="headingSm" as="p">
                           {data.cod.orders}
                         </Text>
@@ -119,7 +114,7 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">COD Revenue</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">COD Sales</Text>
                         <Text variant="headingSm" as="p">
                           ₹{data.cod.revenue.toLocaleString("en-IN")}
                         </Text>
@@ -127,13 +122,12 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">Net Profit</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Estimated Net Profit</Text>
                         <span
                           style={{
-                            fontFamily: "'Outfit', sans-serif",
-                            fontWeight: 800,
+                            fontWeight: 700,
                             fontSize: 18,
-                            color: data.cod.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)",
+                            color: data.cod.profit >= 0 ? "var(--p-color-text-success)" : "var(--p-color-text-critical)",
                           }}
                         >
                           ₹{data.cod.profit.toLocaleString("en-IN")}
@@ -142,13 +136,12 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">RTO Loss (₹)</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Courier Money Lost (₹)</Text>
                         <span
                           style={{
-                            fontFamily: "'Outfit', sans-serif",
-                            fontWeight: 800,
+                            fontWeight: 700,
                             fontSize: 18,
-                            color: "var(--gg-accent-red)",
+                            color: "var(--p-color-text-critical)",
                           }}
                         >
                           ₹{data.cod.rtoLoss.toLocaleString("en-IN")}
@@ -160,13 +153,13 @@ export default function CODProfitDashboardRoute() {
                   <div
                     style={{
                       padding: "12px",
-                      borderRadius: "var(--gg-radius-md)",
+                      borderRadius: "8px",
                       background: "rgba(239,68,68,0.05)",
                       border: "1px solid rgba(239,68,68,0.15)",
                     }}
                   >
                     <Text variant="bodySm" as="p">
-                      <strong>COD Net Margin:</strong> {data.cod.margin}% (Target &gt;20%). Returned COD orders incur direct loss from two-way shipping freight and packaging.
+                      <strong>COD Net Margin:</strong> {data.cod.margin}%. Returned parcels cause pure loss from two-way courier shipping and packing materials.
                     </Text>
                   </div>
                 </BlockStack>
@@ -178,12 +171,9 @@ export default function CODProfitDashboardRoute() {
               <Card>
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 22 }}>💳</span>
-                      <Text variant="headingMd" as="h2">
-                        Prepaid Orders
-                      </Text>
-                    </InlineStack>
+                    <Text variant="headingMd" as="h2">
+                      Online Payment (Prepaid / UPI)
+                    </Text>
                     <Badge tone="success">99.2% Delivered</Badge>
                   </InlineStack>
 
@@ -192,7 +182,7 @@ export default function CODProfitDashboardRoute() {
                   <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2 }}>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">Prepaid Orders</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Prepaid Orders</Text>
                         <Text variant="headingSm" as="p">
                           {data.prepaid.orders}
                         </Text>
@@ -200,7 +190,7 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">Prepaid Revenue</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Prepaid Sales</Text>
                         <Text variant="headingSm" as="p">
                           ₹{data.prepaid.revenue.toLocaleString("en-IN")}
                         </Text>
@@ -208,13 +198,12 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">Net Profit</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Estimated Net Profit</Text>
                         <span
                           style={{
-                            fontFamily: "'Outfit', sans-serif",
-                            fontWeight: 800,
+                            fontWeight: 700,
                             fontSize: 18,
-                            color: "var(--gg-accent-green)",
+                            color: "var(--p-color-text-success)",
                           }}
                         >
                           ₹{data.prepaid.profit.toLocaleString("en-IN")}
@@ -223,13 +212,12 @@ export default function CODProfitDashboardRoute() {
                     </Grid.Cell>
                     <Grid.Cell>
                       <BlockStack gap="050">
-                        <span className="gg-section-label">Prepaid Margin</span>
+                        <Text variant="bodyXs" as="span" tone="subdued">Prepaid Margin</Text>
                         <span
                           style={{
-                            fontFamily: "'Outfit', sans-serif",
-                            fontWeight: 800,
+                            fontWeight: 700,
                             fontSize: 18,
-                            color: "var(--gg-accent-green)",
+                            color: "var(--p-color-text-success)",
                           }}
                         >
                           {data.prepaid.margin}%
@@ -241,17 +229,17 @@ export default function CODProfitDashboardRoute() {
                   <div
                     style={{
                       padding: "12px",
-                      borderRadius: "var(--gg-radius-md)",
+                      borderRadius: "8px",
                       background: "rgba(16,185,129,0.05)",
                       border: "1px solid rgba(16,185,129,0.15)",
                     }}
                   >
                     <Text variant="bodySm" as="p">
-                      <strong>Prepaid Impact:</strong> Prepaid orders generate{" "}
+                      <strong>Prepaid Impact:</strong> Prepaid orders deliver{" "}
                       {data.prepaid.margin > data.cod.margin
-                        ? `${data.prepaid.margin - data.cod.margin}% higher margin`
+                        ? `${data.prepaid.margin - data.cod.margin}% higher profit margin`
                         : "higher profitability"}{" "}
-                      than COD because RTO rate is near 0%.
+                      than COD because courier returns are near 0%.
                     </Text>
                   </div>
                 </BlockStack>
@@ -266,10 +254,10 @@ export default function CODProfitDashboardRoute() {
             <BlockStack gap="400">
               <BlockStack gap="100">
                 <Text variant="headingMd" as="h2">
-                  ⚡ High-Impact COD & RTO Actionable Insights
+                  How to Cut Courier Losses Immediately
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Prioritized recommendations to immediately cut RTO losses and increase store profitability.
+                  Prioritized recommendations to immediately cut return losses and keep more profit.
                 </Text>
               </BlockStack>
 
@@ -346,14 +334,14 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="COD Performance Analytics">
+    <Page title="Cash on Delivery Profit Overview">
       <Card>
         <Box padding="500">
           <BlockStack gap="400">
-            <Banner tone="critical" title="Failed to Load COD Analytics">
+            <Banner tone="critical" title="Failed to Load COD Overview">
               <p>{errorMessage}</p>
             </Banner>
-            <Button onClick={() => window.location.reload()}>Retry Analytics</Button>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
           </BlockStack>
         </Box>
       </Card>

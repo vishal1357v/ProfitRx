@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useNavigation, redirect } from "react-router";
+import { useLoaderData, useSubmit, useNavigation, redirect, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import {
   Page, Layout, Card, Text, BlockStack, InlineStack, Grid,
@@ -116,14 +116,14 @@ export default function RTOHeatmapRoute() {
 
   if (!hasAccess) {
     return (
-      <Page title="🗺️ Pincode RTO Heatmap">
+      <Page title="High Return Pincodes">
         <Layout>
           <Layout.Section>
-            <Banner tone="info" title="🔒 Growth Plan Feature Required">
-              <p>Pincode RTO Heatmap & Pre-shipment Risk Scoring require a Growth or Pro plan upgrade.</p>
+            <Banner tone="info" title="Growth Plan Feature Required">
+              <p>High Return Pincode protection & pre-dispatch risk checking require a Growth or Pro plan.</p>
               <div style={{ marginTop: "12px" }}>
                 <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&change_plan=true`} variant="primary">
-                  Upgrade to Growth Tier →
+                  Upgrade Plan →
                 </Button>
               </div>
             </Banner>
@@ -139,7 +139,7 @@ export default function RTOHeatmapRoute() {
       .map((p: any) => p.pincode);
 
     if (highRiskPincodes.length === 0) {
-      setBlockedNotice("No HIGH or CRITICAL risk pincodes found to block.");
+      setBlockedNotice("No high-risk pincodes found to block.");
       return;
     }
 
@@ -147,7 +147,7 @@ export default function RTOHeatmapRoute() {
     fd.append("intent", "bulk_block_high_risk");
     fd.append("pincodes", JSON.stringify(highRiskPincodes));
     submit(fd, { method: "POST" });
-    setBlockedNotice(`✅ Blocking COD for ${highRiskPincodes.length} high-risk pincodes: ${highRiskPincodes.slice(0, 5).join(", ")}${highRiskPincodes.length > 5 ? ` +${highRiskPincodes.length - 5} more` : ""}. Rules saved & synced to checkout.`);
+    setBlockedNotice(`Blocking COD for ${highRiskPincodes.length} risky pincodes: ${highRiskPincodes.slice(0, 5).join(", ")}${highRiskPincodes.length > 5 ? ` +${highRiskPincodes.length - 5} more` : ""}. Rules saved.`);
   };
 
   const maxRto = Math.max(...pincodeStats.map((p: any) => p.rtoRate), 1);
@@ -155,27 +155,27 @@ export default function RTOHeatmapRoute() {
   const riskRows = pendingCODWithRisk.map((o: any) => {
     const risk = RISK_COLORS[o.riskLevel as keyof typeof RISK_COLORS] || RISK_COLORS.LOW;
     return [
-      <span key={`order-${o.id}`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700 }}>#{o.orderNumber}</span>,
+      <span key={`order-${o.id}`} style={{ fontWeight: 700 }}>#{o.orderNumber}</span>,
       <span key={`val-${o.id}`}>₹{o.value.toLocaleString("en-IN")}</span>,
       <span key={`pin-${o.id}`}>{o.pincode} {o.city !== "N/A" ? `— ${o.city}` : ""}</span>,
       <Badge key={`badge-${o.id}`} tone={o.riskLevel === "CRITICAL" ? "critical" : o.riskLevel === "HIGH" ? "warning" : o.riskLevel === "MEDIUM" ? "attention" : "success"}>
-        {risk.label}
+        {o.riskLevel === "CRITICAL" ? "Very High Risk" : o.riskLevel === "HIGH" ? "High Return Risk" : o.riskLevel === "MEDIUM" ? "Medium Risk" : "Safe"}
       </Badge>,
-      <span key={`reason-${o.id}`} style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>{o.topReason}</span>,
+      <span key={`reason-${o.id}`} style={{ fontSize: 12, color: "var(--p-color-text-subdued)" }}>{o.topReason}</span>,
     ];
   });
 
   return (
     <Page
-      title="Pincode Risk Heatmap"
-      subtitle="Geographic RTO risk concentration and one-click COD blocking by pincode tier."
+      title="High Return Pincodes"
+      subtitle="Delivery areas with high return rates. Block Cash on Delivery or ask for UPI advance here."
       secondaryActions={[
         {
-          content: "COD Rules & Policy",
+          content: "COD Rules",
           url: `/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         },
         {
-          content: "Manage RTO Events",
+          content: "Courier Return Reports",
           url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
         }
       ]}
@@ -187,9 +187,9 @@ export default function RTOHeatmapRoute() {
           <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">⚡ Prepaid vs COD — Profit Split</Text>
+                <Text variant="headingMd" as="h2">Online Payment vs Cash on Delivery — Real Profit Comparison</Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Side-by-side truth about which payment mode is actually profitable
+                  Side-by-side comparison showing how much profit you actually keep from prepaid vs COD orders.
                 </Text>
               </BlockStack>
 
@@ -197,53 +197,48 @@ export default function RTOHeatmapRoute() {
                 {/* COD Card */}
                 <Grid.Cell>
                   <div style={{
-                    padding: 20, borderRadius: "var(--gg-radius-lg)",
+                    padding: 20, borderRadius: "var(--p-border-radius-300, 8px)",
                     border: "1px solid rgba(239,68,68,0.25)",
-                    background: "rgba(239,68,68,0.05)",
+                    background: "rgba(239,68,68,0.03)",
                   }}>
                     <BlockStack gap="300">
                       <InlineStack align="space-between">
-                        <div>
-                          <span style={{ fontSize: 20 }}>💵</span>
-                          <Text variant="headingSm" as="h3"> Cash on Delivery (COD)</Text>
-                        </div>
+                        <Text variant="headingSm" as="h3">Cash on Delivery (COD)</Text>
                         <Badge tone={codStats.rtoRate > 15 ? "critical" : "warning"}>
-                          {`${codStats.rtoRate}% RTO Risk`}
+                          {`${codStats.rtoRate}% Return Rate`}
                         </Badge>
                       </InlineStack>
                       <Divider />
                       <Grid columns={{ xs: 2, sm: 3, md: 3, lg: 3 }}>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Orders</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 22, color: "var(--gg-text-primary)" }}>{codStats.orders}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Total Orders</Text>
+                          <span style={{ fontWeight: 700, fontSize: 20 }}>{codStats.orders}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Revenue</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--gg-text-primary)" }}>₹{codStats.revenue.toLocaleString("en-IN")}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Sales (₹)</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>₹{codStats.revenue.toLocaleString("en-IN")}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Net Profit</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: codStats.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
+                          <Text variant="bodyXs" as="span" tone="subdued">Estimated Net Profit</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17, color: codStats.profit >= 0 ? "var(--p-color-text-success)" : "var(--p-color-text-critical)" }}>
                             ₹{codStats.profit.toLocaleString("en-IN")}
                           </span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Margin</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: codStats.margin > 15 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
-                            {codStats.margin}%
-                          </span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Profit Margin</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>{codStats.margin}%</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Avg Order</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18 }}>₹{codStats.aov.toLocaleString("en-IN")}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Avg Order Value</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>₹{codStats.aov.toLocaleString("en-IN")}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">RTO Rate</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--gg-accent-red)" }}>{codStats.rtoRate}%</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Return Rate</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17, color: "var(--p-color-text-critical)" }}>{codStats.rtoRate}%</span>
                         </BlockStack>
                       </Grid>
                       <Banner tone="critical">
-                        COD orders have {Math.round(codStats.rtoRate * 30 / 10 * 10) / 10}x higher failure risk. You may be losing ₹{Math.round(codStats.revenue * codStats.rtoRate / 100).toLocaleString("en-IN")} to RTO.
+                        COD return rate is {codStats.rtoRate}%. Returned orders incur forward and reverse courier freight plus repackaging expenses.
                       </Banner>
                     </BlockStack>
                   </div>
@@ -252,51 +247,46 @@ export default function RTOHeatmapRoute() {
                 {/* Prepaid Card */}
                 <Grid.Cell>
                   <div style={{
-                    padding: 20, borderRadius: "var(--gg-radius-lg)",
+                    padding: 20, borderRadius: "var(--p-border-radius-300, 8px)",
                     border: "1px solid rgba(16,185,129,0.25)",
-                    background: "rgba(16,185,129,0.05)",
+                    background: "rgba(16,185,129,0.03)",
                   }}>
                     <BlockStack gap="300">
                       <InlineStack align="space-between">
-                        <div>
-                          <span style={{ fontSize: 20 }}>💳</span>
-                          <Text variant="headingSm" as="h3"> Prepaid / Online</Text>
-                        </div>
-                        <Badge tone="success">0% RTO Risk</Badge>
+                        <Text variant="headingSm" as="h3">Online Payment (Prepaid / UPI)</Text>
+                        <Badge tone="success">Near 0% Returns</Badge>
                       </InlineStack>
                       <Divider />
                       <Grid columns={{ xs: 2, sm: 3, md: 3, lg: 3 }}>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Orders</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 22, color: "var(--gg-text-primary)" }}>{prepaidStats.orders}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Total Orders</Text>
+                          <span style={{ fontWeight: 700, fontSize: 20 }}>{prepaidStats.orders}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Revenue</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--gg-text-primary)" }}>₹{prepaidStats.revenue.toLocaleString("en-IN")}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Sales (₹)</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>₹{prepaidStats.revenue.toLocaleString("en-IN")}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Net Profit</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: prepaidStats.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
+                          <Text variant="bodyXs" as="span" tone="subdued">Estimated Net Profit</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17, color: "var(--p-color-text-success)" }}>
                             ₹{prepaidStats.profit.toLocaleString("en-IN")}
                           </span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Margin</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: prepaidStats.margin > 15 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
-                            {prepaidStats.margin}%
-                          </span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Profit Margin</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>{prepaidStats.margin}%</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">Avg Order</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18 }}>₹{prepaidStats.aov.toLocaleString("en-IN")}</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Avg Order Value</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17 }}>₹{prepaidStats.aov.toLocaleString("en-IN")}</span>
                         </BlockStack>
                         <BlockStack gap="050">
-                          <span className="gg-section-label">RTO Rate</span>
-                          <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 18, color: "var(--gg-accent-green)" }}>0%</span>
+                          <Text variant="bodyXs" as="span" tone="subdued">Return Rate</Text>
+                          <span style={{ fontWeight: 700, fontSize: 17, color: "var(--p-color-text-success)" }}>0%</span>
                         </BlockStack>
                       </Grid>
                       <Banner tone="success">
-                        Prepaid orders deliver {Math.max(0, prepaidStats.margin - codStats.margin).toFixed(1)}% higher margin. Incentivize prepaid with 5% discount.
+                        Prepaid orders deliver {Math.max(0, prepaidStats.margin - codStats.margin).toFixed(1)}% higher realized margin due to lower delivery failure and zero COD collection fees.
                       </Banner>
                     </BlockStack>
                   </div>
@@ -313,7 +303,7 @@ export default function RTOHeatmapRoute() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="100">
                   <InlineStack gap="200" blockAlign="center">
-                    <Text variant="headingMd" as="h2">📍 Pincode RTO Heatmap</Text>
+                    <Text variant="headingMd" as="h2">Pincodes with High Return Rates</Text>
                     <Button 
                       variant="primary" 
                       tone="critical" 
@@ -321,21 +311,13 @@ export default function RTOHeatmapRoute() {
                       onClick={handleBlockHighRiskPincodes}
                       loading={isBlocking}
                     >
-                      🚫 Block High-Risk Pincodes (One-Click)
+                      Block COD for Risky Pincodes
                     </Button>
                   </InlineStack>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Top {pincodeStats.length} pincodes by RTO rate — color-coded risk levels
+                    Top {pincodeStats.length} delivery pincodes with courier return percentages
                   </Text>
                 </BlockStack>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  {Object.entries(RISK_COLORS).map(([level, meta]) => (
-                    <div key={level} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: meta.color }} />
-                      <span style={{ fontSize: 11, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>{level}</span>
-                    </div>
-                  ))}
-                </div>
               </InlineStack>
 
               {blockedNotice && (
@@ -346,7 +328,7 @@ export default function RTOHeatmapRoute() {
 
               {pincodeStats.length === 0 ? (
                 <Banner tone="info">
-                  No pincode data yet. Click "⟳ Sync Orders" on the Dashboard to populate delivery data from Shopify.
+                  No pincode data yet. Sync your Shopify orders from the Dashboard to see area return rates.
                 </Banner>
               ) : (
                 <BlockStack gap="200">
@@ -356,19 +338,18 @@ export default function RTOHeatmapRoute() {
                     return (
                       <div key={p.pincode} style={{
                         padding: "12px 16px",
-                        borderRadius: "var(--gg-radius-md)",
-                        border: `1px solid var(--gg-border)`,
+                        borderRadius: "8px",
+                        border: "1px solid var(--p-color-border-subdued, #e1e3e5)",
                         borderLeft: `4px solid ${risk.color}`,
-                        background: idx % 2 === 0 ? "var(--gg-surface-2)" : "var(--gg-surface-1)",
-                        transition: "background var(--gg-transition)",
+                        background: idx % 2 === 0 ? "var(--p-color-bg-surface-secondary, #fafbfb)" : "#fff",
                       }}>
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="300" blockAlign="center">
                             <div>
-                              <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 16, color: "var(--gg-text-primary)" }}>
+                              <span style={{ fontWeight: 700, fontSize: 16 }}>
                                 {p.pincode}
                               </span>
-                              {p.city && <span style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif", marginLeft: 6 }}>
+                              {p.city && <span style={{ fontSize: 12, color: "var(--p-color-text-subdued)", marginLeft: 6 }}>
                                 {p.city}{p.province ? `, ${p.province}` : ""}
                               </span>}
                             </div>
@@ -376,27 +357,27 @@ export default function RTOHeatmapRoute() {
 
                           <InlineStack gap="400" blockAlign="center">
                             <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 11, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>Orders / RTO</div>
-                              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14 }}>
+                              <div style={{ fontSize: 11, color: "var(--p-color-text-subdued)" }}>Orders / Returned</div>
+                              <div style={{ fontWeight: 600, fontSize: 14 }}>
                                 {p.totalOrders} / {p.rtoCount}
                               </div>
                             </div>
                             <div style={{ textAlign: "right" }}>
-                              <div style={{ fontSize: 11, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>Loss</div>
-                              <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, fontSize: 14, color: "var(--gg-accent-red)" }}>
+                              <div style={{ fontSize: 11, color: "var(--p-color-text-subdued)" }}>Courier Loss</div>
+                              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--p-color-text-critical)" }}>
                                 ₹{Math.round(p.totalLoss).toLocaleString("en-IN")}
                               </div>
                             </div>
                             <div style={{ width: 120, textAlign: "right" }}>
-                              <div style={{ fontSize: 11, color: risk.color, fontFamily: "'Inter', sans-serif", fontWeight: 600, marginBottom: 4 }}>
-                                {p.rtoRate}% RTO
+                              <div style={{ fontSize: 11, color: risk.color, fontWeight: 600, marginBottom: 4 }}>
+                                {p.rtoRate}% Returns
                               </div>
-                              <div style={{ height: 6, borderRadius: "100px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                                <div style={{ width: `${barPct}%`, height: "100%", background: risk.color, borderRadius: "100px", transition: "width 0.8s ease" }} />
+                              <div style={{ height: 6, borderRadius: "100px", background: "#e1e3e5", overflow: "hidden" }}>
+                                <div style={{ width: `${barPct}%`, height: "100%", background: risk.color, borderRadius: "100px" }} />
                               </div>
                             </div>
                             <Badge tone={p.riskLevel === "CRITICAL" ? "critical" : p.riskLevel === "HIGH" ? "warning" : p.riskLevel === "MEDIUM" ? "attention" : "success"}>
-                              {risk.label}
+                              {p.riskLevel === "CRITICAL" ? "Very High" : p.riskLevel === "HIGH" ? "High Risk" : p.riskLevel === "MEDIUM" ? "Medium" : "Safe"}
                             </Badge>
                           </InlineStack>
                         </InlineStack>
@@ -414,35 +395,56 @@ export default function RTOHeatmapRoute() {
           <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
-                <Text variant="headingMd" as="h2">🎯 COD Risk Score — Pending Orders</Text>
+                <Text variant="headingMd" as="h2">Pending Orders at Risk</Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  AI-predicted RTO risk for your top pending COD orders. Take action before shipping.
+                  Orders waiting to be packed that are going to high-return areas. Verify via WhatsApp before dispatching.
                 </Text>
               </BlockStack>
 
               {pendingCODWithRisk.length === 0 ? (
-                <Banner tone="success">No pending COD orders with high risk detected.</Banner>
+                <Banner tone="success">No pending COD orders going to risky areas detected.</Banner>
               ) : (
                 <DataTable
                   columnContentTypes={["text", "numeric", "text", "text", "text"]}
-                  headings={["Order #", "Value (₹)", "Pincode / City", "Risk Level", "Top Risk Factor"]}
+                  headings={["Order #", "Order Value (₹)", "Delivery Pincode / City", "Return Risk", "Reason"]}
                   rows={riskRows}
                 />
               )}
 
-              <div style={{ padding: "12px 16px", borderRadius: "var(--gg-radius-md)", border: "1px solid var(--gg-border)", background: "rgba(124,58,237,0.06)" }}>
-                <BlockStack gap="100">
-                  <Text variant="bodySm" as="p" fontWeight="semibold">💡 How Risk Score Works</Text>
-                  <Text variant="bodyXs" as="p" tone="subdued">
-                    Score = Pincode RTO history (40%) + Order value (30%) + Customer history (30%). CRITICAL ≥70, HIGH ≥50, MEDIUM ≥30, LOW &lt;30.
-                  </Text>
-                </BlockStack>
-              </div>
+              <Banner tone="info" title="How Return Risk Is Evaluated">
+                <p>
+                  ProfitRx checks past return history for this pincode, order value, and previous buyer behavior so you don't waste courier charges on parcels that come back.
+                </p>
+              </Banner>
             </BlockStack>
           </Card>
         </Layout.Section>
 
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading pincode risk intelligence.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="High Return Pincodes">
+      <Card>
+        <BlockStack gap="400">
+          <Banner tone="critical" title="Failed to Load Pincode Information">
+            <p>{errorMessage}</p>
+          </Banner>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </BlockStack>
+      </Card>
     </Page>
   );
 }

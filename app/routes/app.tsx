@@ -30,6 +30,8 @@ import {
 
 
 function RemixLink({ url, children, external, ...props }: any) {
+  const location = useLocation();
+
   if (external || !url || /^https?:\/\//.test(url)) {
     return (
       <a href={url} target="_top" {...props}>
@@ -38,22 +40,23 @@ function RemixLink({ url, children, external, ...props }: any) {
     );
   }
 
-  // Auto-append shop, host, and preview params if missing from relative URL
+  // Consistent link search param preservation across server & client
   let targetUrl = url;
-  if (typeof window !== "undefined" && url.startsWith("/")) {
-    const currentParams = new URLSearchParams(window.location.search);
+  if (url.startsWith("/") && location?.search) {
+    const [path, existingQuery] = url.split("?");
+    const currentParams = new URLSearchParams(location.search);
+    const targetParams = new URLSearchParams(existingQuery || "");
+
     const shopParam = currentParams.get("shop");
     const hostParam = currentParams.get("host");
     const previewParam = currentParams.get("preview") || currentParams.get("demo");
 
-    if (shopParam || hostParam || previewParam) {
-      const [path, existingQuery] = url.split("?");
-      const targetParams = new URLSearchParams(existingQuery || "");
-      if (shopParam && !targetParams.has("shop")) targetParams.set("shop", shopParam);
-      if (hostParam && !targetParams.has("host")) targetParams.set("host", hostParam);
-      if (previewParam && !targetParams.has("preview")) targetParams.set("preview", "true");
-      targetUrl = `${path}?${targetParams.toString()}`;
-    }
+    if (shopParam && !targetParams.has("shop")) targetParams.set("shop", shopParam);
+    if (hostParam && !targetParams.has("host")) targetParams.set("host", hostParam);
+    if (previewParam && !targetParams.has("preview")) targetParams.set("preview", "true");
+
+    const searchStr = targetParams.toString();
+    targetUrl = searchStr ? `${path}?${searchStr}` : path;
   }
 
   return (
@@ -200,17 +203,16 @@ export default function App() {
     setActivePopover(activePopover === group ? null : group);
   };
 
-  const isDashboardActive = location.pathname === "/app/dashboard" || location.pathname === "/app" || location.pathname === "/app/";
-  const isCodRulesActive = location.pathname === "/app/cod-rules";
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+  useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("profitrx-theme");
-      if (stored) return stored === "dark";
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (stored === "dark") {
+        setIsDarkMode(true);
+      }
     }
-    return false;
-  });
+  }, []);
 
   const toggleTheme = () => {
     const newTheme = !isDarkMode;
@@ -239,19 +241,17 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  const isDashboardActive = location.pathname === "/app/dashboard" || location.pathname === "/app" || location.pathname === "/app/";
   const isOperationsActive = ["/app/operations", "/app/orders"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isProtectionActive = ["/app/cod-rules", "/app/rto-heatmap", "/app/customer-risk"].some(
+  const isProtectionActive = ["/app/cod-rules", "/app/rto-heatmap", "/app/customer-risk", "/app/rto"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isAnalyticsActive = ["/app/rto", "/app/customers", "/app/roas", "/app/reports", "/app/cod-dashboard", "/app/profit-leaks"].some(
+  const isProfitActive = ["/app/cogs", "/app/profit-leaks", "/app/roas", "/app/reports", "/app/cod-dashboard", "/app/customers"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
-  const isConfigurationActive = ["/app/cogs", "/app/settings", "/app/health", "/app/alerts"].some(
-    (path) => location.pathname === path || location.pathname.startsWith(path + "/")
-  );
-  const isBillingActive = ["/app/billing", "/app/pricing"].some(
+  const isSettingsActive = ["/app/settings", "/app/billing", "/app/pricing", "/app/health", "/app/alerts"].some(
     (path) => location.pathname === path || location.pathname.startsWith(path + "/")
   );
 
@@ -259,59 +259,39 @@ export default function App() {
     <AppProvider apiKey={apiKey} embedded={!isPreview}>
       <NavMenu>
         <a href="/app/dashboard" rel="home">Dashboard</a>
-        <a href="/app/operations">Operations</a>
+        <a href="/app/operations">Orders to Check</a>
         <a href="/app/cod-rules">COD Rules</a>
-        <a href="/app/rto-heatmap">Pincode Risk</a>
-        <a href="/app/customer-risk">Customer Risk</a>
-        <a href="/app/rto">RTO Analytics</a>
-        <a href="/app/profit-leaks">Profit Leaks</a>
-        <a href="/app/cogs">COGS Catalog</a>
+        <a href="/app/rto-heatmap">High Return Pincodes</a>
+        <a href="/app/customer-risk">Frequent Returners</a>
+        <a href="/app/cogs">Product Costs</a>
+        <a href="/app/profit-leaks">Where You Lose Money</a>
+        <a href="/app/rto">Courier Return Reports</a>
         <a href="/app/settings">Settings</a>
         <a href="/app/billing">Billing</a>
       </NavMenu>
       <PolarisProvider i18n={enTranslations} linkComponent={RemixLink}>
-        {/* Live Demo Standalone Banner */}
+        {/* Live Demo Standalone Banner — Clean Native Polaris */}
         {isPreview && (
-          <div style={{
-            background: "linear-gradient(90deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%)",
-            borderBottom: "1px solid rgba(129, 140, 248, 0.35)",
-            padding: "8px 20px",
-            color: "#ffffff",
-          }}>
-            <InlineStack align="space-between" blockAlign="center">
-              <InlineStack gap="200" blockAlign="center">
-                <span style={{ fontSize: "16px" }}>⚡</span>
-                <span style={{ fontWeight: 700, fontSize: "13px", color: "#a5b4fc", letterSpacing: "0.02em" }}>
-                  PROFITRX STANDALONE PREVIEW
-                </span>
-                <span style={{ opacity: 0.4 }}>|</span>
-                <span style={{ fontSize: "12px", color: "#e2e8f0" }}>
-                  Viewing live interface with simulated D2C store data (No Shopify Admin login needed)
-                </span>
-              </InlineStack>
-              <InlineStack gap="200" blockAlign="center">
-                <span style={{
-                  fontSize: "11px",
-                  background: "rgba(16, 185, 129, 0.2)",
-                  color: "#34d399",
-                  padding: "2px 8px",
-                  borderRadius: "12px",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                  fontWeight: 600,
-                }}>
-                  ● Standalone Mode Active
-                </span>
-                <a href="/_index" style={{ color: "#93c5fd", fontSize: "12px", textDecoration: "none" }}>
+          <div style={{ padding: "12px 16px 0 16px" }}>
+            <Banner
+              tone="info"
+              title="ProfitRx Preview Mode — glam-aura-india.myshopify.com"
+            >
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="p" variant="bodySm">
+                  Viewing simulated store data with 1,240 orders. Decision workflows and financial intelligence are interactive.
+                </Text>
+                <a href="/_index" style={{ fontSize: "12px", color: "var(--p-color-text-link)", textDecoration: "none" }}>
                   Exit Preview ↗
                 </a>
               </InlineStack>
-            </InlineStack>
+            </Banner>
           </div>
         )}
         {/* Top Dunning Banner for RBI Mandate Failures — Simple Warning */}
         {isDunningActive && (
           <div style={{ padding: "12px 20px 0 20px" }}>
-            <Banner tone="warning" title="⚠️ Payment Action Required — RBI Mandate Notice">
+            <Banner tone="warning" title="Payment Action Required — RBI Mandate Notice">
               <p style={{ margin: 0, fontSize: "13px" }}>
                 Shopify was unable to process your subscription payment. Under RBI regulations for Indian cards and UPI mandates, please update your payment method or approve the mandate in your bank app to keep ProfitRx active.
               </p>
@@ -330,52 +310,30 @@ export default function App() {
         </a>
 
         <div style={{ minHeight: "100vh", backgroundColor: "var(--gg-bg-base)" }}>
-          {/* Top Navigation Bar */}
+          {/* Top Navigation Bar — Native Polaris */}
           <header style={{
             position: "sticky",
             top: 0,
             zIndex: 100,
-            backgroundColor: "var(--gg-header-bg)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            borderBottom: "1px solid var(--gg-header-border)",
-            padding: "8px 20px",
-            transition: "background-color 0.4s ease, border-color 0.4s ease",
+            backgroundColor: "var(--p-color-bg-surface)",
+            borderBottom: "1px solid var(--p-color-border-subdued)",
+            padding: "8px 16px",
           }}>
             <InlineStack align="space-between" blockAlign="center">
               <InlineStack gap="300" blockAlign="center">
-                <InlineStack gap="150" blockAlign="center">
-                  <span style={{ fontSize: "20px" }}>⚡</span>
-                  <Text variant="headingMd" as="span" fontWeight="bold">
-                    ProfitRx <span style={{ color: "#38bdf8", fontSize: "11px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em", marginLeft: "4px" }}>India COD</span>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text variant="headingSm" as="span" fontWeight="bold">
+                    ProfitRx
                   </Text>
+                  <Badge tone="info">COD Protection</Badge>
                 </InlineStack>
               </InlineStack>
 
-              {/* Header Right Area: Search, Notifications, Theme Toggle, Shop Badge, and Mobile Menu Toggle */}
+              {/* Header Right Area: Search, Notifications, Shop Badge, and Mobile Menu Toggle */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                {/* Notifications Bell */}
-                <NotificationCenter shop={shop} host={host} />
+                {/* Notifications Bell — only poll in authenticated sessions */}
+                {!isPreview && <NotificationCenter shop={shop} host={host} />}
 
-                <button
-                  onClick={toggleTheme}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "6px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "8px",
-                    color: "var(--gg-text-primary)",
-                    transition: "background-color 0.2s ease",
-                  }}
-                  title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                  aria-label={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                >
-                  <span style={{ fontSize: "18px" }}>{isDarkMode ? "☀️" : "🌙"}</span>
-                </button>
                 <div className="gg-desktop-only">
                   <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
                 </div>
@@ -383,18 +341,17 @@ export default function App() {
                   className="gg-mobile-menu-toggle"
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                   aria-label="Toggle Menu"
-                  style={{ display: isEmbedded ? "none" : undefined }}
                 >
-                  <span style={{ fontSize: "20px" }}>{mobileMenuOpen ? "✕" : "☰"}</span>
+                  <span style={{ fontSize: "18px" }}>{mobileMenuOpen ? "✕" : "☰"}</span>
                 </button>
               </div>
             </InlineStack>
 
             {/* Main Navigation Component */}
-            <nav className={`gg-main-nav ${!isEmbedded && mobileMenuOpen ? "open" : ""}`}>
+            <nav className={`gg-main-nav ${mobileMenuOpen ? "open" : ""}`}>
               {/* DESKTOP-ONLY NAVIGATION (POPOVERS) */}
               <div className="gg-desktop-only" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                {/* Direct Link 1: Dashboard */}
+                {/* 1. Home / Dashboard */}
                 <ReactRouterLink
                   to={`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                   className={`gg-nav-link ${isDashboardActive ? "active" : ""}`}
@@ -411,10 +368,10 @@ export default function App() {
                   }}
                 >
                   <Icon source={HomeIcon} tone={isDashboardActive ? "primary" : "subdued"} />
-                  <span>Dashboard</span>
+                  <span>Home</span>
                 </ReactRouterLink>
 
-                {/* Direct Link 2: Operations */}
+                {/* 2. Orders & Review */}
                 <ReactRouterLink
                   to={`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                   className={`gg-nav-link ${isOperationsActive ? "active" : ""}`}
@@ -431,10 +388,10 @@ export default function App() {
                   }}
                 >
                   <Icon source={ProductIcon} tone={isOperationsActive ? "primary" : "subdued"} />
-                  <span>Operations</span>
+                  <span>Orders</span>
                 </ReactRouterLink>
 
-                {/* Popover Group 1: Protection */}
+                {/* 3. Protection */}
                 <Popover
                   active={activePopover === "protection"}
                   activator={
@@ -467,31 +424,36 @@ export default function App() {
                   <ActionList
                     items={[
                       {
-                        content: "COD Rules & Risk Shield",
+                        content: "COD Protection Rules",
                         url: `/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: ShieldCheckMarkIcon,
                       },
                       {
-                        content: "Pincode Risk Heatmap",
+                        content: "High Return Pincodes",
                         url: `/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: LocationIcon,
                       },
                       {
-                        content: "Customer Risk & Serial Offenders",
+                        content: "Frequent Returners & Delivery History",
                         url: `/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: PersonIcon,
+                      },
+                      {
+                        content: "Courier Return Reports",
+                        url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: DeliveryIcon,
                       },
                     ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
                   />
                 </Popover>
 
-                {/* Popover Group 2: Analytics */}
+                {/* 4. Profit & Costs */}
                 <Popover
-                  active={activePopover === "analytics"}
+                  active={activePopover === "profit"}
                   activator={
                     <button
-                      onClick={() => togglePopover("analytics")}
-                      className={`gg-nav-link ${isAnalyticsActive ? "active" : ""}`}
+                      onClick={() => togglePopover("profit")}
+                      className={`gg-nav-link ${isProfitActive ? "active" : ""}`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -508,8 +470,8 @@ export default function App() {
                         transition: "all 0.2s ease",
                       }}
                     >
-                      <Icon source={ChartVerticalIcon} tone={isAnalyticsActive ? "primary" : "subdued"} />
-                      <span>Analytics</span>
+                      <Icon source={ChartVerticalIcon} tone={isProfitActive ? "primary" : "subdued"} />
+                      <span>Profit & Costs</span>
                       <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
                     </button>
                   }
@@ -518,32 +480,32 @@ export default function App() {
                   <ActionList
                     items={[
                       {
-                        content: "RTO Analytics",
-                        url: `/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: DeliveryIcon,
+                        content: "Product Costs (Making/Buying)",
+                        url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ProductIcon,
                       },
                       {
-                        content: "COD Analytics Dashboard",
-                        url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: ShieldCheckMarkIcon,
-                      },
-                      {
-                        content: "Profit Leaks Diagnostic",
+                        content: "Where You Lose Money (Leaks)",
                         url: `/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: SearchIcon,
                       },
                       {
-                        content: "Customer Intelligence (LTV)",
-                        url: `/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: PersonIcon,
+                        content: "Cash on Delivery Profit Overview",
+                        url: `/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: ShieldCheckMarkIcon,
                       },
                       {
-                        content: "Marketing ROAS (Ad Spend)",
+                        content: "Ad Spend vs Real Sales (ROAS)",
                         url: `/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: ChartLineIcon,
                       },
                       {
-                        content: "Reports Suite",
+                        content: "Repeat Customer Value",
+                        url: `/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PersonIcon,
+                      },
+                      {
+                        content: "Download Reports & CSV",
                         url: `/app/reports?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: ExportIcon,
                       },
@@ -551,13 +513,13 @@ export default function App() {
                   />
                 </Popover>
 
-                {/* Popover Group 3: Configuration */}
+                {/* 5. Settings & Account */}
                 <Popover
-                  active={activePopover === "config"}
+                  active={activePopover === "settings"}
                   activator={
                     <button
-                      onClick={() => togglePopover("config")}
-                      className={`gg-nav-link ${isConfigurationActive ? "active" : ""}`}
+                      onClick={() => togglePopover("settings")}
+                      className={`gg-nav-link ${isSettingsActive ? "active" : ""}`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
@@ -574,8 +536,8 @@ export default function App() {
                         transition: "all 0.2s ease",
                       }}
                     >
-                      <Icon source={SettingsIcon} tone={isConfigurationActive ? "primary" : "subdued"} />
-                      <span>Configuration</span>
+                      <Icon source={SettingsIcon} tone={isSettingsActive ? "primary" : "subdued"} />
+                      <span>Settings</span>
                       <span style={{ fontSize: "9px", opacity: 0.6, marginLeft: "2px" }}>▼</span>
                     </button>
                   }
@@ -584,48 +546,28 @@ export default function App() {
                   <ActionList
                     items={[
                       {
-                        content: "Product COGS Catalog",
-                        url: `/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: ProductIcon,
-                      },
-                      {
-                        content: "Store & Cost Settings",
+                        content: "Store & Courier Costs",
                         url: `/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: SettingsIcon,
                       },
                       {
-                        content: "Store Health Diagnostics",
-                        url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
-                        icon: HeartIcon,
+                        content: "Subscription & Billing",
+                        url: `/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: PaymentIcon,
                       },
                       {
-                        content: "Alert Center",
+                        content: "WhatsApp & Email Alerts",
                         url: `/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
                         icon: NotificationIcon,
+                      },
+                      {
+                        content: "System Health & Diagnostic",
+                        url: `/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+                        icon: HeartIcon,
                       },
                     ].map(i => ({ ...i, onAction: () => setActivePopover(null) }))}
                   />
                 </Popover>
-
-                {/* Direct Link 3: Billing */}
-                <ReactRouterLink
-                  to={`/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                  className={`gg-nav-link ${isBillingActive ? "active" : ""}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    padding: "6px 12px",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    textDecoration: "none",
-                    whiteSpace: "nowrap",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  <Icon source={PaymentIcon} tone={isBillingActive ? "primary" : "subdued"} />
-                  <span>Billing</span>
-                </ReactRouterLink>
               </div>
 
               {/* MOBILE-ONLY SIDEBAR / COLLAPSIBLE PANEL */}
@@ -636,26 +578,27 @@ export default function App() {
                     <Badge tone="success">{shop.replace(".myshopify.com", "")}</Badge>
                   </div>
 
-                  {/* Direct links */}
+                  {/* 1. Home */}
                   <ReactRouterLink
                     to={`/app/dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className="gg-mobile-sublink"
                   >
                     <Icon source={HomeIcon} />
-                    <span>Dashboard</span>
+                    <span>Home / Dashboard</span>
                   </ReactRouterLink>
 
+                  {/* 2. Orders */}
                   <ReactRouterLink
                     to={`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className="gg-mobile-sublink"
                   >
                     <Icon source={ProductIcon} />
-                    <span>Operations Center</span>
+                    <span>Orders to Check</span>
                   </ReactRouterLink>
 
-                  {/* Protection Category */}
+                  {/* 3. Protection Category */}
                   <span className="gg-mobile-category-title">Protection</span>
                   <ReactRouterLink
                     to={`/app/cod-rules?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -663,15 +606,7 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={ShieldCheckMarkIcon} />
-                    <span>COD Rules & Policy</span>
-                  </ReactRouterLink>
-                  <ReactRouterLink
-                    to={`/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={PersonIcon} />
-                    <span>Customer Risk & Serial Offenders</span>
+                    <span>COD Protection Rules</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/rto-heatmap?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -679,37 +614,15 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={LocationIcon} />
-                    <span>Pincode Risk Heatmap</span>
+                    <span>High Return Pincodes</span>
                   </ReactRouterLink>
-
-                  {/* Profit Category */}
-                  <span className="gg-mobile-category-title">Profit</span>
                   <ReactRouterLink
-                    to={`/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    to={`/app/customer-risk?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className="gg-mobile-sublink"
                   >
-                    <Icon source={SearchIcon} />
-                    <span>Profit Leaks Diagnostic</span>
-                  </ReactRouterLink>
-                  <ReactRouterLink
-                    to={`/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={ProductIcon} />
-                    <span>COGS Catalog</span>
-                  </ReactRouterLink>
-
-                  {/* Analytics Category */}
-                  <span className="gg-mobile-category-title">Analytics</span>
-                  <ReactRouterLink
-                    to={`/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={ShieldCheckMarkIcon} />
-                    <span>COD Analytics Dashboard</span>
+                    <Icon source={PersonIcon} />
+                    <span>Frequent Returners</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/rto?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -717,15 +630,34 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={DeliveryIcon} />
-                    <span>RTO Analytics</span>
+                    <span>Courier Return Reports</span>
                   </ReactRouterLink>
+
+                  {/* 4. Profit & Costs Category */}
+                  <span className="gg-mobile-category-title">Profit & Costs</span>
                   <ReactRouterLink
-                    to={`/app/customers?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    to={`/app/cogs?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
                     onClick={() => setMobileMenuOpen(false)}
                     className="gg-mobile-sublink"
                   >
-                    <Icon source={PersonIcon} />
-                    <span>Customer Intelligence</span>
+                    <Icon source={ProductIcon} />
+                    <span>Product Costs (Making/Buying)</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/profit-leaks?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={SearchIcon} />
+                    <span>Where You Lose Money (Leaks)</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/cod-dashboard?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={ShieldCheckMarkIcon} />
+                    <span>Cash on Delivery Profit Overview</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/roas?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -733,7 +665,7 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={ChartLineIcon} />
-                    <span>Marketing ROAS</span>
+                    <span>Ad Spend vs Real Sales</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/reports?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -741,10 +673,10 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={ExportIcon} />
-                    <span>Reports Suite</span>
+                    <span>Download Reports & CSV</span>
                   </ReactRouterLink>
 
-                  {/* Settings Category */}
+                  {/* 5. Settings Category */}
                   <span className="gg-mobile-category-title">Settings</span>
                   <ReactRouterLink
                     to={`/app/settings?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -752,23 +684,7 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={SettingsIcon} />
-                    <span>Store & Cost Settings</span>
-                  </ReactRouterLink>
-                  <ReactRouterLink
-                    to={`/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={HeartIcon} />
-                    <span>Store Health</span>
-                  </ReactRouterLink>
-                  <ReactRouterLink
-                    to={`/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="gg-mobile-sublink"
-                  >
-                    <Icon source={NotificationIcon} />
-                    <span>Alert Center</span>
+                    <span>Store & Courier Costs</span>
                   </ReactRouterLink>
                   <ReactRouterLink
                     to={`/app/billing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
@@ -776,7 +692,23 @@ export default function App() {
                     className="gg-mobile-sublink"
                   >
                     <Icon source={PaymentIcon} />
-                    <span>Plans & Billing</span>
+                    <span>Subscription & Billing</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/alerts?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={NotificationIcon} />
+                    <span>WhatsApp & Email Alerts</span>
+                  </ReactRouterLink>
+                  <ReactRouterLink
+                    to={`/app/health?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="gg-mobile-sublink"
+                  >
+                    <Icon source={HeartIcon} />
+                    <span>System Health</span>
                   </ReactRouterLink>
                 </BlockStack>
               </div>
@@ -979,7 +911,7 @@ export function ErrorBoundary() {
                     </Text>
                     <InlineStack gap="200">
                       <Button variant="secondary" onClick={() => window.location.reload()}>
-                        Reload Page 🔄
+                        Reload page
                       </Button>
                       <Button
                         variant="primary"
@@ -989,10 +921,10 @@ export function ErrorBoundary() {
                         }
                         external
                       >
-                        Re-Authorize Session 🔑
+                        Re-authorize session
                       </Button>
                       <Button variant="plain" url="/api/debug-env" external>
-                        Check Environment API 🛠️
+                        Check environment
                       </Button>
                     </InlineStack>
                   </InlineStack>

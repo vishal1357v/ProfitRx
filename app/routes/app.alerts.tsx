@@ -25,6 +25,44 @@ import { authenticate } from "../shopify.server";
 import { AlertsApplicationService } from "../application/health/alerts.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    return {
+      settings: {
+        alertEmail: "owner@glam-aura.in",
+        rtoThreshold: 20,
+        marginThreshold: 15,
+      },
+      activeAlerts: [
+        {
+          id: "alert-1",
+          type: "RTO_SPIKE",
+          severity: "HIGH",
+          message: "RTO return rate in UP East (Meerut, Bareilly) exceeds 28%. Consider requiring OTP.",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "alert-2",
+          type: "HIGH_VALUE_UNVERIFIED",
+          severity: "MEDIUM",
+          message: "2 orders above ₹3,000 pending address verification.",
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+        },
+      ],
+      resolvedAlerts: [
+        {
+          id: "alert-old-1",
+          type: "COURIER_DELAY",
+          severity: "LOW",
+          message: "Resolved: Delhivery NDR backlog cleared for Delhi NCR hub.",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+        },
+      ],
+    };
+  }
+
   const { session } = await authenticate.admin(request);
   const email = (session as any).email || "";
 
@@ -32,6 +70,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    return Response.json({ success: true });
+  }
+
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string;

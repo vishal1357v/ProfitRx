@@ -41,7 +41,53 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (isPreview) {
     const shop = "glam-aura-india.myshopify.com";
-    return CogsApplicationService.getCogsCatalog(shop);
+    try {
+      return await CogsApplicationService.getCogsCatalog(shop);
+    } catch {
+      return {
+        products: [
+          {
+            id: "gid://shopify/Product/101",
+            title: "Velvet Matte Lipstick Kit (Ruby Red)",
+            price: "1499",
+            shopifyNativeCost: 450,
+          },
+          {
+            id: "gid://shopify/Product/102",
+            title: "Hydrating Rose Serum 50ml",
+            price: "1250",
+            shopifyNativeCost: 350,
+          },
+          {
+            id: "gid://shopify/Product/103",
+            title: "24K Gold Illuminating Primer",
+            price: "1899",
+            shopifyNativeCost: 550,
+          },
+          {
+            id: "gid://shopify/Product/104",
+            title: "Waterproof Gel Eyeliner Duo",
+            price: "899",
+            shopifyNativeCost: 220,
+          },
+          {
+            id: "gid://shopify/Product/105",
+            title: "Ultra-Fine Setting Powder Translucent",
+            price: "1150",
+            shopifyNativeCost: 320,
+          },
+        ],
+        cogsRecords: [
+          { productId: "gid://shopify/Product/101", cost: 450, shopifyNative: 450, manualOverride: 450, source: "manual_override", lastSyncedAt: "Today" },
+          { productId: "gid://shopify/Product/102", cost: 350, shopifyNative: 350, manualOverride: null, source: "shopify_native", lastSyncedAt: "Yesterday" },
+          { productId: "gid://shopify/Product/103", cost: 550, shopifyNative: 550, manualOverride: 550, source: "manual_override", lastSyncedAt: "2 days ago" },
+          { productId: "gid://shopify/Product/104", cost: 220, shopifyNative: 220, manualOverride: null, source: "shopify_native", lastSyncedAt: "3 days ago" },
+          { productId: "gid://shopify/Product/105", cost: 320, shopifyNative: 320, manualOverride: 320, source: "manual_override", lastSyncedAt: "Today" },
+        ],
+        defaultCOGSPct: 40,
+        lastUpdated: new Date().toLocaleDateString(),
+      };
+    }
   }
 
   const { session, admin } = await authenticate.admin(request);
@@ -354,15 +400,15 @@ export default function COGSPage() {
 
   return (
     <Page
-      title="COGS Catalog"
-      subtitle="Manage unit product costs, sync native Shopify inventory costs, and configure fallback margin defaults."
+      title="Product Costs"
+      subtitle="Enter your making or buying price for each product. ProfitRx uses this to calculate real in-hand profit on every order."
     >
       <Layout>
         {/* Banner for Auto-Sync */}
         <Layout.Section>
           <Banner tone="info" title="Automatic Cost Sync Active">
             <p>
-              🔄 <strong>We automatically pull your product costs from Shopify. No manual entry needed.</strong> If you update item cost in Shopify Admin, ProfitRx syncs it automatically.
+              <strong>We automatically pull your product costs from Shopify.</strong> If you fill in "Cost per item" in your Shopify Admin product settings, ProfitRx syncs it automatically.
             </p>
           </Banner>
         </Layout.Section>
@@ -371,7 +417,7 @@ export default function COGSPage() {
         <Layout.Section>
           {saved && (
             <Banner tone="success">
-              Product costs configuration updated successfully!
+              Product costs updated successfully!
             </Banner>
           )}
           {error && (
@@ -394,10 +440,10 @@ export default function COGSPage() {
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="050">
                     <Text variant="headingMd" as="h2">
-                      Product Catalog Cost Sheet (Showing {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} of {filteredProducts.length} items)
+                      Product Costs (Showing {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} of {filteredProducts.length} items)
                     </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      💡 Last synced: <strong>{lastUpdated}</strong>
+                      Last synced: <strong>{lastUpdated}</strong>
                     </Text>
                   </BlockStack>
 
@@ -507,7 +553,7 @@ export default function COGSPage() {
                     <div className="gg-desktop-only">
                       <DataTable
                         columnContentTypes={["text", "text", "text", "text", "text"]}
-                        headings={["Product Name", "Selling Price (₹)", "Shopify Native Cost", "Manual Override (₹)", "Source"]}
+                        headings={["Product Name", "Selling Price (₹)", "Cost in Shopify", "Your Cost (₹)", "Source"]}
                         rows={rows}
                       />
                     </div>
@@ -598,10 +644,10 @@ export default function COGSPage() {
               <Box padding="500">
                 <BlockStack gap="300">
                   <Text variant="headingMd" as="h2">
-                    Global Default Cost Rule
+                    Fallback Cost Margin (%)
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    If a product has no specific cost defined, we calculate cost as a flat percentage of the selling price.
+                    If a product has no specific item cost defined in Shopify, ProfitRx estimates cost using this fallback percentage of the selling price.
                   </Text>
 
                   <form onSubmit={handleDefaultPctSave}>

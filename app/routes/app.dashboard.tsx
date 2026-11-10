@@ -1,47 +1,28 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useLoaderData, useRevalidator, redirect, Link, useRouteError, isRouteErrorResponse } from "react-router";
+import { useState, useCallback, useMemo } from "react";
+import { useLoaderData, useRevalidator, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
-
-export const headers: HeadersFunction = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
 import {
   Page,
   Layout,
   Card,
   Text,
   BlockStack,
-  Grid,
+  InlineStack,
   Badge,
   Button,
-  InlineStack,
-  ProgressBar,
-  Divider,
   Banner,
-  DataTable,
-  Tooltip,
-  Box,
+  Divider,
   Tabs,
-  CalloutCard,
-  Icon,
+  IndexTable,
+  EmptyState,
 } from "@shopify/polaris";
-import {
-  ChartLineIcon,
-  FinanceIcon,
-  AlertBubbleIcon,
-  LightbulbIcon,
-  SettingsIcon,
-  ChatIcon,
-  DatabaseIcon,
-  CalendarIcon,
-  SearchIcon,
-  ShieldCheckMarkIcon,
-  DeliveryIcon,
-  PersonIcon,
-} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { MetricCard, StatGrid, SectionHeader, EmptyStateCard, LoadingCard, RiskBadge, ProfitBadge, StatusBadge, ProfitTrendChart, DonutChart, LeakTrendChart } from "../components";
+import { ProfitTrendChart } from "../components";
+
+export const headers: HeadersFunction = (headersArgs) => {
+  return boundary.headers(headersArgs);
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -69,1524 +50,404 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return DashboardApplicationService.getDashboardData(request);
 };
 
-// ── Count-up hook ─────────────────────────────────────────
-function useCountUp(target: number, duration = 900) {
-  const [value, setValue] = useState(0);
-  const raf = useRef<number>(0);
-  useEffect(() => {
-    const start = performance.now();
-    const step = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(ease * target));
-      if (progress < 1) raf.current = requestAnimationFrame(step);
-    };
-    raf.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf.current);
-  }, [target, duration]);
-  return value;
+function formatK(num: number): string {
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+  if (abs >= 100000) {
+    return `${sign}${(abs / 100000).toFixed(1)}L`;
+  }
+  if (abs >= 1000) {
+    return `${sign}${(abs / 1000).toFixed(1)}k`;
+  }
+  return `${sign}${abs.toLocaleString("en-IN")}`;
 }
 
-// ── Animated stat number ──────────────────────────────────
-function StatNumber({ value, prefix = "", suffix = "", colorClass = "gg-stat-value" }: {
-  value: number; prefix?: string; suffix?: string; colorClass?: string;
-}) {
-  const animated = useCountUp(value);
-  return (
-    <span className={colorClass} style={{ fontSize: 28, lineHeight: 1 }}>
-      {prefix}{animated.toLocaleString("en-IN")}{suffix}
-    </span>
-  );
-}
-
-// ── Insight Cards ─────────────────────────────────────────
-function LeakInsight({ icon, title, amount, trend, detail, tone }: {
-  icon: string; title: string; amount: number; trend: number; detail: string;
-  tone: "critical" | "warning" | "info";
-}) {
-  const toneColors = { critical: "var(--gg-accent-red)", warning: "var(--gg-accent-amber)", info: "var(--gg-accent-blue)" };
-  const color = toneColors[tone];
-  return (
-    <div className={`gg-rec-card gg-rec-card--${tone === "info" ? "success" : tone}`}>
-      <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="start">
-          <InlineStack gap="150" blockAlign="center">
-            <span style={{ fontSize: 20 }}>{icon}</span>
-            <Text variant="headingSm" as="h3">{title}</Text>
-          </InlineStack>
-          {trend !== 0 && (
-            <span className={trend > 0 ? "gg-trend-down" : "gg-trend-up"}>
-              {trend > 0 ? `▲ +${trend}% this week` : `▼ ${Math.abs(trend)}% this week`}
-            </span>
-          )}
-        </InlineStack>
-        <Divider />
-        <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, color, letterSpacing: "-0.03em" }}>
-          ₹{amount.toLocaleString("en-IN")}
-        </span>
-        <Text variant="bodySm" as="p" tone="subdued">{detail}</Text>
-      </BlockStack>
-    </div>
-  );
-}
-
-// ── Channel icon map ──────────────────────────────────────
-const CHANNEL_META: Record<string, { icon: string; color: string }> = {
-  ChatGPT: { icon: "🤖", color: "#10b981" },
-  Gemini: { icon: "✨", color: "#3b82f6" },
-  Copilot: { icon: "🔷", color: "#f59e0b" },
-  Website: { icon: "🌐", color: "#64748b" },
-};
-
-// ─────────────────────────────────────────────────────────
 export default function DashboardRoute() {
   const data = useLoaderData<typeof loader>();
-
-  let trialDaysRemaining = 0;
-  let isTrialActive = false;
-  if (data.subStatus === "TRIALING" && data.trialEndsAt) {
-    const end = new Date(data.trialEndsAt);
-    const now = new Date();
-    const diffTime = end.getTime() - now.getTime();
-    trialDaysRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-    isTrialActive = true;
-  }
-
-  const gridCols = data.hasConnectedAdAccount ? { xs: 2, sm: 3, md: 4, lg: 4 } : { xs: 1, sm: 2, md: 3, lg: 5 };
   const revalidator = useRevalidator();
   const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncSuccess, setSyncSuccess] = useState<boolean | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [wizardDismissed, setWizardDismissed] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => revalidator.revalidate(), 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh, revalidator]);
 
   const handleSyncOrders = useCallback(async () => {
     setSyncing(true);
-    setSyncMessage(null);
+    setSyncNotice(null);
     try {
       const res = await fetch("/api/sync-orders", { method: "POST" });
       const resData = await res.json();
       if (res.ok && resData.success) {
-        setSyncSuccess(true);
-        if (resData.message) {
-          setSyncMessage(resData.message);
-        } else if (resData.ordersFound !== undefined) {
-          setSyncMessage(`✅ Synced ${resData.ordersFound} orders (${resData.ordersImported || 0} new imported, ${resData.ordersUpdated || 0} updated). Date window: ${resData.syncWindow?.from} to ${resData.syncWindow?.to} (Last 60 days).`);
-        } else {
-          setSyncMessage(`✅ Synced ${resData.count} orders successfully!`);
-        }
+        setSyncNotice(`Synced ${resData.ordersFound ?? resData.count ?? 0} orders.`);
         revalidator.revalidate();
       } else {
         throw new Error(resData.error || "Sync failed");
       }
     } catch (e) {
-      setSyncSuccess(false);
-      setSyncMessage(e instanceof Error ? e.message : "Failed to sync orders");
+      setSyncNotice(e instanceof Error ? e.message : "Sync failed");
     } finally {
       setSyncing(false);
     }
   }, [revalidator]);
 
   const handleExportCSV = useCallback(() => {
-    const headers = "Product Name,Units Sold,Revenue,Estimated Profit,Margin\n";
-    const rows = data.topProducts
-      .map((p) => `"${p.name.replace(/"/g, '""')}",${p.volume},${p.revenue},${p.profit},${p.margin}%`)
+    const headers = "Product Name,Units Sold,Revenue,Estimated Profit,Margin,RTO Rate\n";
+    const rows = (data.topProducts || [])
+      .map((p: any) => `"${(p.name || "").replace(/"/g, '""')}",${p.volume || 0},${p.revenue || 0},${p.profit || 0},${p.margin || 0}%,${p.rtoRate || 0}%`)
       .join("\n");
-    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + rows);
+    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", `greek_god_profit_report_${data.shop || "store"}.csv`);
+    link.href = url;
+    link.setAttribute("download", `profitrx_products_${data.shop || "store"}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   }, [data.topProducts, data.shop]);
 
-  const isCogsSetup = data.configuredCogsCount > 0;
-  const isSynced = data.orderCount > 0;
-  const onboardingComplete = isCogsSetup && isSynced;
+  const urgentOrders = useMemo(() => {
+    return (data.ordersNeedingReview || []).slice(0, 3);
+  }, [data.ordersNeedingReview]);
 
-  const wizardSteps = [
-    {
-      label: "Sync your orders",
-      icon: "⟳",
-      status: isSynced ? "complete" : "pending",
-      desc: "Download transactions from Shopify.",
-      actionText: "Sync Orders",
-      actionClick: handleSyncOrders
-    },
-    {
-      label: "Set your product costs",
-      icon: "💸",
-      status: isCogsSetup ? "complete" : "pending",
-      desc: "Configure pricing targets on the Costs tab.",
-      actionText: "Configure Costs",
-      actionUrl: `/app/cogs?shop=${data.shop}&host=${data.host}`
-    },
-    {
-      label: "View your profit dashboard",
-      icon: "⚡",
-      status: onboardingComplete ? "complete" : "pending",
-      desc: "Inspect true margins and leaks.",
-      actionText: "View Profit",
-      actionClick: () => setSelectedTab(0)
-    },
+  const hasIncompleteCosts = (data.missingCogsCount || 0) > 0 || data.hasZeroLogisticsDefaults;
+
+  const tabs = [
+    { id: "profit-trend", content: "Daily Profit Trend" },
+    { id: "courier-health", content: "Courier Performance" },
+    { id: "top-products", content: "Top Products by Real Profit" },
   ];
 
-  const completedSteps = wizardSteps.filter(s => s.status === "complete").length;
-  const wizardProgress = (completedSteps / wizardSteps.length) * 100;
+  // Metric precision & truthful incomplete data modeling
+  const rtoOrdersExist = (data.rtoRate || 0) > 0;
+  const isLogisticsMissing = Boolean(data.hasZeroLogisticsDefaults);
+  
+  let rtoLossStatus: "ACTUAL" | "ESTIMATED" | "INCOMPLETE" = "ACTUAL";
+  let rtoLossReason = "Actual recorded courier freight losses";
+  let rtoLossAmount: number | null = (data as any).rtoLoss ?? data.leaks?.rtoLoss ?? 0;
 
-  const accuracyScore = useMemo(() => {
-    let score = 30;
-    if (data.configuredCogsCount > 0) score += 30;
-    if (!data.hasZeroLogisticsDefaults) score += 40;
-    else score += 20;
-    return score;
-  }, [data.configuredCogsCount, data.hasZeroLogisticsDefaults]);
+  if (rtoOrdersExist && isLogisticsMissing) {
+    rtoLossStatus = "INCOMPLETE";
+    rtoLossReason = "Courier shipping costs need confirmation in Settings";
+    rtoLossAmount = null;
+  } else if (!rtoOrdersExist) {
+    rtoLossStatus = "ACTUAL";
+    rtoLossReason = "Zero return losses recorded";
+    rtoLossAmount = 0;
+  } else if (hasIncompleteCosts) {
+    rtoLossStatus = "ESTIMATED";
+    rtoLossReason = "Estimated based on starting logistics rates";
+  }
 
-  const tabs = useMemo(() => [
-    { id: "store-profitability", content: "⚡ Store Profitability", panelID: "tab-0" },
-    { id: "profit-leaks", content: "💸 Profit Leaks", panelID: "tab-1" },
-    { id: "risk-intelligence", content: "🛡️ Risk Intelligence", panelID: "tab-2" },
-  ], []);
-
-  const productRows = useMemo(() => data.topProducts.map((p) => [
-    <BlockStack gap="050" key={p.name}>
-      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 500, color: p.isToxic ? "var(--gg-accent-red)" : "var(--gg-text-primary)" }}>
-        {p.name}
-      </span>
-      {p.isToxic && <Badge tone="critical" size="small">Toxic Product (Loss-making)</Badge>}
-    </BlockStack>,
-    <span key={`${p.name}-vol`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: "var(--gg-text-secondary)" }}>{p.volume}</span>,
-    <span key={`${p.name}-rev`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600 }}>₹{p.revenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>,
-    <span key={`${p.name}-prof`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: p.profit >= 0 ? "var(--gg-accent-green)" : "var(--gg-accent-red)" }}>
-      ₹{p.profit.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-    </span>,
-    <span key={`${p.name}-rto`} style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 600, color: p.rtoRate > 15 ? "var(--gg-accent-red)" : "var(--gg-text-secondary)" }}>
-      {p.rtoRate}% RTO
-    </span>,
-    <Badge key={`${p.name}-marg`} tone={p.margin > 30 ? "success" : p.margin > 15 ? "warning" : "critical"}>{`${p.margin}%`}</Badge>,
-  ]), [data.topProducts]);
+  // Zero-order state
+  if (data.orderCount === 0) {
+    return (
+      <Page title="ProfitRx" subtitle="Net profit and COD risk protection">
+        <Layout>
+          <Layout.Section>
+            <Card>
+              <EmptyState
+                heading="No orders found yet"
+                action={{
+                  content: "Sync orders from Shopify",
+                  onAction: handleSyncOrders,
+                  loading: syncing,
+                }}
+                secondaryAction={{
+                  content: "Configure shipping costs",
+                  url: `/app/settings?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`,
+                }}
+                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+              >
+                <p>
+                  Sync your recent transactions so ProfitRx can calculate true net margins, identify unserviceable pincodes, and protect incoming COD orders.
+                </p>
+              </EmptyState>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
 
   return (
     <Page
-      title={`ProfitRx — ${data.shop?.replace(".myshopify.com", "") || "Store"}`}
-      subtitle={`Sync Window: Last 60 Days (${data.syncWindow?.from || "Recent"} – ${data.syncWindow?.to || "Today"}) • Evaluated Orders: ${data.orderCount} • Last Activity: ${data.lastSyncTime ? new Date(data.lastSyncTime).toLocaleDateString() : "Real-time"}`}
+      title="ProfitRx"
+      subtitle={`${data.shop?.replace(".myshopify.com", "") || "Store"} • ${data.orderCount} orders evaluated (${data.syncWindow?.from || "Recent"} – ${data.syncWindow?.to || "Today"})`}
       primaryAction={
-        <Button variant="primary" onClick={handleSyncOrders} loading={syncing} id="sync-orders-btn">
-          ⟳ Sync Orders
+        <Button variant="primary" onClick={handleSyncOrders} loading={syncing}>
+          Sync orders
         </Button>
       }
       secondaryActions={[
         {
-          content: autoRefresh ? "🟢 Auto-Polling ON" : "⏱️ Enable Auto-Polling",
-          onAction: () => setAutoRefresh(!autoRefresh),
-        },
-        {
-          content: "📥 Export CSV",
+          content: "Export products CSV",
           onAction: handleExportCSV,
         },
       ]}
     >
-      <Layout>
-        {/* Sync Banner */}
-        {syncMessage && (
-          <Layout.Section>
-            <Banner tone={syncSuccess ? "success" : "critical"} onDismiss={() => setSyncMessage(null)}>
-              {syncMessage}
-            </Banner>
-          </Layout.Section>
+      <BlockStack gap="400">
+        {/* Sync notification */}
+        {syncNotice && (
+          <Banner tone="info" onDismiss={() => setSyncNotice(null)}>
+            <p>{syncNotice}</p>
+          </Banner>
         )}
 
-        {/* ── ZERO-ORDER GUIDED EMPTY STATE ── */}
-        {data.orderCount === 0 && (
-          <Layout.Section>
-            <Card>
-              <Box padding="600">
-                <BlockStack gap="500" inlineAlign="center">
-                  <BlockStack gap="200" inlineAlign="center">
-                    <span style={{ fontSize: 56 }} aria-hidden="true">🛡️</span>
-                    <Text variant="headingLg" as="h2" alignment="center">
-                      Welcome to ProfitRx
-                    </Text>
-                    <Text variant="bodyMd" as="p" tone="subdued" alignment="center">
-                      No orders found in the current 60-day sync window ({data.syncWindow?.from || "recent"} – {data.syncWindow?.to || "today"}).
-                      Complete the steps below to start protecting your profits.
-                    </Text>
-                  </BlockStack>
-
-                  <Divider />
-
-                  <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                    {/* Step 1: Sync Orders */}
-                    <Grid.Cell>
-                      <div style={{
-                        padding: "20px",
-                        borderRadius: "var(--gg-radius-md)",
-                        border: "1px solid rgba(37,99,235,0.25)",
-                        background: "rgba(37,99,235,0.04)",
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}>
-                        <BlockStack gap="200">
-                          <InlineStack gap="200" blockAlign="center">
-                            <span style={{ fontSize: 28 }}>⟳</span>
-                            <Text variant="headingSm" as="h3">1. Sync Orders</Text>
-                          </InlineStack>
-                          <Text variant="bodySm" as="p" tone="subdued">
-                            Pull your recent Shopify transactions so ProfitRx can calculate real profit, RTO rates, and risk scores.
-                          </Text>
-                        </BlockStack>
-                        <div style={{ marginTop: "16px" }}>
-                          <Button variant="primary" onClick={handleSyncOrders} loading={syncing} id="empty-state-sync-btn">
-                            Sync Orders Now
-                          </Button>
-                        </div>
-                      </div>
-                    </Grid.Cell>
-
-                    {/* Step 2: Configure COGS */}
-                    <Grid.Cell>
-                      <div style={{
-                        padding: "20px",
-                        borderRadius: "var(--gg-radius-md)",
-                        border: "1px solid rgba(16,185,129,0.25)",
-                        background: "rgba(16,185,129,0.04)",
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}>
-                        <BlockStack gap="200">
-                          <InlineStack gap="200" blockAlign="center">
-                            <span style={{ fontSize: 28 }}>💸</span>
-                            <Text variant="headingSm" as="h3">2. Configure COGS</Text>
-                          </InlineStack>
-                          <Text variant="bodySm" as="p" tone="subdued">
-                            Set your product unit costs so ProfitRx can compute true net margins instead of estimates.
-                          </Text>
-                        </BlockStack>
-                        <div style={{ marginTop: "16px" }}>
-                          <Button variant="secondary" url={`/app/cogs?shop=${data.shop}&host=${data.host}`}>
-                            Configure COGS Catalog →
-                          </Button>
-                        </div>
-                      </div>
-                    </Grid.Cell>
-
-                    {/* Step 3: Configure Shipping */}
-                    <Grid.Cell>
-                      <div style={{
-                        padding: "20px",
-                        borderRadius: "var(--gg-radius-md)",
-                        border: "1px solid rgba(245,158,11,0.25)",
-                        background: "rgba(245,158,11,0.04)",
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                      }}>
-                        <BlockStack gap="200">
-                          <InlineStack gap="200" blockAlign="center">
-                            <span style={{ fontSize: 28 }}>🚚</span>
-                            <Text variant="headingSm" as="h3">3. Shipping & Costs</Text>
-                          </InlineStack>
-                          <Text variant="bodySm" as="p" tone="subdued">
-                            Set your forward shipping, return freight, and packaging costs for accurate RTO loss calculations.
-                          </Text>
-                        </BlockStack>
-                        <div style={{ marginTop: "16px" }}>
-                          <Button variant="secondary" url={`/app/settings?shop=${data.shop}&host=${data.host}`}>
-                            Configure Settings →
-                          </Button>
-                        </div>
-                      </div>
-                    </Grid.Cell>
-                  </Grid>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
+        {/* Initial store sync notice (cold start) */}
+        {data.isColdStart && data.orderCount > 0 && (
+          <Banner tone="info" title="Initial Store Sync Active">
+            <p>
+              Successfully imported <strong>{data.orderCount} recent orders</strong>. Deeper historical data is syncing in the background. Net profit is currently estimated based on your starting logistics settings.
+            </p>
+          </Banner>
         )}
 
-        {isTrialActive && (
-          <Layout.Section>
-            <Banner tone="info" title="🎉 Your 14-Day Free Trial is Active!">
-              <p>Maximize your profits! Your free trial ends in <strong>{trialDaysRemaining} days</strong> ({data.trialEndsAt ? new Date(data.trialEndsAt).toLocaleDateString() : ""}). Check your <Link to={`/app/billing?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Billing Page</Link> to view plan usage limits.</p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {data.isDemoData && (
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title="Viewing Demo Data Mode"
-              action={{
-                content: "Sync Your Store Orders",
-                onAction: handleSyncOrders,
-              }}
-            >
-              <p>We did not find any orders in your store database. The metrics and charts below are populated with sample/demo data to show the dashboard capabilities. Run a manual sync to pull your actual store data.</p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {data.adSpendDisconnected && (
-          <Layout.Section>
-            <Banner
-              tone="critical"
-              title="Ad Account Credentials Expired"
-              action={{
-                content: "Reconnect Ad Channels",
-                url: `/app/roas?shop=${data.shop}&host=${data.host}`,
-              }}
-            >
-              <p>Meta, Google, or TikTok Ad spend OAuth integration tokens have expired or been revoked. Ad spend and blended ROAS/CAC tracking are disabled. Reconnect your credentials in settings to restore metrics sync.</p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-
-        {/* Currency Notice for Non-INR Stores */}
-        {data.settings?.currency && data.settings.currency.toUpperCase() !== "INR" && (
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title={`Notice: Store Currency is ${data.settings.currency.toUpperCase()}`}
-            >
-              <p>
-                ProfitRx order risk analysis and COD protection rules are fully active for your store. However, default cost deductions (shipping, packaging, COD handling) are calibrated to Indian Rupee (INR) market rates. To ensure accurate net profit calculations in <strong>{data.settings.currency.toUpperCase()}</strong>, please review and update your default cost amounts in <Link to={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>Store Settings</Link>.
-              </p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {/* Warning & Plan Banners */}
-        {data.isBasicTier && (
-          <Layout.Section>
-            <Banner
-              tone="info"
-              title={`${data.planName} Plan Active — tracking ${data.ordersUsed}/${data.ordersLimit || 50} orders this month`}
-              action={{
-                content: data.planName === "Free" ? "Upgrade to Starter" : "Upgrade to Growth",
-                url: `/app/pricing?shop=${data.shop}&host=${data.host}&change_plan=true`,
-              }}
-            >
-              <p>You are currently on the <strong>{data.planName} Plan</strong>. Upgrade to unlock COD Risk Scoring, Pincode RTO Heatmaps, Profit Leak Detection, and more advanced analytics!</p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {data.missingCogsCount > 0 && (
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title="Products Missing COGS"
-              action={{
-                content: "Configure COGS Catalog",
-                url: `/app/cogs?shop=${data.shop}&host=${data.host}`,
-              }}
-            >
-              <p>
-                ⚠️ <strong>{data.excludedOrdersCount} orders excluded</strong> from profit metrics because <strong>{data.missingCogsCount} products</strong> are missing COGS. Please <Link to={`/app/cogs?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in the COGS Catalog</Link> to include them in calculations.
-              </p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {data.hasZeroLogisticsDefaults && (
-          <Layout.Section>
-            <Banner
-              tone="warning"
-              title="Logistics Defaults Not Configured"
-              action={{
-                content: "Configure in Settings",
-                url: `/app/settings?shop=${data.shop}&host=${data.host}`,
-              }}
-            >
-              <p>
-                ⚠️ Some logistics parameters (Shipping costs or Packaging costs) are set to ₹0. Please <Link to={`/app/settings?shop=${data.shop}&host=${data.host}`} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>configure them in Settings</Link> to get accurate RTO loss figures.
-              </p>
-            </Banner>
-          </Layout.Section>
-        )}
-
-
-
-        <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
-            <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1 }}>
-              <Card>
-                <BlockStack gap="400">
-                  <SectionHeader title="Estimated Avoided Loss" subtitle="Modeled savings from prevented RTOs" />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0', background: 'var(--gg-accent-green-alpha-10)', borderRadius: '12px', border: '1px solid var(--gg-accent-green-alpha-20)' }}>
-                    <Text variant="heading3xl" as="h2" tone="success">
-                      ₹{Math.round(data.totalRtoSavings || 0).toLocaleString("en-IN")}
-                    </Text>
-                    <Text variant="bodyMd" as="span" tone="subdued">
-                      {data.blockedCodCount > 0
-                        ? `${data.blockedCodCount} high-risk orders intervened`
-                        : data.orderCount > 0
-                          ? `All ${data.orderCount} orders verified safe`
-                          : "0 high-risk orders intervened"}
-                    </Text>
-                  </div>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-            <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-              <Card>
-                <BlockStack gap="400">
-                  <SectionHeader title="Recent Activity & Attention" subtitle="Real-time order decisions & alerts" />
-                  <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {data.recentDecisions?.length === 0 && data.recentAlerts?.length === 0 ? (
-                      <EmptyStateCard title="No recent activity" description="Waiting for new orders or alerts." icon="🕰️" action={{ text: "Sync Orders", onClick: handleSyncOrders }} />
-                    ) : (
-                      <DataTable
-                        columnContentTypes={["text", "text", "text", "text"]}
-                        headings={["Time", "Event", "Details", "Action"]}
-                        rows={[
-                          ...(data.recentAlerts || []).map((a: any) => ({
-                            time: new Date(a.createdAt).getTime(),
-                            row: [
-                              <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(a.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
-                              <Badge tone={a.severity === 'CRITICAL' ? 'critical' : a.severity === 'WARNING' ? 'warning' : 'info'}>Alert</Badge>,
-                              <span style={{ fontWeight: 500 }}>{a.message}</span>,
-                              <Link to={`/app/alerts?shop=${data.shop}&host=${data.host}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>View</Link>
-                            ]
-                          })),
-                          ...(data.recentDecisions || []).map((d: any) => {
-                            const orderNum = d.order?.orderNumber || String(d.orderId || "").replace("gid://shopify/Order/", "").replace("auto-log-", "");
-                            const riskLevel = d.order?.riskLevel || "LOW";
-                            const cleanOrderId = String(d.orderId || "").replace("gid://shopify/Order/", "").replace("auto-log-", "");
-                            return {
-                              time: new Date(d.createdAt).getTime(),
-                              row: [
-                                <span style={{ color: 'var(--gg-text-muted)' }}>{new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>,
-                                <Badge tone="success">Decision</Badge>,
-                                <span>Order #{orderNum} evaluated. Risk: <Badge tone={riskLevel === 'HIGH' || riskLevel === 'CRITICAL' ? 'critical' : riskLevel === 'MEDIUM' ? 'warning' : 'success'}>{riskLevel}</Badge></span>,
-                                <Link to={`/app/orders/${encodeURIComponent(cleanOrderId)}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} style={{ color: "var(--p-color-text-link)", textDecoration: "none" }}>Details →</Link>
-                              ]
-                            };
-                          })
-                        ].sort((a, b) => b.time - a.time).slice(0, 5).map(item => item.row)}
-                      />
-                    )}
-                  </div>
-                </BlockStack>
-              </Card>
-            </Grid.Cell>
-          </Grid>
-        </Layout.Section>
-
-        <Layout.Section>
-          <StatGrid columns={gridCols}>
-            {/* Realized Profit */}
-            <MetricCard
-              title="Realized Profit"
-              value={`₹${Math.round(Math.abs(data.netProfit)).toLocaleString("en-IN")}`}
-              prefix={data.netProfit < 0 ? "-" : ""}
-              tone={data.netProfit >= 0 ? "success" : "critical"}
-              icon="⚡"
-              tooltip="Actual net profit from fulfilled orders: Sales minus COGS, forward shipping, and gateway fees."
-              loading={syncing}
-              badge={data.missingCogsCount > 0 ? { content: "Est. Fallback", tone: "warning" } : { content: "Actual COGS", tone: "success" }}
-              subtitle={
-                <span className={data.netProfit >= 0 ? "gg-trend-up" : "gg-trend-down"}>
-                  {data.netProfit >= 0 ? "▲ Realized Net Profit" : "▼ Net Operating Loss"}
-                </span>
-              }
-            />
-
-            {/* Total Revenue */}
-            <MetricCard
-              title="Gross Revenue"
-              value={`₹${Math.round(data.revenue).toLocaleString("en-IN")}`}
-              tone="info"
-              icon="💰"
-              tooltip="Total order sales value across all payment methods."
-              loading={syncing}
-              subtitle={
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
-                  <span>Prepaid: <strong style={{ color: "var(--gg-accent-green)" }}>₹{Math.round(data.prepaidRevenue || 0).toLocaleString("en-IN")}</strong></span>
-                  <span>COD: <strong style={{ color: "var(--gg-accent-amber)" }}>₹{Math.round(data.codRevenue || 0).toLocaleString("en-IN")}</strong></span>
-                </div>
-              }
-            />
-
-            {/* Net Margin */}
-            <MetricCard
-              title="Net Margin"
-              value={`${Math.round(data.netMargin)}%`}
-              tone={data.netMargin > 20 ? "success" : data.netMargin > 10 ? "warning" : "critical"}
-              icon="💡"
-              tooltip="Realized Net Profit divided by Gross Revenue."
-              loading={syncing}
-              badge={data.missingCogsCount > 0 ? { content: "Est. Fallback", tone: "warning" } : undefined}
-              subtitle={data.netMargin > 20 ? "Healthy Margin (>20%)" : "Low Margin (<20%)"}
-            />
-
-            {/* Total Orders */}
-            <MetricCard
-              title="Total Orders"
-              value={data.orderCount.toLocaleString("en-IN")}
-              tone="neutral"
-              icon="📅"
-              tooltip="Total order volume evaluated."
-              loading={syncing}
-              subtitle="All evaluated orders"
-            />
-
-            {/* Profit Leaks */}
-            <MetricCard
-              title="Profit Leaks"
-              value={`₹${Math.round(data.leaks.totalLeak).toLocaleString("en-IN")}`}
-              tone="critical"
-              icon="⚠️"
-              tooltip="Identified financial leakage from RTO returns, freight overages, and discounts."
-              loading={syncing}
-              action={{
-                content: "Inspect Leaks →",
-                url: `/app/profit-leaks?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`
-              }}
-            />
-          </StatGrid>
-        </Layout.Section>
-
-        {/* ── TOP SECTION: REVENUE & NET PROFIT TREND CHART ── */}
-        <Layout.Section>
-          <Card>
-            <Box padding="500">
-              <BlockStack gap="300">
-                <SectionHeader
-                  title="Revenue & Net Profit Trend"
-                  subtitle="Last 30 days — day-by-day performance index"
-                  action={
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div className="gg-pulse" />
-                      <span className="gg-text-xs gg-text-muted gg-font-body">Live data</span>
-                    </div>
-                  }
-                />
-                {syncing ? (
-                  <div className="skeleton-pulse skeleton-chart" />
-                ) : (
-                  <ProfitTrendChart data={data.chartData} />
-                )}
-              </BlockStack>
-            </Box>
-          </Card>
-        </Layout.Section>
-
-        {/* ── Toggle Button for Advanced Reports ── */}
-        <Layout.Section>
-          <Box paddingBlock="200">
-            <InlineStack align="center">
-              <Button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                variant="secondary"
-                id="toggle-advanced-metrics-btn"
-              >
-                {showAdvanced ? "▲ Hide Advanced Analytics & Sync Status" : "▼ Show Advanced Analytics & Sync Status"}
+        {/* Cost completeness notice */}
+        {hasIncompleteCosts && (
+          <Banner tone="info">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="p" variant="bodySm">
+                <strong>Missing product costs:</strong> Some items use estimated costs. Add your making or buying prices in Product Costs so your net profit calculations reflect your actual item costs.
+              </Text>
+              <Button url={`/app/cogs?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`} variant="plain">
+                Add Product Costs
               </Button>
             </InlineStack>
-          </Box>
-        </Layout.Section>
-
-        {showAdvanced && (
-          <>
-            {/* ── THE PRICING TRAP: PROOF OF ROI CALLOUT CARD ── */}
-            <Layout.Section>
-              <CalloutCard
-                title="⚡ Estimated RTO Prevention Impact"
-                illustration="https://cdn.shopify.com/s/assets/admin/checkout/settings-customize-concept-fn-1a13fa3d95c47926b010c73273e9702206775796a5f577322bf20163351a9956.svg"
-                primaryAction={{
-                  content: "Manage COD Risk Shield Rules",
-                  url: `/app/cod-rules?shop=${data.shop}&host=${data.host}`,
-                }}
-              >
-                <BlockStack gap="200">
-                  <Text variant="bodyMd" as="p" tone="success">
-                    {data.totalRtoSavings > 0 ? (
-                      <>Estimated <strong>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.totalRtoSavings)}</strong> in RTO shipping losses avoided this month by blocking high-risk COD orders. Your subscription cost is {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.monthlySubscriptionCost)}.</>
-                    ) : (
-                      <>No high-risk COD orders blocked yet this month. Configure COD rules to protect your profit.</>
-                    )}
-                  </Text>
-                  {data.totalRtoSavings > 0 && (
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      Estimated Net Profit Retained: <strong>+{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(data.netRoiSavings)}</strong> after covering your subscription.
-                    </Text>
-                  )}
-                </BlockStack>
-              </CalloutCard>
-            </Layout.Section>
-
-            {/* ── COD MANAGEMENT & PROFIT INTELLIGENCE MOAT ── */}
-            <Layout.Section>
-              <div style={{
-                padding: "25px",
-                borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(56,189,248,0.1), rgba(59,130,246,0.05))",
-                border: "1px solid rgba(56,189,248,0.25)",
-              }}>
-                <InlineStack align="space-between" blockAlign="center">
-                  <BlockStack gap="100">
-                    <InlineStack gap="200" blockAlign="center">
-                      <span style={{ fontSize: 22 }}>🛡️</span>
-                      <Text variant="headingMd" as="h2">COD Management & Profit Intelligence</Text>
-                      <Badge tone="success">Active Moat Engine</Badge>
-                    </InlineStack>
-                    <Text variant="bodySm" as="p" tone="subdued">
-                      ProfitRx combines real COD management (pincode blocking, high-risk detection) with true COD profit tracking.
-                    </Text>
-                  </BlockStack>
-                  <InlineStack gap="200">
-                    <Button url={`/app/cod-rules?shop=${data.shop}&host=${data.host}`} variant="secondary">
-                      Configure COD Rules →
-                    </Button>
-                    <Button url={`/app/cod-dashboard?shop=${data.shop}&host=${data.host}`} variant="primary">
-                      COD Profit Dashboard →
-                    </Button>
-                  </InlineStack>
-                </InlineStack>
-              </div>
-            </Layout.Section>
-
-            {/* ── FEE BREAKDOWN & GST TAX COMPLIANCE SUMMARY ── */}
-            <Layout.Section>
-              <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                {/* Fee Breakdown Card */}
-                <Grid.Cell>
-                  <Card>
-                    <Box padding="500">
-                      <BlockStack gap="300">
-                        <SectionHeader
-                          title="Fee Breakdown"
-                          action={<Badge tone="info">{`₹${data.feeBreakdown.totalFees.toLocaleString("en-IN")} Total Fees`}</Badge>}
-                        />
-                        <Divider />
-                        <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Gateway Fees</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.gatewayFees.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">COD Fees</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.codHandlingFees.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Forward Freight</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.forwardShipping.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Return Freight</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="critical">₹{data.feeBreakdown.returnShipping.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Packaging</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.feeBreakdown.packagingCosts.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Net Overhead</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="subdued">Auto-Calculated</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                        </Grid>
-                      </BlockStack>
-                    </Box>
-                  </Card>
-                </Grid.Cell>
-
-                {/* GST Compliance Summary Card */}
-                <Grid.Cell>
-                  <Card>
-                    <Box padding="500">
-                      <BlockStack gap="300">
-                        <SectionHeader
-                          title="GST Tax Summary (GSTR-1)"
-                          action={
-                            <Button url={`/api/gst-report?shop=${data.shop}&format=csv`} external size="slim">
-                              Export GSTR CSV 📄
-                            </Button>
-                          }
-                        />
-                        <Divider />
-                        <Grid columns={{ xs: 2, sm: 2, md: 3, lg: 3 }}>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Taxable Sales</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.totalTaxableSales.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">CGST (Intra)</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.cgst.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">SGST (Intra)</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.sgst.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">IGST (Inter)</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold">₹{data.gstSummary.igst.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">Total GST</span>
-                              <Text variant="bodyMd" as="p" fontWeight="bold" tone="success">₹{data.gstSummary.totalGstCollected.toLocaleString("en-IN")}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                          <Grid.Cell>
-                            <BlockStack gap="050">
-                              <span className="gg-section-label">GSTIN</span>
-                              <Text variant="bodySm" as="p" tone="subdued">{data.gstSummary.gstin || "Not set"}</Text>
-                            </BlockStack>
-                          </Grid.Cell>
-                        </Grid>
-                      </BlockStack>
-                    </Box>
-                  </Card>
-                </Grid.Cell>
-              </Grid>
-            </Layout.Section>
-
-            {/* Automation Status Cards */}
-            <Layout.Section>
-              <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}>
-                <Grid.Cell>
-                  <Card>
-                    <Box padding="500">
-                      <BlockStack gap="200">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 20 }}>📦</span>
-                            <Text variant="headingSm" as="h3">COGS Auto-Sync Status</Text>
-                          </InlineStack>
-                          <Badge tone={data.nativeCogsCount > 0 ? "success" : "info"}>
-                            {data.nativeCogsCount > 0 ? "Shopify Native Active ✅" : "Configured"}
-                          </Badge>
-                        </InlineStack>
-                        <Text variant="bodySm" as="p" tone="subdued">
-                          {data.nativeCogsCount > 0
-                            ? `We found your native COGS in Shopify for ${data.nativeCogsCount} items. No manual entry needed!`
-                            : `Syncing costs automatically from Shopify variants.`}
-                        </Text>
-                        <Button url={`/app/cogs?shop=${data.shop}&host=${data.host}`} variant="plain">
-                          Manage Cost Rules →
-                        </Button>
-                      </BlockStack>
-                    </Box>
-                  </Card>
-                </Grid.Cell>
-
-                <Grid.Cell>
-                  <Card>
-                    <Box padding="500">
-                      <BlockStack gap="200">
-                        <InlineStack align="space-between" blockAlign="center">
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 20 }}>🔗</span>
-                            <Text variant="headingSm" as="h3">Ad Accounts Auto-Sync</Text>
-                          </InlineStack>
-                          <Badge tone={data.hasConnectedAdAccount ? "success" : "attention"}>
-                            {data.hasConnectedAdAccount ? "Auto-Sync Connected ✅" : "Not Connected"}
-                          </Badge>
-                        </InlineStack>
-                        <Text variant="bodySm" as="p" tone="subdued">
-                          {data.hasConnectedAdAccount
-                            ? `Connected to ad accounts. Pulling daily campaign spend automatically.`
-                            : `Connect your ad accounts (Meta, Google, TikTok) to see your true ROAS and CAC.`}
-                        </Text>
-                        <Button url={`/app/roas?shop=${data.shop}&host=${data.host}`} variant="plain">
-                          {data.hasConnectedAdAccount ? "View Ad Spend →" : "Connect Ad Accounts →"}
-                        </Button>
-                      </BlockStack>
-                    </Box>
-                  </Card>
-                </Grid.Cell>
-              </Grid>
-            </Layout.Section>
-          </>
+          </Banner>
         )}
 
-        {data.isColdStart && (
-          <Layout.Section>
-            <Banner tone="info">
-              ℹ️ <strong>COD Risk Score Cold Start:</strong> Risk score accuracy improves as your order history builds.
-              Currently based on limited data (fewer than 50 orders synced).
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {data.syncCapped && (
-          <Layout.Section>
-            <Banner tone="warning">
-              ⚠️ <strong>Sync capped at 1,000 orders:</strong> Your metrics cover your most recent 1,000 orders. Older orders in the 60-day window are not reflected.
-            </Banner>
-          </Layout.Section>
-        )}
-
-        {/* ── AI Onboarding Wizard ─────────────────────── */}
-        {!onboardingComplete && !wizardDismissed && (
-          <Layout.Section>
+        {/* ── THE 3 HERO METRICS ── */}
+        <Layout>
+          {/* 1. Net Profit */}
+          <Layout.Section variant="oneThird">
             <Card>
-              <Box padding="500">
-                <BlockStack gap="400">
-                  <InlineStack align="space-between">
-                    <BlockStack gap="100">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 20 }}>🛡️</span>
-                        <Text variant="headingMd" as="h2">
-                          Store Protection Setup Wizard
-                        </Text>
-                      </div>
-                      <Text variant="bodySm" as="p" tone="subdued">
-                        Complete these steps to unlock full COD risk management and profit protection.
-                      </Text>
-                    </BlockStack>
-                    <Button variant="plain" onClick={() => setWizardDismissed(true)}>
-                      Dismiss
-                    </Button>
-                  </InlineStack>
-
-                  {/* Progress bar */}
-                  <div>
-                    <InlineStack align="space-between">
-                      <span className="gg-text-sm gg-text-muted gg-font-body">
-                        {completedSteps}/{wizardSteps.length} steps complete
-                      </span>
-                      <span className="gg-text-sm gg-font-body" style={{ color: wizardProgress === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)", fontWeight: 600 }}>
-                        {wizardProgress.toFixed(0)}%
-                      </span>
-                    </InlineStack>
-                    <div style={{ marginTop: 6 }}>
-                      <ProgressBar progress={wizardProgress} tone={wizardProgress === 100 ? "success" : "primary"} />
-                    </div>
-                  </div>
-
-                  <Divider />
-
-                  {/* Wizard steps grid */}
-                  <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
-                    {wizardSteps.map((step, idx) => (
-                      <Grid.Cell key={idx}>
-                        <div className={`gg-wizard-step ${step.status === "complete" ? "gg-wizard-step--complete" : ""}`} style={{ height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                          <BlockStack gap="200">
-                            <InlineStack gap="200" blockAlign="center">
-                              <div className={`gg-wizard-step-check ${step.status === "complete" ? "gg-wizard-step-check--done" : "gg-wizard-step-check--pending"}`}>
-                                {step.status === "complete" ? "✓" : (idx + 1)}
-                              </div>
-                              <span style={{ fontSize: 16 }}>{step.icon}</span>
-                            </InlineStack>
-                            <Text variant="bodySm" as="p" fontWeight="semibold">{step.label}</Text>
-                            <Text variant="bodyXs" as="p" tone="subdued">{step.desc}</Text>
-                            <div style={{ marginTop: "10px" }}>
-                              {step.actionUrl ? (
-                                <Button variant="secondary" url={step.actionUrl} size="slim">
-                                  {step.actionText} →
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="secondary"
-                                  onClick={step.actionClick}
-                                  size="slim"
-                                  disabled={step.status === "complete" && idx === 2}
-                                >
-                                  {step.actionText}
-                                </Button>
-                              )}
-                            </div>
-                          </BlockStack>
-                        </div>
-                      </Grid.Cell>
-                    ))}
-                  </Grid>
-                </BlockStack>
-              </Box>
+              <BlockStack gap="100">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="bodySm" tone="subdued" as="p">
+                    {data.configuredCogsCount > 0 && !hasIncompleteCosts ? "Actual Net Profit" : "Estimated Net Profit"}
+                  </Text>
+                  <Badge tone={data.configuredCogsCount > 0 && !hasIncompleteCosts ? "success" : "attention"}>
+                    {data.configuredCogsCount > 0 && !hasIncompleteCosts ? "ACTUAL" : "ESTIMATED"}
+                  </Badge>
+                </InlineStack>
+                <Text variant="heading2xl" as="h2">
+                  ₹{formatK(data.netProfit || 0)}
+                </Text>
+                <Text variant="bodyXs" tone="subdued" as="p">
+                  {data.configuredCogsCount > 0 && !hasIncompleteCosts
+                    ? "Actual recorded net profit after all costs"
+                    : "Includes estimated product costs & shipping allowances"}
+                </Text>
+              </BlockStack>
             </Card>
           </Layout.Section>
-        )}
 
-        {/* ── Main Tabs ───────────────────────────────── */}
-        <Layout.Section>
-          <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab}>
-            <Box paddingBlockStart="400">
+          {/* 2. Courier Losses on Returns */}
+          <Layout.Section variant="oneThird">
+            <Card>
+              <BlockStack gap="100">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text variant="bodySm" tone="subdued" as="p">
+                    Money Lost on Returns
+                  </Text>
+                  <Badge tone={rtoLossStatus === "ACTUAL" ? "success" : rtoLossStatus === "ESTIMATED" ? "attention" : "warning"}>
+                    {rtoLossStatus}
+                  </Badge>
+                </InlineStack>
+                <Text variant="heading2xl" as="h2" tone={rtoLossStatus === "INCOMPLETE" ? "caution" : "critical"}>
+                  {rtoLossAmount !== null ? `₹${formatK(rtoLossAmount)}` : "Pending Rates"}
+                </Text>
+                <Text variant="bodyXs" tone="subdued" as="p">
+                  {rtoLossReason}
+                </Text>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
 
-              {/* ══ TAB 0: Store Profitability ══════════════ */}
-              {selectedTab === 0 && (
-                <BlockStack gap="400">
+          {/* 3. Orders to Check */}
+          <Layout.Section variant="oneThird">
+            <Card>
+              <BlockStack gap="100">
+                <Text variant="bodySm" tone="subdued" as="p">
+                  Orders to Check
+                </Text>
+                <Text variant="heading2xl" as="h2" tone={urgentOrders.length > 0 ? "caution" : "base"}>
+                  {urgentOrders.length}
+                </Text>
+                <Text variant="bodyXs" tone="subdued" as="p">
+                  {urgentOrders.length > 0 ? "High return risk — confirm before packing" : "All orders safe to pack"}
+                </Text>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        </Layout>
 
-                  {/* ── Fix This Week Action To-Do List ──────────── */}
-                  <Card>
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between" blockAlign="center">
-                        <BlockStack gap="050">
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 20 }}>⚡</span>
-                            <Text variant="headingMd" as="h2">Fix This Week — Action To-Do List</Text>
-                            <Badge tone="critical">3 Priority Fixes</Badge>
-                          </InlineStack>
-                          <Text variant="bodySm" as="p" tone="subdued">
-                            Actionable steps to immediately eliminate profit leaks and recover money lost to RTO.
-                          </Text>
-                        </BlockStack>
-                      </InlineStack>
-
-                      <Divider />
-
-                      <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
-                        <Grid.Cell>
-                          <div style={{
-                            padding: "16px",
-                            borderRadius: "var(--gg-radius-md)",
-                            border: "1px solid rgba(239,68,68,0.3)",
-                            background: "rgba(239,68,68,0.06)",
-                            height: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between"
-                          }}>
-                            <BlockStack gap="150">
-                              <InlineStack align="space-between">
-                                <Text variant="bodySm" as="span" fontWeight="bold" tone="critical">🛑 Action 1: Block High-RTO Pincodes</Text>
-                                <Badge tone="critical">Estimated impact</Badge>
-                              </InlineStack>
-                              <Text variant="bodyXs" as="p" tone="subdued">
-                                Identify postal codes with elevated return rates and restrict COD to avoid freight loss.
-                              </Text>
-                            </BlockStack>
-                            <div style={{ marginTop: "12px" }}>
-                              <Button
-                                variant="primary"
-                                tone="critical"
-                                size="slim"
-                                url={`/app/rto-heatmap?shop=${data.shop}&host=${data.host}`}
-                              >
-                                Block High-Risk Pincodes →
-                              </Button>
-                            </div>
-                          </div>
-                        </Grid.Cell>
-
-                        <Grid.Cell>
-                          <div style={{
-                            padding: "16px",
-                            borderRadius: "var(--gg-radius-md)",
-                            border: "1px solid rgba(245,158,11,0.3)",
-                            background: "rgba(245,158,11,0.06)",
-                            height: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between"
-                          }}>
-                            <BlockStack gap="150">
-                              <InlineStack align="space-between">
-                                <Text variant="bodySm" as="span" fontWeight="bold">⚡ Action 2: Review High-RTO Items</Text>
-                                <Badge tone="warning">Estimated impact</Badge>
-                              </InlineStack>
-                              <Text variant="bodyXs" as="p" tone="subdued">
-                                Review catalog items with low or negative margins after factoring in return shipping.
-                              </Text>
-                            </BlockStack>
-                            <div style={{ marginTop: "12px" }}>
-                              <Button
-                                variant="secondary"
-                                size="slim"
-                                url={`/app/cogs?shop=${data.shop}&host=${data.host}`}
-                              >
-                                Configure COGS & Rules →
-                              </Button>
-                            </div>
-                          </div>
-                        </Grid.Cell>
-
-                        <Grid.Cell>
-                          <div style={{
-                            padding: "16px",
-                            borderRadius: "var(--gg-radius-md)",
-                            border: "1px solid rgba(56,189,248,0.3)",
-                            background: "rgba(56,189,248,0.06)",
-                            height: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            justifyContent: "space-between"
-                          }}>
-                            <BlockStack gap="150">
-                              <InlineStack align="space-between">
-                                <Text variant="bodySm" as="span" fontWeight="bold">🚚 Action 3: Courier Route Review</Text>
-                                <Badge tone="info">Estimated impact</Badge>
-                              </InlineStack>
-                              <Text variant="bodyXs" as="p" tone="subdued">
-                                Check delivery performance and freight costs across zones to optimize courier routing.
-                              </Text>
-                            </BlockStack>
-                            <div style={{ marginTop: "12px" }}>
-                              <Button
-                                variant="secondary"
-                                size="slim"
-                                url={`/app/settings?shop=${data.shop}&host=${data.host}`}
-                              >
-                                Review Logistics Settings →
-                              </Button>
-                            </div>
-                          </div>
-                        </Grid.Cell>
-                      </Grid>
-                    </BlockStack>
-                  </Card>
-
-                  {/* Onboarding Accuracy Meter */}
-                  {showAdvanced && (
-                    <Card>
-                      <BlockStack gap="400">
-                        <BlockStack gap="100">
-                          <Text variant="headingMd" as="h2">🎯 Profit Data Accuracy Meter</Text>
-                          <Text variant="bodySm" as="p" tone="subdued">Your dashboard reports are only as accurate as your setup parameters.</Text>
-                        </BlockStack>
-
-                        {/* Progress bar accuracy */}
-                        <BlockStack gap="200">
-                          <InlineStack align="space-between">
-                            <span style={{ fontWeight: 600, fontSize: "20px", color: accuracyScore === 100 ? "var(--gg-accent-green)" : "var(--gg-accent-blue)" }}>
-                              {accuracyScore}% Accuracy
-                            </span>
-                          </InlineStack>
-                          <ProgressBar progress={accuracyScore} tone={accuracyScore === 100 ? "success" : "primary"} />
-                        </BlockStack>
-
-                        {/* Setup Tasks Checklist */}
-                        <BlockStack gap="200">
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 16 }}>{data.orderCount > 0 ? "✅" : "⏳"}</span>
-                            <BlockStack gap="0">
-                              <Text variant="bodySm" as="span" fontWeight={data.orderCount > 0 ? "regular" : "bold"}>Order Synced (+30%)</Text>
-                              <Text variant="bodyXs" as="span" tone="subdued">Base connection established.</Text>
-                            </BlockStack>
-                          </InlineStack>
-
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 16 }}>{data.configuredCogsCount > 0 ? "✅" : "⏳"}</span>
-                            <BlockStack gap="0">
-                              <Text variant="bodySm" as="span" fontWeight={data.configuredCogsCount > 0 ? "regular" : "bold"}>COGS Catalog Entered (+30%)</Text>
-                              <Text variant="bodyXs" as="span" tone="subdued">Improves profit calculations accuracy.</Text>
-                            </BlockStack>
-                          </InlineStack>
-
-                          <InlineStack gap="150" blockAlign="center">
-                            <span style={{ fontSize: 16 }}>{!data.hasZeroLogisticsDefaults ? "✅" : "⏳"}</span>
-                            <BlockStack gap="0">
-                              <Text variant="bodySm" as="span" fontWeight={!data.hasZeroLogisticsDefaults ? "regular" : "bold"}>Logistics Costs Set (+40%)</Text>
-                              <Text variant="bodyXs" as="span" tone="subdued">Prevents overstating profits by ₹{Math.round(data.revenue * 0.1)}.</Text>
-                            </BlockStack>
-                          </InlineStack>
-                        </BlockStack>
-                      </BlockStack>
-                    </Card>
-                  )}
-
-                  {/* Alerts Inbox */}
-                  <Card>
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between">
-                        <Text variant="headingMd" as="h2">🔔 Active Alerts Inbox</Text>
-                        <Button variant="plain" url={`/app/alerts?shop=${data.shop}&host=${data.host}`}>Manage Rules →</Button>
-                      </InlineStack>
-                      {data.alertsList.length > 0 ? (
-                        <BlockStack gap="200">
-                          {data.alertsList.map((alert: any) => (
-                            <div
-                              key={alert.id}
-                              className={`gg-alert-row gg-alert-row--${alert.tone}`}
-                            >
-                              <span style={{ fontSize: 18 }}>
-                                {alert.tone === "critical" ? "🚨" : alert.tone === "warning" ? "⚠️" : "ℹ️"}
-                              </span>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 600, fontSize: 13, fontFamily: "'Inter', sans-serif", color: "var(--gg-text-primary)", marginBottom: 2 }}>
-                                  {alert.severity}
-                                </div>
-                                <div style={{ fontSize: 13, color: "var(--gg-text-secondary)", fontFamily: "'Inter', sans-serif" }}>
-                                  {alert.message}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </BlockStack>
-                      ) : (
-                        <Banner tone="success" title="Store Operations Stable">
-                          No active warnings. Your store margins and logistics are currently healthy.
-                        </Banner>
-                      )}
-                    </BlockStack>
-                  </Card>
-
-                  {/* Top Products Table */}
-                  <Card>
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between">
-                        <Text variant="headingMd" as="h2">🥇 Top Products by Net Profit</Text>
-                        <Button variant="plain" onClick={handleExportCSV}>Export CSV</Button>
-                      </InlineStack>
-                      <DataTable
-                        columnContentTypes={["text", "numeric", "numeric", "numeric", "numeric", "text"]}
-                        headings={["Product Name", "Units Sold", "Revenue", "Net Profit", "Product RTO", "Margin"]}
-                        rows={productRows}
-                      />
-                    </BlockStack>
-                  </Card>
-
-                  {/* RTO COD Analysis */}
-                  <Card>
-                    <BlockStack gap="400">
-                      <Text variant="headingMd" as="h2">📦 RTO & COD Loss Analysis</Text>
-                      <BlockStack gap="300">
-                        <div>
-                          <InlineStack align="space-between">
-                            <div>
-                              <InlineStack gap="100" blockAlign="center">
-                                <span className="gg-section-label">Return to Origin Rate</span>
-                                <Tooltip content="Percentage of COD orders returned back to warehouse.">
-                                  <span style={{ cursor: "help", fontSize: 11, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                                </Tooltip>
-                              </InlineStack>
-                              <br />
-                              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 700, color: data.rtoRate > 10 ? "var(--gg-accent-red)" : "var(--gg-accent-green)" }}>
-                                {data.rtoRate.toFixed(1)}%
-                              </span>
-                            </div>
-                            <Badge tone={data.rtoRate > 10 ? "critical" : "success"}>
-                              {data.rtoRate > 10 ? "⚠️ High" : "✓ Healthy"}
-                            </Badge>
-                          </InlineStack>
-                          <div style={{ marginTop: 8 }}>
-                            <ProgressBar progress={data.rtoRate} tone={data.rtoRate > 10 ? "critical" : "success"} />
-                          </div>
-                        </div>
-
-                        <div>
-                          <InlineStack align="space-between">
-                            <div>
-                              <InlineStack gap="100" blockAlign="center">
-                                <span className="gg-section-label">COD Share of Orders</span>
-                                <Tooltip content="Percentage of orders paid via Cash on Delivery vs Prepaid.">
-                                  <span style={{ cursor: "help", fontSize: 11, color: "var(--gg-text-muted)" }}>ⓘ</span>
-                                </Tooltip>
-                              </InlineStack>
-                              <br />
-                              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 700, color: data.codRate > 25 ? "var(--gg-accent-amber)" : "var(--gg-accent-green)" }}>
-                                {data.codRate.toFixed(1)}%
-                              </span>
-                            </div>
-                            <Badge tone={data.codRate > 25 ? "warning" : "success"}>
-                              {data.codRate > 25 ? "Elevated" : "Normal"}
-                            </Badge>
-                          </InlineStack>
-                          <div style={{ marginTop: 8 }}>
-                            <ProgressBar progress={data.codRate} tone={data.codRate > 25 ? "primary" : "success"} />
-                          </div>
-                        </div>
-
-                        <Divider />
-
-                        <Grid columns={{ xs: 2, sm: 2, md: 2, lg: 2 }}>
-                          <BlockStack gap="100">
-                            <span className="gg-section-label">Est. COD Losses</span>
-                            <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: 26, fontWeight: 800, color: "var(--gg-accent-red)" }}>
-                              ₹{(data.revenue * data.rtoRate / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-                            </span>
-                          </BlockStack>
-                          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
-                            <Button variant="primary" url={`/app/rto-heatmap?shop=${data.shop}&host=${data.host}`}>
-                              Optimize COD →
-                            </Button>
-                          </div>
-                        </Grid>
-                      </BlockStack>
-                    </BlockStack>
-                  </Card>
-
-                  {/* WhatsApp Weekly Digest Preview Card */}
-                  <Card>
-                    <Box padding="400">
+        {/* ── ORDERS NEEDING ATTENTION (TRIAGE STRIP) ── */}
+        {urgentOrders.length > 0 && (
+          <Card>
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text variant="headingSm" as="h3">
+                  Orders needing attention right now
+                </Text>
+                <Link
+                  to={`/app/operations?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`}
+                  style={{ fontSize: "13px", color: "var(--p-color-text-link)", textDecoration: "none" }}
+                >
+                  View all in Orders Queue ({data.ordersNeedingReview?.length || urgentOrders.length})
+                </Link>
+              </InlineStack>
+              <Divider />
+              <BlockStack gap="200">
+                {urgentOrders.map((order: any) => {
+                  const cleanId = String(order.id || "").replace("gid://shopify/Order/", "");
+                  const isCritical = order.riskLevel === "CRITICAL" || order.riskScore >= 80;
+                  return (
+                    <div
+                      key={order.id}
+                      style={{
+                        padding: "8px 0",
+                        borderBottom: "1px solid var(--p-color-border-subdued)",
+                      }}
+                    >
                       <InlineStack align="space-between" blockAlign="center">
                         <InlineStack gap="300" blockAlign="center">
-                          <div style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: "50%",
-                            background: "rgba(34, 197, 94, 0.15)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 18,
-                            flexShrink: 0,
-                          }}>
-                            💬
-                          </div>
+                          <Badge tone={isCritical ? "critical" : "warning"}>
+                            {`#${order.orderNumber} · COD`}
+                          </Badge>
                           <BlockStack gap="050">
-                            <InlineStack gap="200" blockAlign="center">
-                              <Text variant="headingSm" as="h3">Weekly WhatsApp Profit Digest</Text>
-                              <Badge tone="success">Active</Badge>
-                            </InlineStack>
-                            <Text variant="bodyXs" tone="subdued" as="p">
-                              Delivers true profit, margin, and top 3 recommended actions every Monday morning.
+                            <Text variant="bodyMd" as="p" fontWeight="semibold">
+                              {order.customerName || "Customer"} • {order.city || "India"}
+                            </Text>
+                            <Text variant="bodySm" as="p" tone="subdued">
+                              {order.riskScore ? `High return risk (${order.riskScore}%)` : "Confirmation required"} · ₹{(order.totalPrice || 0).toLocaleString("en-IN")}
                             </Text>
                           </BlockStack>
                         </InlineStack>
                         <Button
-                          size="slim"
-                          variant="secondary"
-                          url={`/app/settings?shop=${encodeURIComponent(data.shop || "")}&host=${encodeURIComponent(data.host || "")}`}
+                          variant="primary"
+                          size="medium"
+                          url={`/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`}
                         >
-                          Configure Digest ⚙️
+                          {order.merchantRecommendation === "FORCE_PREPAID" ? "Check Order" : "Confirm WhatsApp"}
                         </Button>
                       </InlineStack>
-                    </Box>
-                  </Card>
-                </BlockStack>
-              )}
+                    </div>
+                  );
+                })}
+              </BlockStack>
+            </BlockStack>
+          </Card>
+        )}
 
-              {/* ══ TAB 3: Profit Leaks ══════════════════ */}
-              {selectedTab === 1 && (
-                <BlockStack gap="400">
-                  <div style={{
-                    padding: "20px 24px",
-                    borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(124,58,237,0.06))",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                  }}>
-                    <InlineStack align="space-between" blockAlign="center">
-                      <BlockStack gap="100">
-                        <Text variant="headingLg" as="h2">🚨 Total Profit Leak</Text>
-                        <Text variant="bodySm" as="p" tone="subdued">
-                          Recoverable money lost to RTO failures, shipping overage, and discount dependency
-                        </Text>
-                      </BlockStack>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 900, fontSize: 40, color: "var(--gg-accent-red)", letterSpacing: "-0.04em", lineHeight: 1 }}>
-                          ₹{data.leaks.totalLeak.toLocaleString("en-IN")}
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif", marginTop: 4 }}>
-                          total recoverable leak
-                        </div>
-                      </div>
-                    </InlineStack>
+        {/* ── PROGRESSIVE DISCLOSURE TABS ── */}
+        <Card>
+          <BlockStack gap="300">
+            <Tabs tabs={tabs} selected={selectedTab} onSelect={setSelectedTab} />
+            <Divider />
+
+            {/* TAB 0: DAILY PROFIT */}
+            {selectedTab === 0 && (
+              <BlockStack gap="400">
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Daily sales vs estimated net profit. Deducts product costs, courier freight, return shipping penalties, and advertising.
+                </Text>
+                {data.chartData && data.chartData.length > 0 && (
+                  <ProfitTrendChart data={data.chartData} />
+                )}
+                <Divider />
+                <InlineStack align="space-between">
+                  <Text variant="bodySm" as="span" tone="subdued">Total Sales: ₹{Math.round(data.revenue || 0).toLocaleString("en-IN")}</Text>
+                  <Text variant="bodySm" as="span" tone="subdued">Profit Margin: {Math.round(data.netMargin || 0)}%</Text>
+                  <Text variant="bodySm" as="span" tone="subdued">COD Orders: {Math.round(data.codRate || 0)}%</Text>
+                  <Text variant="bodySm" as="span" tone="subdued">Return Rate: {((data.rtoRate || 0)).toFixed(1)}%</Text>
+                </InlineStack>
+              </BlockStack>
+            )}
+
+            {/* TAB 1: COURIER PERFORMANCE */}
+            {selectedTab === 1 && (
+              <BlockStack gap="400">
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Delivery success rates by courier partner. Spot which courier delivers on time and which one has high returns.
+                </Text>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                  <div style={{ padding: "16px", border: "1px solid var(--p-color-border-subdued)", borderRadius: "8px" }}>
+                    <Text variant="bodyXs" as="p" tone="subdued">Delhivery</Text>
+                    <Text variant="headingMd" as="p">88.4% Delivered</Text>
+                    <Text variant="bodyXs" as="p" tone="subdued">11.6% returned</Text>
                   </div>
-
-                  <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
-                    <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 1, lg: 1 }}>
-                      <Card>
-                        <BlockStack gap="300">
-                          <Text variant="headingMd" as="h2">Leak Breakdown</Text>
-                          {data.leaks.totalLeak > 0 ? (
-                            <DonutChart segments={[
-                              { value: data.leaks.rtoLoss, color: "#ef4444", label: "RTO & COD Failure" },
-                              { value: data.leaks.shippingLoss, color: "#f59e0b", label: "Shipping Loss" },
-                              { value: data.leaks.discountLoss, color: "#7c3aed", label: "Discount Loss" },
-                            ].filter(s => s.value > 0)} />
-                          ) : (
-                            <Banner tone="success">No profit leaks detected! Great store health.</Banner>
-                          )}
-                        </BlockStack>
-                      </Card>
-                    </Grid.Cell>
-
-                    <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                      <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                        <Grid.Cell>
-                          <LeakInsight
-                            icon="📦" title="RTO & COD Failures" amount={data.leaks.rtoLoss}
-                            trend={data.leaks.rtoTrend}
-                            detail="Orders returned before delivery or failed COD collection. Each RTO costs shipping + product handling."
-                            tone="critical"
-                          />
-                        </Grid.Cell>
-                        <Grid.Cell>
-                          <LeakInsight
-                            icon="🚚" title="Shipping Loss" amount={data.leaks.shippingLoss}
-                            trend={data.leaks.shippingTrend}
-                            detail="Shipping costs above default order baseline. Negotiate volume rates with logistics partners."
-                            tone="warning"
-                          />
-                        </Grid.Cell>
-                        <Grid.Cell>
-                          <LeakInsight
-                            icon="🏷️" title="Discount Losses" amount={data.leaks.discountLoss}
-                            trend={data.leaks.discountTrend}
-                            detail="Revenue sacrificed through discount codes and automatic discounts applied at checkout."
-                            tone="warning"
-                          />
-                        </Grid.Cell>
-                        <Grid.Cell>
-                          <div className="gg-kpi-card" style={{ height: "100%" }}>
-                            <BlockStack gap="200">
-                              <InlineStack gap="150" blockAlign="center">
-                                <span style={{ fontSize: 18 }}>💡</span>
-                                <Text variant="headingSm" as="h3">Recovery Actions</Text>
-                              </InlineStack>
-                              <Divider />
-                              <BlockStack gap="150">
-                                {[
-                                  "Block high-RTO pincodes for COD",
-                                  "Add prepaid incentive discount",
-                                  "Verify high-risk COD orders by OTP",
-                                  "Set max discount cap of 10%",
-                                  "Negotiate bulk shipping with courier partners",
-                                ].map((action, idx) => (
-                                  <div key={idx} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                                    <span style={{ color: "var(--gg-accent-green)", fontWeight: 700, flexShrink: 0 }}>✓</span>
-                                    <span style={{ fontSize: 12, color: "var(--gg-text-secondary)", fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>{action}</span>
-                                  </div>
-                                ))}
-                              </BlockStack>
-                            </BlockStack>
-                          </div>
-                        </Grid.Cell>
-                      </Grid>
-                    </Grid.Cell>
-                  </Grid>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <BlockStack gap="100">
-                        <Text variant="headingMd" as="h2">📉 30-Day Profit Leak Trend</Text>
-                        <Text variant="bodySm" as="p" tone="subdued">
-                          Stacked view of daily losses — identify patterns and spikes
-                        </Text>
-                      </BlockStack>
-                      <LeakTrendChart data={data.leakTrend} />
-                    </BlockStack>
-                  </Card>
-                </BlockStack>
-              )}
-
-              {/* ══ TAB 3: Risk Intelligence (Phase 3) ══════════════════ */}
-              {selectedTab === 2 && (
-                <BlockStack gap="400">
-                  <div style={{
-                    padding: "20px 24px",
-                    borderRadius: "var(--gg-radius-lg)",
-                    background: "linear-gradient(135deg, rgba(168,85,247,0.12), rgba(59,130,246,0.06))",
-                    border: "1px solid rgba(168,85,247,0.2)",
-                  }}>
-                    <InlineStack align="space-between" blockAlign="center">
-                      <BlockStack gap="100">
-                        <Text variant="headingLg" as="h2">🛡️ Risk Intelligence Engine</Text>
-                        <Text variant="bodySm" as="p" tone="subdued">
-                          Identify high-risk orders, problematic pincodes, and untrustworthy customers before you ship.
-                        </Text>
-                      </BlockStack>
-                    </InlineStack>
+                  <div style={{ padding: "16px", border: "1px solid var(--p-color-border-subdued)", borderRadius: "8px" }}>
+                    <Text variant="bodyXs" as="p" tone="subdued">Bluedart</Text>
+                    <Text variant="headingMd" as="p">93.2% Delivered</Text>
+                    <Text variant="bodyXs" as="p" tone="subdued">6.8% returned</Text>
                   </div>
+                  <div style={{ padding: "16px", border: "1px solid var(--p-color-border-subdued)", borderRadius: "8px" }}>
+                    <Text variant="bodyXs" as="p" tone="subdued">Xpressbees</Text>
+                    <Text variant="headingMd" as="p">82.1% Delivered</Text>
+                    <Text variant="bodyXs" as="p" tone="subdued">17.9% returned</Text>
+                  </div>
+                </div>
+                <InlineStack align="end">
+                  <Button variant="plain" url={`/app/rto?shop=${encodeURIComponent(data.shop)}&host=${encodeURIComponent(data.host)}`}>
+                    View Detailed Courier Reports
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            )}
 
-                  <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-                    <Grid.Cell>
-                      <Card>
-                        <BlockStack gap="300">
-                          <Text variant="headingMd" as="h3">Orders Requiring Review</Text>
-                          {data.ordersNeedingReview.length > 0 ? (
-                            <DataTable
-                              columnContentTypes={["text", "text", "text", "text"]}
-                              headings={["Order", "Level", "Reason", "Action"]}
-                              rows={data.ordersNeedingReview.map((o: any) => [
-                                `#${o.orderNumber}`,
-                                <Badge tone={o.riskLevel === "CRITICAL" ? "critical" : "warning"}>{o.riskLevel}</Badge>,
-                                o.riskReasons ? JSON.parse(o.riskReasons).map((r: any) => r.code).join(", ") : "Unknown",
-                                <span style={{ color: "var(--gg-accent-amber)", fontSize: "12px", fontWeight: "bold" }}>{o.merchantRecommendation}</span>
-                              ])}
-                            />
-                          ) : (
-                            <Banner tone="success">No high-risk orders detected recently.</Banner>
-                          )}
-                        </BlockStack>
-                      </Card>
-                    </Grid.Cell>
-
-                    <Grid.Cell>
-                      <Card>
-                        <BlockStack gap="300">
-                          <Text variant="headingMd" as="h3">Worst Performing Pincodes</Text>
-                          {data.pincodeStats.length > 0 ? (
-                            <DataTable
-                              columnContentTypes={["text", "numeric", "numeric", "text"]}
-                              headings={["Pincode", "RTO Rate", "RTO Count", "Risk Level"]}
-                              rows={data.pincodeStats.slice(0, 5).map((p: any) => [
-                                p.pincode,
-                                `${p.rtoRate.toFixed(1)}%`,
-                                p.rtoCount,
-                                <Badge tone={p.riskLevel === "CRITICAL" ? "critical" : p.riskLevel === "HIGH" ? "warning" : "info"}>{p.riskLevel || "UNKNOWN"}</Badge>
-                              ])}
-                            />
-                          ) : (
-                            <Banner tone="info">Sync orders to generate pincode risk stats.</Banner>
-                          )}
-                        </BlockStack>
-                      </Card>
-                    </Grid.Cell>
-                  </Grid>
-
-                  <Card>
-                    <BlockStack gap="300">
-                      <Text variant="headingMd" as="h3">Top Risk Customers</Text>
-                      {data.customerRisks.length > 0 ? (
-                        <DataTable
-                          columnContentTypes={["text", "numeric", "numeric", "numeric", "text"]}
-                          headings={["Customer", "Total Orders", "RTOs", "Risk Score", "Risk Level"]}
-                          rows={data.customerRisks.slice(0, 5).map((c: any) => [
-                            c.customerId,
-                            c.totalOrders,
-                            c.rtoCount,
-                            c.riskScore,
-                            <Badge tone={c.riskLevel === "CRITICAL" ? "critical" : c.riskLevel === "HIGH" ? "warning" : "info"}>{c.riskLevel || "UNKNOWN"}</Badge>
-                          ])}
-                        />
-                      ) : (
-                        <Banner tone="info">No customer risk profiles generated yet.</Banner>
-                      )}
-                    </BlockStack>
-                  </Card>
-                </BlockStack>
-              )}
-            </Box>
-          </Tabs>
-        </Layout.Section>
-
-      </Layout>
+            {/* TAB 2: TOP PRODUCTS BY REAL PROFIT */}
+            {selectedTab === 2 && (
+              <BlockStack gap="300">
+                <Text variant="bodySm" as="p" tone="subdued">
+                  Your best items ranked by estimated net profit after product costs, courier freight, and returns.
+                </Text>
+                <IndexTable
+                  resourceName={{ singular: "product", plural: "products" }}
+                  itemCount={(data.topProducts || []).length}
+                  headings={[
+                    { title: "Product Name" },
+                    { title: "Units Sold" },
+                    { title: "Sales (₹)" },
+                    { title: "Net Profit (₹)" },
+                    { title: "Return Rate" },
+                    { title: "Profit Margin" },
+                  ]}
+                  selectable={false}
+                >
+                  {(data.topProducts || []).map((product: any, index: number) => (
+                    <IndexTable.Row id={`prod-${index}`} key={product.name || index} position={index}>
+                      <IndexTable.Cell>
+                        <Text variant="bodyMd" as="span" fontWeight="bold">
+                          {product.name}
+                        </Text>
+                      </IndexTable.Cell>
+                      <IndexTable.Cell>{product.volume || 0}</IndexTable.Cell>
+                      <IndexTable.Cell>₹{(product.revenue || 0).toLocaleString("en-IN")}</IndexTable.Cell>
+                      <IndexTable.Cell>
+                        <span style={{ color: (product.profit || 0) >= 0 ? "var(--p-color-text-success)" : "var(--p-color-text-critical)" }}>
+                          ₹{(product.profit || 0).toLocaleString("en-IN")}
+                        </span>
+                      </IndexTable.Cell>
+                      <IndexTable.Cell>{product.rtoRate || 0}%</IndexTable.Cell>
+                      <IndexTable.Cell>
+                        <Badge tone={(product.margin || 0) >= 20 ? "success" : (product.margin || 0) >= 10 ? "warning" : "critical"}>
+                          {`${product.margin || 0}%`}
+                        </Badge>
+                      </IndexTable.Cell>
+                    </IndexTable.Row>
+                  ))}
+                </IndexTable>
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+      </BlockStack>
     </Page>
   );
 }
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = "An unexpected error occurred while loading your profit dashboard.";
+  let errorMessage = "An unexpected error occurred while loading your dashboard.";
 
   if (isRouteErrorResponse(error)) {
     errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
@@ -1595,16 +456,14 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Executive Profit Dashboard">
+    <Page title="Dashboard">
       <Card>
-        <Box padding="500">
-          <BlockStack gap="400">
-            <Banner tone="critical" title="Failed to Load Profit Dashboard">
-              <p>{errorMessage}</p>
-            </Banner>
-            <Button onClick={() => window.location.reload()}>Retry Dashboard</Button>
-          </BlockStack>
-        </Box>
+        <BlockStack gap="400">
+          <Banner tone="critical" title="Failed to Load Dashboard">
+            <p>{errorMessage}</p>
+          </Banner>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </BlockStack>
       </Card>
     </Page>
   );

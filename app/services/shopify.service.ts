@@ -9,6 +9,7 @@ import { CODManagementService } from "./cod-management.service";
 import { resolveEffectiveCOGS } from "../utils/cogs";
 import { determineFulfillmentStatus } from "../utils/fulfillment";
 import { RiskEngineService } from "./risk-engine.service";
+import { SubscriptionRepository } from "../infrastructure/repositories/subscription.repository";
 
 type GraphqlError = { message: string };
 type GraphqlResponse<T> = { data: T; errors?: GraphqlError[] };
@@ -729,22 +730,9 @@ export class ShopifyService {
     // Sync shop plan name for India transaction fee surcharge calculation
     await this.syncShopPlanName(admin, session.shop);
 
-    // Check subscription order limit
-    const subscription = await prisma.subscription.findUnique({
-      where: { shop: session.shop },
-    });
-    if (subscription) {
-      const limit = subscription.orderLimit;
-      if (limit && subscription.ordersUsed >= limit) {
-        throw new Response(
-          JSON.stringify({
-            error: "You have reached your order limit. Upgrade to continue syncing.",
-            upgradeNeeded: true,
-          }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
+    // Check subscription order quota (BILL-01)
+    let quota = await SubscriptionRepository.checkOrderQuota(session.shop);
+    let quotaExceeded = quota.quotaExceeded;
 
     const rawSettings = await prisma.storeSettings.findUnique({ where: { shop: session.shop } });
     const settings = ProfitService.getSettings(rawSettings);
@@ -778,18 +766,35 @@ export class ShopifyService {
 
       let riskResult = null;
       if (!existing || existing.riskScore === null) {
-        const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
-        const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
-        
-        const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
-        const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
-        
-        riskResult = RiskEngineService.evaluateOrderRisk(
-          { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
-          customerRiskInput,
-          pincodeRiskInput,
-          settings
-        );
+        if (quotaExceeded) {
+          riskResult = {
+            score: null,
+            level: "UNKNOWN",
+            reasons: ["Monthly subscription order limit reached. Upgrade to evaluate COD risk."],
+            recommendation: "UPGRADE_REQUIRED",
+          };
+        } else {
+          const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
+          const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
+          
+          const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
+          const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
+          
+          riskResult = RiskEngineService.evaluateOrderRisk(
+            { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
+            customerRiskInput,
+            pincodeRiskInput,
+            settings
+          );
+
+          if (!existing) {
+            await SubscriptionRepository.recordOrderUsage(session.shop, 1);
+            quota = await SubscriptionRepository.checkOrderQuota(session.shop);
+            if (quota.quotaExceeded) {
+              quotaExceeded = true;
+            }
+          }
+        }
       }
 
       const lineProdId = order.lineItems?.[0]?.productId || null;
@@ -963,6 +968,9 @@ export class ShopifyService {
     let message = "";
     if (orders.length > 0) {
       message = `Sync complete: Shopify returned ${orders.length} orders (${newOrdersCount} imported, ${count - newOrdersCount} updated) within the 60-day window (${dateStr} to ${todayStr}).`;
+      if (quotaExceeded) {
+        message += ` Plan limit reached (${quota.ordersUsed}/${quota.orderLimit || 'unlimited'}). Upgrade to evaluate COD risk on all orders.`;
+      }
     } else {
       message = `Sync complete: 0 orders found in the selected 60-day period (${dateStr} to ${todayStr}). If your store contains older orders, accessing orders beyond 60 days requires Shopify's 'read_all_orders' historical access scope.`;
     }
@@ -985,6 +993,11 @@ export class ShopifyService {
   static async syncOrdersForShop(shop: string): Promise<{ count: number }> {
     const { admin, session } = await unauthenticated.admin(shop);
     await this.syncShopPlanName(admin, shop);
+
+    // Check subscription order quota (BILL-01)
+    let quota = await SubscriptionRepository.checkOrderQuota(shop);
+    let quotaExceeded = quota.quotaExceeded;
+
     const rawSettings = await prisma.storeSettings.findUnique({ where: { shop } });
     const settings = ProfitService.getSettings(rawSettings);
     const cogsDict = await ProfitService.getCOGS(shop);
@@ -1012,18 +1025,35 @@ export class ShopifyService {
 
       let riskResult = null;
       if (!existing || existing.riskScore === null) {
-        const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
-        const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
-        
-        const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
-        const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
-        
-        riskResult = RiskEngineService.evaluateOrderRisk(
-          { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
-          customerRiskInput,
-          pincodeRiskInput,
-          settings
-        );
+        if (quotaExceeded) {
+          riskResult = {
+            score: null,
+            level: "UNKNOWN",
+            reasons: ["Monthly subscription order limit reached. Upgrade to evaluate COD risk."],
+            recommendation: "UPGRADE_REQUIRED",
+          };
+        } else {
+          const cRiskRaw = order.customerId ? customerRiskMap.get(order.customerId) : null;
+          const pRiskRaw = order.pincode ? pincodeStatsMap.get(order.pincode) : null;
+          
+          const customerRiskInput = cRiskRaw ? RiskEngineService.calculateCustomerRisk(cRiskRaw as any) : null;
+          const pincodeRiskInput = pRiskRaw ? RiskEngineService.calculatePincodeRisk(pRiskRaw as any) : null;
+          
+          riskResult = RiskEngineService.evaluateOrderRisk(
+            { totalPrice: order.totalPrice, isCOD: order.isCOD, gateway: order.gateway },
+            customerRiskInput,
+            pincodeRiskInput,
+            settings
+          );
+
+          if (!existing) {
+            await SubscriptionRepository.recordOrderUsage(shop, 1);
+            quota = await SubscriptionRepository.checkOrderQuota(shop);
+            if (quota.quotaExceeded) {
+              quotaExceeded = true;
+            }
+          }
+        }
       }
 
       const lineProdId = order.lineItems?.[0]?.productId || null;

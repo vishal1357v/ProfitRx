@@ -36,9 +36,72 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (isPreview) {
     const shop = "glam-aura-india.myshopify.com";
     const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
-    const analyticsData = await RtoAnalyticsApplicationService.getRtoAnalytics(shop, undefined, { page: 1, pageSize: 25 });
     return {
-      ...analyticsData,
+      orders: [
+        { orderNumber: 1482, totalPrice: 6499 },
+        { orderNumber: 1481, totalPrice: 2250 },
+        { orderNumber: 1475, totalPrice: 1999 },
+      ],
+      rtoEvents: [
+        {
+          id: "rto-1",
+          orderId: "gid://shopify/Order/849201",
+          orderNumber: 1482,
+          eventType: "RTO",
+          amount: 1420,
+          status: "CONFIRMED",
+          reason: "Customer rejected delivery — door closed / uncontactable",
+          createdAt: new Date().toLocaleDateString(),
+        },
+        {
+          id: "rto-2",
+          orderId: "gid://shopify/Order/849195",
+          orderNumber: 1481,
+          eventType: "RTO",
+          amount: 450,
+          status: "CONFIRMED",
+          reason: "Incorrect shipping address in Sector 18",
+          createdAt: new Date(Date.now() - 86400000).toLocaleDateString(),
+        },
+        {
+          id: "rto-3",
+          orderId: "gid://shopify/Order/849170",
+          orderNumber: 1470,
+          eventType: "COD_FAILURE",
+          amount: 380,
+          status: "CONFIRMED",
+          reason: "Cash not available at time of delivery",
+          createdAt: new Date(Date.now() - 2 * 86400000).toLocaleDateString(),
+        },
+      ],
+      pagination: {
+        page: 1,
+        pageSize: 25,
+        total: 3,
+        totalPages: 1,
+      },
+      stats: {
+        totalLoss: 8200,
+        rtoRate: "14.2",
+        codCount: 740,
+        prepaidCount: 680,
+        codPercent: "52",
+        prepaidPercent: "48",
+      },
+      topProducts: [
+        { id: "p1", title: "Velvet Matte Lipstick Kit", count: 18, amount: 4860 },
+        { id: "p2", title: "Hydrating Rose Serum 50ml", count: 12, amount: 2340 },
+      ],
+      chartData: [
+        { date: "Day 1", count: 2, loss: 650 },
+        { date: "Day 2", count: 3, loss: 920 },
+        { date: "Day 3", count: 1, loss: 380 },
+        { date: "Day 4", count: 4, loss: 1420 },
+        { date: "Day 5", count: 2, loss: 760 },
+        { date: "Day 6", count: 3, loss: 1100 },
+      ],
+      hasOrders: true,
+      hasRtoEvents: true,
       shop,
       host,
     };
@@ -251,14 +314,14 @@ export default function RtoRoute() {
         #{event.orderNumber}
       </Link>,
       <Badge key={event.id} tone={event.eventType === "RTO" ? "critical" : "warning"}>
-        {event.eventType}
+        {event.eventType === "RTO" ? "Returned (RTO)" : event.eventType === "COD_FAILURE" ? "Refused on Delivery" : "Delivery Failed"}
       </Badge>,
       `₹${event.amount.toLocaleString("en-IN")}`,
       <Badge
         key={`${event.id}-status`}
         tone={event.status === "RESOLVED" ? "success" : event.status === "CONFIRMED" ? "attention" : "info"}
       >
-        {event.status}
+        {event.status === "CONFIRMED" ? "Confirmed" : event.status === "RESOLVED" ? "Resolved" : "Pending"}
       </Badge>,
       event.reason || "N/A",
       event.createdAt,
@@ -267,21 +330,21 @@ export default function RtoRoute() {
 
   const productRows = topProducts.map((p: any) => [
     p.title,
-    `${p.count} events`,
+    `${p.count} returns`,
     `₹${p.amount.toLocaleString("en-IN")}`,
   ]);
 
   return (
     <Page
-      title="RTO Analytics"
-      subtitle="Courier performance breakdown, return reason tracking, and manual RTO event logging."
+      title="Courier Return Reports"
+      subtitle="Track courier freight burned on returned parcels, refusal reasons, and products with high return rates."
       secondaryActions={[
         {
-          content: "Profit Leaks",
+          content: "Where You Are Losing Money",
           url: `/app/profit-leaks?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`,
         },
         {
-          content: "Pincode Risk Heatmap",
+          content: "High Return Pincodes",
           url: `/app/rto-heatmap?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`,
         },
       ]}
@@ -314,17 +377,17 @@ export default function RtoRoute() {
                 <BlockStack gap="100">
                   <InlineStack align="space-between">
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Total RTO & COD Losses
+                      Money Lost on Returns
                     </Text>
                     <Button variant="plain" url={`/app/profit-leaks?shop=${encodeURIComponent(shop || "")}&host=${encodeURIComponent(host || "")}`}>
-                      Profit Leaks →
+                      View Leaks
                     </Button>
                   </InlineStack>
                   <Text variant="heading2xl" as="p" tone="critical">
                     ₹{stats.totalLoss.toLocaleString("en-IN")}
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Direct shipping waste & fulfillment loss
+                    Direct courier freight burned on returned parcels
                   </Text>
                 </BlockStack>
               </Card>
@@ -334,7 +397,7 @@ export default function RtoRoute() {
                 <BlockStack gap="100">
                   <InlineStack align="space-between">
                     <Text variant="bodySm" as="p" tone="subdued">
-                      RTO Rate (% of COD)
+                      Return Rate (% of COD)
                     </Text>
                     <Badge tone={parseFloat(stats.rtoRate) > 10 ? "critical" : "success"}>
                       Target: &lt;8%
@@ -344,7 +407,7 @@ export default function RtoRoute() {
                     {stats.rtoRate}%
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Percentage of COD orders rejected / returned
+                    Percentage of COD orders rejected or returned
                   </Text>
                 </BlockStack>
               </Card>
@@ -353,7 +416,7 @@ export default function RtoRoute() {
               <Card>
                 <BlockStack gap="100">
                   <Text variant="bodySm" as="p" tone="subdued">
-                    COD vs Prepaid Order Share
+                    COD vs Prepaid Split
                   </Text>
                   <Text variant="headingMd" as="p">
                     COD: {stats.codPercent}% ({stats.codCount})
@@ -373,10 +436,10 @@ export default function RtoRoute() {
             <BlockStack gap="300">
               <BlockStack gap="100">
                 <Text variant="headingMd" as="h2">
-                  RTO Loss Value Trend (Last 30 Days)
+                  Courier Money Lost Trend (Last 30 Days)
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Day-by-day accumulated losses from rejected/failed shipments.
+                  Day-by-day courier fees lost to returned or rejected shipments.
                 </Text>
               </BlockStack>
               <RtoTrendChart data={chartData} />
@@ -389,7 +452,7 @@ export default function RtoRoute() {
           <Card>
             <BlockStack gap="400">
               <Text variant="headingMd" as="h2">
-                Log New RTO / COD Failure
+                Record a Returned Parcel
               </Text>
               <Form method="POST" onSubmit={handleFormSubmit}>
                 <BlockStack gap="300">
@@ -403,18 +466,18 @@ export default function RtoRoute() {
                     autoComplete="off"
                   />
                   <Select
-                    label="Event Type"
+                    label="Return Type"
                     name="eventType"
                     options={[
-                      { label: "Return to Origin (RTO)", value: "RTO" },
-                      { label: "COD Failure / Rejected on Delivery", value: "COD_FAILURE" },
+                      { label: "Parcel Returned to Store (RTO)", value: "RTO" },
+                      { label: "Customer Refused at Doorstep (COD)", value: "COD_FAILURE" },
                       { label: "Delivery Attempt Failed", value: "DELIVERY_FAILED" },
                     ]}
                     value={eventType}
                     onChange={setEventType}
                   />
                   <TextField
-                    label="Loss Amount (Shipment cost + handling)"
+                    label="Courier Freight Penalty Paid"
                     name="amount"
                     type="number"
                     value={amount}
@@ -427,23 +490,23 @@ export default function RtoRoute() {
                     label="Status"
                     name="status"
                     options={[
-                      { label: "Confirmed", value: "CONFIRMED" },
+                      { label: "Confirmed Return", value: "CONFIRMED" },
                       { label: "Pending Investigation", value: "PENDING" },
-                      { label: "Resolved / Recovered", value: "RESOLVED" },
+                      { label: "Resolved / Refunded", value: "RESOLVED" },
                     ]}
                     value={status}
                     onChange={setStatus}
                   />
                   <TextField
-                    label="Reason / Comments"
+                    label="Reason Customer Gave"
                     name="reason"
                     value={reason}
                     onChange={setReason}
-                    placeholder="e.g. Customer refused delivery"
+                    placeholder="e.g. Customer refused at door"
                     autoComplete="off"
                   />
                   <Button variant="primary" submit loading={isSubmitting} fullWidth>
-                    Log Event
+                    Save Record
                   </Button>
                 </BlockStack>
               </Form>
@@ -458,17 +521,17 @@ export default function RtoRoute() {
             <Card>
               <BlockStack gap="300">
                 <Text variant="headingMd" as="h2">
-                  Top RTO Impacted Products
+                  Top Products Lost to Returns
                 </Text>
                 {topProducts.length > 0 ? (
                   <DataTable
                     columnContentTypes={["text", "text", "text"]}
-                    headings={["Product Name", "RTO Event Count", "Total Loss Amount (₹)"]}
+                    headings={["Product Name", "Times Returned", "Courier Fees Burned (₹)"]}
                     rows={productRows}
                   />
                 ) : (
                   <Text variant="bodyMd" as="p" tone="subdued">
-                    {hasRtoEvents ? "No products with RTO losses recorded yet." : "No RTO events recorded for your store yet."}
+                    {hasRtoEvents ? "No products with return losses recorded yet." : "No return events recorded for your store yet."}
                   </Text>
                 )}
               </BlockStack>
@@ -479,10 +542,10 @@ export default function RtoRoute() {
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text variant="headingMd" as="h2">
-                    Filterable RTO & COD Event History ({pagination.total})
+                    History of Returned Orders ({pagination.total})
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Click order # to view Order Intelligence detail
+                    Click order # to view full profit & cost breakdown
                   </Text>
                 </InlineStack>
 
@@ -507,9 +570,9 @@ export default function RtoRoute() {
                       applyFilters(searchQuery, statusFilter, val);
                     }}
                     options={[
-                      { label: "All Event Types", value: "ALL" },
-                      { label: "RTO", value: "RTO" },
-                      { label: "COD Failure", value: "COD_FAILURE" },
+                      { label: "All Return Types", value: "ALL" },
+                      { label: "Returned (RTO)", value: "RTO" },
+                      { label: "Refused at Doorstep", value: "COD_FAILURE" },
                       { label: "Delivery Failed", value: "DELIVERY_FAILED" },
                     ]}
                     labelHidden
@@ -536,12 +599,12 @@ export default function RtoRoute() {
                 {rows.length > 0 ? (
                   <DataTable
                     columnContentTypes={["text", "text", "text", "text", "text", "text"]}
-                    headings={["Order (Click to View Detail)", "Type", "Loss Amount", "Status", "Reason / Comments", "Date"]}
+                    headings={["Order #", "Return Type", "Courier Loss (₹)", "Status", "Reason Given", "Date"]}
                     rows={rows}
                   />
                 ) : (
                   <Text variant="bodyMd" as="p" tone="subdued">
-                    No events matching filter constraints.
+                    No return events matching your filters.
                   </Text>
                 )}
 
@@ -575,7 +638,7 @@ export default function RtoRoute() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = "An unexpected error occurred while loading RTO analytics.";
+  let errorMessage = "An unexpected error occurred while loading return reports.";
 
   if (isRouteErrorResponse(error)) {
     errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
@@ -584,14 +647,14 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Return to Origin (RTO) Analytics">
+    <Page title="Courier Return Reports">
       <Card>
         <Box padding="500">
           <BlockStack gap="400">
-            <Banner tone="critical" title="Failed to Load RTO Analytics">
+            <Banner tone="critical" title="Failed to Load Return Reports">
               <p>{errorMessage}</p>
             </Banner>
-            <Button onClick={() => window.location.reload()}>Retry Analytics</Button>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
           </BlockStack>
         </Box>
       </Card>

@@ -2,7 +2,16 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { Page, Layout, Card, Text, BlockStack, InlineStack, Grid, Box, Icon, Badge, Banner, Button } from "@shopify/polaris";
-import { ChartLineIcon, ChartVerticalIcon, PersonIcon, DeliveryIcon } from "@shopify/polaris-icons";
+import {
+  ChartLineIcon,
+  CalendarIcon,
+  OrderIcon,
+  ProductIcon,
+  DeliveryIcon,
+  PersonIcon,
+  AlertCircleIcon,
+  FinanceIcon,
+} from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -25,21 +34,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 const REPORT_TYPES = [
-  { key: "daily-profit", label: "Daily Profit", icon: "📅", description: "Day-by-day profit breakdown", color: "var(--gg-accent-blue)" },
-  { key: "weekly-profit", label: "Weekly Profit", icon: "📆", description: "Weekly aggregated performance", color: "var(--gg-accent-purple)" },
-  { key: "monthly-profit", label: "Monthly Profit", icon: "📊", description: "Monthly profit rollup", color: "var(--gg-accent-green)" },
-  { key: "top-products", label: "Top Products", icon: "🏆", description: "Highest performing products by profit", color: "var(--gg-accent-amber)" },
-  { key: "worst-products", label: "Worst Products", icon: "📉", description: "Loss-making products to review", color: "var(--gg-accent-red)" },
-  { key: "rto-report", label: "RTO Report", icon: "🔄", description: "Return to Origin analysis", color: "var(--gg-accent-red)" },
-  { key: "customer-report", label: "Customer Report", icon: "👥", description: "Customer LTV and behavior", color: "var(--gg-accent-teal)" },
-  { key: "profit-leak-report", label: "Profit Leak Report", icon: "💧", description: "Where your money is leaking", color: "var(--gg-accent-amber)" },
+  { key: "daily-profit", label: "Daily Net Profit", icon: CalendarIcon, description: "Day-by-day net profit breakdown" },
+  { key: "weekly-profit", label: "Weekly Profit Summary", icon: ChartLineIcon, description: "Weekly profit and courier expense rollup" },
+  { key: "monthly-profit", label: "Monthly Profit Statement", icon: FinanceIcon, description: "Monthly net profit statement for GST/accounting" },
+  { key: "top-products", label: "Most Profitable Products", icon: ProductIcon, description: "Highest earning products after all costs" },
+  { key: "worst-products", label: "Loss-Making Products", icon: AlertCircleIcon, description: "Items losing money due to high return rates" },
+  { key: "rto-report", label: "Courier Returns Report", icon: DeliveryIcon, description: "Complete record of returned parcels & freight fees" },
+  { key: "customer-report", label: "Customer Return Behavior", icon: PersonIcon, description: "Repeat returners vs loyal buyers" },
+  { key: "profit-leak-report", label: "Money Leak Report", icon: OrderIcon, description: "Where you lost money to returns and discounts" },
 ];
 
 export default function ReportsHub() {
   const { shop, host } = useLoaderData<typeof loader>();
 
   return (
-    <Page title="Reports Suite" subtitle="Generate and stream structured CSV financial, product, and RTO reports.">
+    <Page title="Download Reports & CSV" subtitle="Export your profit statements, courier return records, and product profitability sheets to Excel / CSV.">
       <Layout>
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 4 }}>
@@ -51,26 +60,16 @@ export default function ReportsHub() {
                   data-tour={report.key === "daily-profit" ? "reports" : undefined}
                 >
                   <Card>
-                    <Box padding="400">
+                    <Box padding="300">
                       <BlockStack gap="200">
-                        <div style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: "var(--gg-radius-md)",
-                          background: `${report.color}15`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 22,
-                        }}>
-                          {report.icon}
-                        </div>
-                        <Text variant="headingSm" as="h3">{report.label}</Text>
+                        <InlineStack gap="150" blockAlign="center">
+                          <Icon source={report.icon} tone="base" />
+                          <Text variant="headingSm" as="h3">{report.label}</Text>
+                        </InlineStack>
                         <Text variant="bodySm" as="p" tone="subdued">{report.description}</Text>
                         <InlineStack gap="100">
                           <Badge tone="info">CSV</Badge>
                           <Badge tone="info">Excel</Badge>
-                          <Badge tone="info">Print</Badge>
                         </InlineStack>
                       </BlockStack>
                     </Box>
@@ -96,7 +95,7 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Reports Suite">
+    <Page title="Download Reports & CSV">
       <Card>
         <Box padding="500">
           <BlockStack gap="400">

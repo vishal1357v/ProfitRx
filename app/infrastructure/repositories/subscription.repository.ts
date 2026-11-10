@@ -82,6 +82,73 @@ export class SubscriptionRepository {
   }
 
   /**
+   * Check order quota for a shop.
+   * If a subscription has entered a new calendar month since its last update/reset,
+   * it automatically and self-healingly resets ordersUsed to 0 before checking.
+   */
+  static async checkOrderQuota(shop: string): Promise<{
+    allowed: boolean;
+    quotaExceeded: boolean;
+    plan: string;
+    orderLimit: number | null;
+    ordersUsed: number;
+    remaining: number | null;
+  }> {
+    let sub = await this.findByShop(shop);
+    if (!sub) {
+      sub = await this.upsertSubscription(shop, { plan: "FREE", status: "ACTIVE" });
+    }
+
+    // Self-healing monthly quota reset:
+    // If the subscription was last updated in a previous calendar month, reset ordersUsed to 0
+    const now = new Date();
+    const lastUpdated = sub.updatedAt ? new Date(sub.updatedAt) : now;
+    const isNewMonth =
+      now.getFullYear() > lastUpdated.getFullYear() ||
+      (now.getFullYear() === lastUpdated.getFullYear() && now.getMonth() > lastUpdated.getMonth());
+
+    if (isNewMonth && sub.ordersUsed > 0) {
+      try {
+        sub = await prisma.subscription.update({
+          where: { shop },
+          data: { ordersUsed: 0 },
+        });
+        console.log(`[SubscriptionRepository] Self-healing reset ordersUsed to 0 for ${shop} (new calendar month)`);
+      } catch (e) {
+        console.warn(`[SubscriptionRepository] Could not reset ordersUsed for ${shop}:`, e);
+      }
+    }
+
+    const plan = sub.plan || "FREE";
+    const orderLimit = sub.orderLimit;
+    const ordersUsed = sub.ordersUsed || 0;
+
+    // PRO plan has no order limit (unlimited)
+    if (orderLimit === null || plan === "PRO") {
+      return {
+        allowed: true,
+        quotaExceeded: false,
+        plan,
+        orderLimit: null,
+        ordersUsed,
+        remaining: null,
+      };
+    }
+
+    const quotaExceeded = ordersUsed >= orderLimit;
+    const remaining = Math.max(0, orderLimit - ordersUsed);
+
+    return {
+      allowed: !quotaExceeded,
+      quotaExceeded,
+      plan,
+      orderLimit,
+      ordersUsed,
+      remaining,
+    };
+  }
+
+  /**
    * Increment orders used counter for billing quotas.
    */
   static async incrementOrdersUsed(shop: string, count = 1): Promise<SubscriptionRecord | null> {
@@ -92,5 +159,12 @@ export class SubscriptionRepository {
       where: { shop },
       data: { ordersUsed: { increment: count } },
     });
+  }
+
+  /**
+   * Idempotently record order usage for billing quota tracking.
+   */
+  static async recordOrderUsage(shop: string, count = 1): Promise<SubscriptionRecord | null> {
+    return this.incrementOrdersUsed(shop, count);
   }
 }

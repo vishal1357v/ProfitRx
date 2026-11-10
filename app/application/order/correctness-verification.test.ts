@@ -5,6 +5,7 @@ import { OrderRepository } from "../../infrastructure/repositories/order.reposit
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { ExecutionLogRepository } from "../../infrastructure/repositories/execution-log.repository";
 import { DecisionRecordRepository, OrderOutcomeSnapshot } from "../../infrastructure/repositories/decision-record.repository";
+import { SubscriptionRepository } from "../../infrastructure/repositories/subscription.repository";
 import { OrderApplicationService } from "./order.application";
 import { ExecutionContextFactory } from "../../infrastructure/context/execution.context";
 import { Pipeline } from "../pipeline/pipeline.interface";
@@ -319,6 +320,15 @@ describe("Production Correctness Verification (5 Critical Checks)", () => {
 
       vi.spyOn(OrderRepository, "findById").mockResolvedValue(null);
       vi.spyOn(OrderRepository, "updateDecision").mockImplementation(async () => {});
+      vi.spyOn(SubscriptionRepository, "checkOrderQuota").mockResolvedValue({
+        allowed: true,
+        quotaExceeded: false,
+        plan: "GROWTH",
+        orderLimit: 2000,
+        ordersUsed: 50,
+        remaining: 1950,
+      });
+      vi.spyOn(SubscriptionRepository, "recordOrderUsage").mockResolvedValue({} as any);
 
       // Mock pipeline execute to simulate synchronous work
       vi.spyOn(Pipeline.prototype, "execute").mockImplementation(async () => {

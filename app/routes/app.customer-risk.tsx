@@ -214,7 +214,7 @@ export default function CustomerRiskRoute() {
         ₹{c.estimatedLoss.toLocaleString("en-IN")}
       </span>,
       <Badge key={`${c.customerId}-badge`} tone={badgeTone}>
-        {`${c.riskLevel} (${c.riskScore})`}
+        {isCritical ? "Very High Risk" : isHigh ? "High Return Risk" : c.riskLevel === "MEDIUM" ? "Medium Risk" : "Safe Buyer"}
       </Badge>,
       <InlineStack key={`${c.customerId}-act`} gap="200">
         {isCritical || isHigh ? (
@@ -224,7 +224,7 @@ export default function CustomerRiskRoute() {
             loading={isSubmitting}
             onClick={() => handleCustomerAction(c.customerId, "ALLOW_COD")}
           >
-            Allow COD
+            Allow Normal COD
           </Button>
         ) : (
           <Button
@@ -234,7 +234,7 @@ export default function CustomerRiskRoute() {
             loading={isSubmitting}
             onClick={() => handleCustomerAction(c.customerId, "FORCE_PREPAID")}
           >
-            Force Prepaid
+            Block COD
           </Button>
         )}
       </InlineStack>,
@@ -243,8 +243,8 @@ export default function CustomerRiskRoute() {
 
   return (
     <Page
-      title="Customer Risk & Serial Offender Protection"
-      subtitle="Identify repeat RTO offenders, detect high-risk buyer profiles, and enforce automated COD restrictions."
+      title="Frequent Returners & Delivery History"
+      subtitle="Review customer delivery outcomes and past RTO history to prevent avoidable courier freight losses."
     >
       <Layout>
         {actionData?.message && (
@@ -264,12 +264,12 @@ export default function CustomerRiskRoute() {
                   <BlockStack gap="200">
                     <InlineStack gap="150" blockAlign="center">
                       <Icon source={AlertTriangleIcon} tone="critical" />
-                      <Text variant="bodySm" as="span" tone="subdued">Repeat Offenders</Text>
+                      <Text variant="bodySm" as="span" tone="subdued">Frequent Returners</Text>
                     </InlineStack>
                     <Text variant="headingLg" as="p" fontWeight="bold">
                       {summary.totalOffenders}
                     </Text>
-                    <Text variant="bodyXs" as="span" tone="subdued">Customers with 1+ RTO deliveries</Text>
+                    <Text variant="bodyXs" as="span" tone="subdued">Customers with 1+ returned parcels</Text>
                   </BlockStack>
                 </Box>
               </Card>
@@ -286,7 +286,7 @@ export default function CustomerRiskRoute() {
                     <Text variant="headingLg" as="p" fontWeight="bold">
                       {summary.highRiskCount}
                     </Text>
-                    <Text variant="bodyXs" as="span" tone="subdued">Require OTP or Prepaid</Text>
+                    <Text variant="bodyXs" as="span" tone="subdued">Require WhatsApp or Advance</Text>
                   </BlockStack>
                 </Box>
               </Card>
@@ -298,12 +298,12 @@ export default function CustomerRiskRoute() {
                   <BlockStack gap="200">
                     <InlineStack gap="150" blockAlign="center">
                       <Icon source={PersonIcon} />
-                      <Text variant="bodySm" as="span" tone="subdued">Cumulative RTO Loss</Text>
+                      <Text variant="bodySm" as="span" tone="subdued">Courier Money Lost</Text>
                     </InlineStack>
                     <Text variant="headingLg" as="p" fontWeight="bold" tone="critical">
                       ₹{summary.totalLoss.toLocaleString("en-IN")}
                     </Text>
-                    <Text variant="bodyXs" as="span" tone="subdued">Direct reverse logistics waste</Text>
+                    <Text variant="bodyXs" as="span" tone="subdued">Courier fees on returned parcels</Text>
                   </BlockStack>
                 </Box>
               </Card>
@@ -315,12 +315,12 @@ export default function CustomerRiskRoute() {
                   <BlockStack gap="200">
                     <InlineStack gap="150" blockAlign="center">
                       <Icon source={ShieldCheckMarkIcon} tone="success" />
-                      <Text variant="bodySm" as="span" tone="subdued">Offender RTO Rate</Text>
+                      <Text variant="bodySm" as="span" tone="subdued">Average Return Rate</Text>
                     </InlineStack>
                     <Text variant="headingLg" as="p" fontWeight="bold">
                       {summary.avgRtoRate}%
                     </Text>
-                    <Text variant="bodyXs" as="span" tone="subdued">Avg return failure rate</Text>
+                    <Text variant="bodyXs" as="span" tone="subdued">Percentage of their parcels returned</Text>
                   </BlockStack>
                 </Box>
               </Card>
@@ -346,13 +346,13 @@ export default function CustomerRiskRoute() {
                   </Grid.Cell>
                   <Grid.Cell>
                     <Select
-                      label="Filter Risk Level"
+                      label="Filter Return History"
                       options={[
                         { label: "All Customers", value: "ALL" },
-                        { label: "CRITICAL Risk Only", value: "CRITICAL" },
-                        { label: "HIGH Risk Only", value: "HIGH" },
-                        { label: "MEDIUM Risk Only", value: "MEDIUM" },
-                        { label: "LOW Risk (Safe)", value: "LOW" },
+                        { label: "Frequent Returners (Critical)", value: "CRITICAL" },
+                        { label: "Prior Return History (High)", value: "HIGH" },
+                        { label: "Moderate Risk History", value: "MEDIUM" },
+                        { label: "Normal Delivery History", value: "LOW" },
                       ]}
                       value={riskFilter}
                       onChange={setRiskFilter}
@@ -362,10 +362,10 @@ export default function CustomerRiskRoute() {
                     <Select
                       label="Sort Customers"
                       options={[
-                        { label: "Most RTOs", value: "RTO_COUNT" },
-                        { label: "Highest Loss Amount", value: "ESTIMATED_LOSS" },
-                        { label: "Highest Risk Score", value: "RISK_SCORE" },
-                        { label: "Total Order Volume", value: "TOTAL_ORDERS" },
+                        { label: "Most Returned Parcels", value: "RTO_COUNT" },
+                        { label: "Most Courier Freight Lost", value: "ESTIMATED_LOSS" },
+                        { label: "Highest Return Risk Score", value: "RISK_SCORE" },
+                        { label: "Total Orders Placed", value: "TOTAL_ORDERS" },
                       ]}
                       value={sortBy}
                       onChange={setSortBy}
@@ -377,19 +377,19 @@ export default function CustomerRiskRoute() {
 
                 {filteredCustomers.length === 0 ? (
                   <EmptyState
-                    heading="No high-risk customer profiles found"
+                    heading="No repeat returner profiles found"
                     image="https://cdn.shopify.com/s/files/1/0262/4071/2760/files/emptystate-files.png"
                   >
                     <p>
                       {searchQuery || riskFilter !== "ALL"
                         ? "No customer matches your current filter criteria. Try clearing search filters."
-                        : "All customers are currently within acceptable delivery thresholds. No repeat offenders detected."}
+                        : "All customers currently have standard delivery records with no repeat return history."}
                     </p>
                   </EmptyState>
                 ) : (
                   <DataTable
                     columnContentTypes={["text", "text", "text", "text", "numeric", "text", "text"]}
-                    headings={["Customer / Identifier", "Orders (COD)", "Delivery Rate", "RTO Count (Rate)", "Est. Loss", "Risk Status", "Action"]}
+                    headings={["Customer", "Orders (COD)", "Delivery %", "Returned Parcels", "Courier Money Lost", "Return Risk", "Action"]}
                     rows={rows}
                   />
                 )}
@@ -404,7 +404,7 @@ export default function CustomerRiskRoute() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = "An unexpected error occurred while loading customer risk intelligence.";
+  let errorMessage = "An unexpected error occurred while loading customer delivery history.";
 
   if (isRouteErrorResponse(error)) {
     errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
@@ -413,10 +413,10 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Customer Risk Intelligence">
+    <Page title="Frequent Returners & Delivery History">
       <Card>
         <Box padding="500">
-          <Banner tone="critical" title="Failed to Load Customer Risk Intelligence">
+          <Banner tone="critical" title="Failed to Load Customer Delivery History">
             <p>{errorMessage}</p>
           </Banner>
         </Box>

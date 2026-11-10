@@ -22,7 +22,7 @@ export default function TermsRoute() {
           ProfitRx is a SaaS profit intelligence and risk mitigation platform engineered for Shopify merchants. Core services include:
         </p>
         <ul style={{ paddingLeft: "20px" }}>
-          <li>Real-time net pocket profit computation incorporating Cost of Goods Sold (COGS), shipping slabs, gateway charges, and tax deductions.</li>
+          <li>Real-time net profit computation incorporating Cost of Goods Sold (COGS), shipping slabs, gateway charges, and tax deductions.</li>
           <li>Return-to-Origin (RTO) predictive risk scoring for Cash on Delivery (COD) orders.</li>
           <li>Checkout payment customization via Shopify WebAssembly Functions to restrict COD payment methods for high-risk postal codes.</li>
           <li>Merchant verification interventions including automated WhatsApp OTP delivery verification.</li>

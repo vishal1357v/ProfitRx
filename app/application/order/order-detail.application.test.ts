@@ -4,6 +4,7 @@ import { OrderRepository } from "../../infrastructure/repositories/order.reposit
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { ExecutionLogRepository } from "../../infrastructure/repositories/execution-log.repository";
 import { LearningRecordRepository } from "../../infrastructure/repositories/learning-record.repository";
+import { DecisionEngineApplicationService } from "../decision/decision-engine.application";
 
 describe("OrderDetailApplicationService", () => {
   const shop = "test-merchant.myshopify.com";
@@ -83,6 +84,7 @@ describe("OrderDetailApplicationService", () => {
     ] as any);
 
     vi.spyOn(LearningRecordRepository, "findByOrderId").mockResolvedValue([]);
+    vi.spyOn(DecisionEngineApplicationService, "getOrderDecisionCard").mockResolvedValue(null);
 
     const result = await OrderDetailApplicationService.getOrderDetail(shop, orderId);
 

@@ -32,7 +32,7 @@ export default function PrivacyRoute() {
         <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#222f3e", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>Section 2: Purpose of Processing</h2>
         <p>We process collected information solely for the following legitimate business purposes:</p>
         <ul style={{ paddingLeft: "20px" }}>
-          <li>Calculating True Net Pocket Profit, blended ROAS, and SKU margin contributions per order.</li>
+          <li>Calculating True Net Profit, blended ROAS, and SKU margin contributions per order.</li>
           <li>Evaluating probabilistic RTO risk scores based on regional pincode delivery performance.</li>
           <li>Delivering automated WhatsApp/SMS OTP challenges to customers to confirm high-risk COD orders.</li>
           <li>Generating statutory GST and financial audit reports for merchant accounting.</li>

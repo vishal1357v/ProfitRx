@@ -105,16 +105,17 @@ export default function Pricing() {
       name: "Starter",
       handle: "starter",
       price: "$19",
-      description: "For emerging D2C brands starting with COD risk control.",
-      tagline: "Prevent early RTO bleed with core intelligence and analytics.",
+      approxInr: "~₹1,599",
+      description: "For stores getting started with COD return control.",
+      tagline: "Track your real net profit and courier return losses.",
       features: [
-        "Up to 500 evaluated orders / mo",
-        "Profit & Loss Live Dashboard",
-        "Store Health & Efficiency Score",
-        "Native & Custom COGS Tracking",
-        "Basic RTO Rate & Return Alerts",
-        "Automated GST Return Reports",
-        "Order Analytics & CSV Export",
+        "Up to 500 orders evaluated / mo",
+        "Net Profit Live Dashboard",
+        "Product Cost Tracking (Making/Buying prices)",
+        "Courier Return Reports & Loss Tracking",
+        "Weekly WhatsApp Digest",
+        "GST Compliance Reports",
+        "Download Reports & CSV Export",
       ],
       popular: false,
     },
@@ -122,18 +123,18 @@ export default function Pricing() {
       name: "Growth",
       handle: "growth",
       price: "$39",
-      description: "Complete COD Shield suite for scaling Shopify merchants.",
-      tagline: "Block fake COD, verify buyer intent with OTP, and halt RTO losses.",
+      approxInr: "~₹3,299",
+      description: "The complete COD & return protection suite.",
+      tagline: "Verify COD orders with OTP, block high-return pincodes, and reduce courier losses.",
       features: [
-        "Up to 2,000 evaluated orders / mo",
+        "Up to 2,000 orders evaluated / mo",
         "Everything in Starter, plus:",
-        "COD Shield — Automated COD Blocking",
-        "Interactive India Pincode RTO Heatmap",
-        "Buyer Intent OTP Verification via SMS",
-        "Partial Deposit / Advance Payment on COD",
-        "Customer Risk Scoring & Blacklist Rules",
-        "Profit Leak Diagnostics & Action Hub",
-        "Priority WhatsApp Courier Alerts",
+        "WhatsApp Order Confirmation (OTP)",
+        "High Return Pincode Protection",
+        "Flag for Advance Deposit Follow-up",
+        "Frequent Returners & Delivery History Directory",
+        "Where You Are Losing Money (Leaks)",
+        "Instant WhatsApp Alerts on Risky Orders",
       ],
       popular: true,
     },
@@ -141,18 +142,17 @@ export default function Pricing() {
       name: "Pro",
       handle: "pro",
       price: "$79",
-      description: "Unlimited scale and omni-channel intelligence for market leaders.",
-      tagline: "Maximum profit protection with custom economics and unlimited volume.",
+      approxInr: "~₹6,599",
+      description: "For high-volume stores spending heavily on ads.",
+      tagline: "Track real cash collected from ad spend and protect unlimited order volumes.",
       features: [
-        "Unlimited evaluated orders / mo",
+        "Unlimited orders evaluated / mo",
         "Everything in Growth, plus:",
-        "Blended ROAS & Ad Spend Intelligence",
-        "Meta & Google Ads Direct Integrations",
-        "Customer LTV Cohort Retention Analytics",
-        "Multi-Store & Enterprise Team Access",
-        "Custom Courier SLA Rules Engine",
-        "White-glove 1-on-1 Onboarding",
-        "24/7 Dedicated Support",
+        "Ad Spend vs Real Sales (Meta & Google Ads)",
+        "Sales Return per Rupee Spent (True ROAS)",
+        "Repeat Customer Value History",
+        "Multi-Store Support",
+        "Priority WhatsApp Support & Dedicated Setup",
       ],
       popular: false,
     },
@@ -240,7 +240,7 @@ export default function Pricing() {
                         {plan.price}
                       </Text>
                       <Text variant="bodySm" as="p" tone="subdued">
-                        / mo
+                        / mo ({plan.approxInr})
                       </Text>
                     </InlineStack>
 
@@ -310,76 +310,64 @@ export default function Pricing() {
                         <td><strong>Unlimited orders</strong></td>
                       </tr>
                       <tr>
-                        <td>Real Profit Dashboard</td>
+                        <td>Net Profit Live Dashboard</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Store Health Score</td>
+                        <td>Product Cost Tracking (Making/Buying)</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>COGS Management</td>
+                        <td>Courier Return Reports</td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Basic RTO Tracking</td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                      </tr>
-                      <tr>
-                        <td>COD Shield (Auto-Block)</td>
+                        <td>WhatsApp Order Confirmation (OTP)</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>OTP Verification via SMS</td>
+                        <td>High Return Pincode Protection</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Partial Deposit on COD</td>
+                        <td>Flag for Advance Deposit Follow-up</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Customer Risk Blacklist</td>
+                        <td>Frequent Returners Directory</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Pincode RTO Heatmap</td>
+                        <td>Where You Are Losing Money (Leaks)</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
-                        <td>Blended ROAS Intelligence</td>
-                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
-                        <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
-                        <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
-                      </tr>
-                      <tr>
-                        <td>Customer LTV Cohorts</td>
+                        <td>Ad Spend vs Real Sales Tracking</td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-text-muted)" }}>✕ No</span></td>
                         <td><span style={{ color: "var(--gg-accent-green)" }}>✓ Yes</span></td>
                       </tr>
                       <tr>
                         <td>Support Level</td>
-                        <td>Community</td>
-                        <td>Priority</td>
-                        <td><strong>24/7 Dedicated</strong></td>
+                        <td>Email</td>
+                        <td>Priority WhatsApp</td>
+                        <td><strong>24/7 Dedicated WhatsApp</strong></td>
                       </tr>
                     </tbody>
                   </table>

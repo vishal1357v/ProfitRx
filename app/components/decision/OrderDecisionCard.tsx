@@ -109,10 +109,10 @@ export function OrderDecisionCard({
           <InlineStack align="space-between" blockAlign="center" wrap>
             <InlineStack gap="200" blockAlign="center">
               <Text variant="headingMd" as="h2">
-                Order Decision Engine
+                Order Profit & Fraud Check
               </Text>
               {decisionState.isOverridden && (
-                <Badge tone="info">Merchant Override Active</Badge>
+                <Badge tone="info">Merchant Selected Action</Badge>
               )}
             </InlineStack>
             <InlineStack gap="200" blockAlign="center">
@@ -129,19 +129,19 @@ export function OrderDecisionCard({
             </InlineStack>
           </InlineStack>
 
-          {/* Economic Justification Box */}
+          {/* Advice Box */}
           <Box padding="300" background="bg-surface-secondary" borderRadius="200">
             <BlockStack gap="150">
               <InlineStack gap="100" blockAlign="center">
                 <Text variant="bodyMd" fontWeight="semibold" as="p">
-                  Economic Verdict:
+                  ProfitRx Advice:
                 </Text>
                 <Text variant="bodyMd" as="p">
                   {recommendation.economicJustification}
                 </Text>
               </InlineStack>
               <Text variant="bodySm" tone="subdued" as="p">
-                <strong>Why this action:</strong> {recommendation.explanation}
+                <strong>Why:</strong> {recommendation.explanation}
               </Text>
             </BlockStack>
           </Box>
@@ -150,30 +150,30 @@ export function OrderDecisionCard({
           {(!economics.dataCompleteness.hasActualCogs ||
             !economics.dataCompleteness.hasActualShipping ||
             !economics.currencyMatch) && (
-            <Banner tone="warning">
+            <Banner tone="info">
               <BlockStack gap="100">
                 <Text variant="bodySm" fontWeight="semibold" as="p">
-                  Data Quality & Completeness Notice:
+                  Missing Cost Information:
                 </Text>
                 <ul style={{ margin: 0, paddingLeft: "20px" }}>
                   {!economics.dataCompleteness.hasActualCogs && (
                     <li>
                       <Text variant="bodySm" as="span">
-                        SKU Cost of Goods Sold (COGS) missing; estimated using store default percentage.
+                        Product making/buying cost missing. Estimated using store default. Add exact costs in Product Costs for exact profit numbers.
                       </Text>
                     </li>
                   )}
                   {!economics.dataCompleteness.hasActualShipping && (
                     <li>
                       <Text variant="bodySm" as="span">
-                        Courier shipping rate missing; calculated from default weight slab freight rates.
+                        Courier freight rate missing; calculated from default weight rate.
                       </Text>
                     </li>
                   )}
                   {!economics.currencyMatch && (
                     <li>
                       <Text variant="bodySm" as="span">
-                        Order currency ({economics.currency}) differs from store settings. Calculation estimates may be incomplete.
+                        Order currency ({economics.currency}) differs from store currency.
                       </Text>
                     </li>
                   )}
@@ -188,7 +188,7 @@ export function OrderDecisionCard({
             <Box minWidth="130px">
               <BlockStack gap="050">
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  RTO Risk Band
+                  Return Risk
                 </Text>
                 <InlineStack gap="100" blockAlign="center">
                   <Text variant="headingLg" tone={getTextRiskTone(risk.riskBand)} as="p">
@@ -205,7 +205,7 @@ export function OrderDecisionCard({
             <Box minWidth="140px">
               <BlockStack gap="050">
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  Expected Contribution ($EV$)
+                  Estimated Outcome
                 </Text>
                 <Text
                   variant="headingLg"
@@ -223,7 +223,7 @@ export function OrderDecisionCard({
             <Box minWidth="140px">
               <BlockStack gap="050">
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  Delivered Contribution
+                  Profit if Delivered
                 </Text>
                 <Text
                   variant="headingLg"
@@ -233,7 +233,7 @@ export function OrderDecisionCard({
                   +{currencySymbol}{Math.round(economics.deliveredContribution).toLocaleString("en-IN")}
                 </Text>
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  If customer accepts
+                  In pocket after costs
                 </Text>
               </BlockStack>
             </Box>
@@ -241,13 +241,13 @@ export function OrderDecisionCard({
             <Box minWidth="140px">
               <BlockStack gap="050">
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  RTO Financial Exposure
+                  Loss if Returned (RTO)
                 </Text>
                 <Text variant="headingLg" tone="critical" as="p">
                   -{currencySymbol}{Math.round(economics.rtoLossExposure).toLocaleString("en-IN")}
                 </Text>
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  If order returns
+                  Courier freight penalty
                 </Text>
               </BlockStack>
             </Box>
@@ -346,26 +346,26 @@ export function OrderDecisionCard({
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
               <Text variant="headingSm" as="h3">
-                Financial Decision Model
+                Detailed Cost & Net Profit Breakdown
               </Text>
               <Text variant="bodyXs" tone="subdued" as="span">
-                Canonical Economics Calculation (Zero Double-Counting)
+                Canonical Economics (Zero Double-Counting)
               </Text>
             </InlineStack>
 
             <Box padding="200" background="bg-surface-secondary" borderRadius="100">
               <Text variant="bodySm" as="p">
-                <strong>Expected Contribution Formula:</strong> (1 − {rtoProbabilityPct / 100}) × +{currencySymbol}{Math.round(economics.deliveredContribution)} + ({rtoProbabilityPct / 100}) × -{currencySymbol}{Math.round(economics.rtoLossExposure)} ={" "}
+                <strong>Estimated Net Outcome:</strong> Weighs profit if delivered (+{currencySymbol}{Math.round(economics.deliveredContribution).toLocaleString("en-IN")}) against freight loss if returned (-{currencySymbol}{Math.round(economics.rtoLossExposure).toLocaleString("en-IN")}) at an estimated {rtoProbabilityPct}% return chance ={" "}
                 <strong>
                   {economics.expectedContribution >= 0 ? `+${currencySymbol}` : `-${currencySymbol}`}
-                  {Math.abs(Math.round(economics.expectedContribution))}
+                  {Math.abs(Math.round(economics.expectedContribution)).toLocaleString("en-IN")}
                 </strong>
               </Text>
             </Box>
 
             <DataTable
               columnContentTypes={["text", "numeric", "text"]}
-              headings={["Cost / Revenue Component", "Amount", "Data Precision"]}
+              headings={["Cost / Revenue Component", "Amount", "Data Source"]}
               rows={[
                 [
                   "Gross Order Value",
@@ -373,7 +373,7 @@ export function OrderDecisionCard({
                   <Badge tone="success" key="rev">ACTUAL</Badge>,
                 ],
                 [
-                  "Product COGS",
+                  "Product Cost (Unit COGS)",
                   `-${currencySymbol}${Math.round(economics.cogs).toLocaleString("en-IN")}`,
                   getPrecisionBadge(economics.cogsState),
                 ],
@@ -400,7 +400,7 @@ export function OrderDecisionCard({
                     ],
                 [
                   <Text variant="bodyMd" fontWeight="bold" as="span" key="del-lbl">
-                    = Delivered Contribution Profit
+                    = Profit If Delivered
                   </Text>,
                   <Text
                     variant="bodyMd"
@@ -415,7 +415,7 @@ export function OrderDecisionCard({
                 ],
                 [
                   <Text variant="bodyMd" fontWeight="bold" as="span" key="rto-lbl">
-                    = Reverse Logistics Loss Exposure (If RTO)
+                    = Loss If Returned (RTO Freight)
                   </Text>,
                   <Text variant="bodyMd" fontWeight="bold" tone="critical" as="span" key="rto-val">
                     -{currencySymbol}{Math.round(economics.rtoLossExposure).toLocaleString("en-IN")}
@@ -479,7 +479,7 @@ export function OrderDecisionCard({
                         {outcome.explanation}
                       </Text>
                       <InlineStack align="space-between">
-                        <Text variant="bodySm" as="span">Estimated Expected Value ($EV$):</Text>
+                        <Text variant="bodySm" as="span">Estimated Net Outcome:</Text>
                         <Text variant="bodySm" fontWeight="semibold" as="span">
                           {currencySymbol}{Math.round(outcome.comparison.estimatedExpectedValue)}
                         </Text>
@@ -534,28 +534,29 @@ export function OrderDecisionCard({
           <BlockStack gap="400">
             <Banner tone="info">
               <Text variant="bodySm" as="p">
-                ProfitRx recommends <strong>{recommendation.actionLabel}</strong> based on an estimated payoff of {currencySymbol}{Math.round(economics.expectedContribution)}.
-                Merchant overrides are recorded in the decision audit trail.
+                ProfitRx recommends <strong>{recommendation.actionLabel}</strong>.
+                If accepted: +{currencySymbol}{Math.round(economics.deliveredContribution)} profit.
+                If returned: -{currencySymbol}{Math.round(economics.rtoLossExposure)} courier loss.
               </Text>
             </Banner>
 
             <Select
-              label="Selected Action"
+              label="Decision Action"
               options={[
-                { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                { label: "Verify Order (Dispatch OTP Intent Check)", value: "VERIFY" },
-                { label: "Require Prepaid Payment Only", value: "PREPAID_ONLY" },
-                { label: "Block COD (Hold/Cancel Order)", value: "BLOCK_COD" },
+                { label: "Allow COD — Ship normally without restrictions", value: "ALLOW_COD" },
+                { label: "Verify Customer — Send WhatsApp / SMS OTP code", value: "VERIFY" },
+                { label: "Require Full Payment — Convert order to prepaid", value: "PREPAID_ONLY" },
+                { label: "Hold Order — Do not dispatch this order", value: "BLOCK_COD" },
               ]}
               value={selectedAction}
               onChange={setSelectedAction}
             />
 
             <TextField
-              label="Reason for Action / Override"
+              label="Reason or notes (optional)"
               value={overrideReason}
               onChange={setOverrideReason}
-              placeholder="e.g. Customer confirmed shipping address and intent via telephone"
+              placeholder="e.g. Customer confirmed shipping address and intent on phone call"
               autoComplete="off"
               multiline={3}
             />

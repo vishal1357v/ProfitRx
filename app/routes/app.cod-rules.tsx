@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { HeadersFunction, LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useNavigation, useActionData, redirect } from "react-router";
+import { useLoaderData, useSubmit, useNavigation, useActionData, redirect, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const headers: HeadersFunction = (headersArgs) => {
@@ -348,37 +348,37 @@ export default function CODRulesRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={LockIcon} />
-                    <Text variant="headingMd" as="h2">A. Protect High Value Orders</Text>
+                    <Text variant="headingMd" as="h2">A. High Value Order Protection</Text>
                   </InlineStack>
-                  <Badge tone="success">⚡ Enforced at Checkout</Badge>
+                  <Badge tone="success">Enforced at Checkout</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Automatically hides Cash-on-Delivery or mandates Prepaid at checkout when order amount exceeds your thresholds.
+                  Hides Cash-on-Delivery or requires full payment when the cart amount exceeds your limit.
                 </Text>
                 
                 <Grid columns={{ xs: 1, sm: 2 }}>
                   <Grid.Cell>
                     <TextField
-                      label="Reject COD for orders over"
+                      label="Turn off COD for orders over"
                       type="number"
                       prefix="₹"
                       value={rejectCodOver === "999999" ? "" : rejectCodOver}
                       onChange={setRejectCodOver}
                       autoComplete="off"
                       placeholder="e.g. 5000"
-                      helpText="Hides COD when cart total is strictly greater than threshold (> ₹X)"
+                      helpText="Hides COD option at checkout when total is above this amount."
                     />
                   </Grid.Cell>
                   <Grid.Cell>
                     <TextField
-                      label="Require Prepaid for orders at or above"
+                      label="Require Full Payment for orders above"
                       type="number"
                       prefix="₹"
                       value={requirePrepaidAbove === "999999" ? "" : requirePrepaidAbove}
                       onChange={setRequirePrepaidAbove}
                       autoComplete="off"
                       placeholder="e.g. 10000"
-                      helpText="Requires prepaid when cart total meets or exceeds threshold (≥ ₹X)"
+                      helpText="Only allows prepaid payment when total meets or exceeds this amount."
                     />
                   </Grid.Cell>
                 </Grid>
@@ -394,31 +394,31 @@ export default function CODRulesRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={AlertTriangleIcon} />
-                    <Text variant="headingMd" as="h2">B. Protect Repeat Offenders</Text>
+                    <Text variant="headingMd" as="h2">B. Block Frequent Returners</Text>
                   </InlineStack>
-                  <Badge tone="info">🔍 Evaluated Post-Order (Webhook)</Badge>
+                  <Badge tone="info">Checked on New Orders</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Instantly evaluated via webhook upon order creation to challenge repeat offenders with OTP or hold fulfillment before dispatch.
+                  Automatically flags buyers who repeatedly reject parcels so you do not waste courier fees.
                 </Text>
 
                 <BlockStack gap="200">
                   <Checkbox
-                    label="Trigger automatic protection after 2+ RTOs from the same customer"
+                    label="Auto-flag buyers who previously rejected 2 or more deliveries"
                     checked={flagRepeat}
                     onChange={setFlagRepeat}
                   />
                   {flagRepeat && (
                     <Box paddingBlockStart="200" paddingInlineStart="400">
                       <Select
-                        label="Action to take"
+                        label="Action for repeat returners"
                         options={[
-                          { label: "Block COD (Prepaid Only)", value: "block" },
-                          { label: "Require WhatsApp/SMS OTP Verification", value: "otp" },
+                          { label: "Block COD (Prepaid Payment Only)", value: "block" },
+                          { label: "Send WhatsApp Confirmation Code First", value: "otp" },
                         ]}
                         value={requireOtpRepeat ? "otp" : "block"}
                         onChange={(val) => setRequireOtpRepeat(val === "otp")}
-                        helpText="Repeat offenders with 2+ past RTOs will either have COD blocked or be challenged by OTP before fulfillment."
+                        helpText="Buyers with 2+ past returns will either be required to pay upfront or confirm via WhatsApp before packing."
                       />
                     </Box>
                   )}
@@ -435,12 +435,12 @@ export default function CODRulesRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={ShieldCheckMarkIcon} />
-                    <Text variant="headingMd" as="h2">C. Pincode Protection</Text>
+                    <Text variant="headingMd" as="h2">C. Block Risky Delivery Pincodes</Text>
                   </InlineStack>
-                  <Badge tone="success">⚡ Enforced at Checkout</Badge>
+                  <Badge tone="success">Enforced at Checkout</Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Disable COD entirely for selected high-risk pincodes.
+                  Turn off Cash on Delivery for pincodes where parcels frequently return unaccepted.
                 </Text>
 
                 {/* ── Activation Toggle Card ── */}
@@ -513,22 +513,22 @@ export default function CODRulesRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={NotificationIcon} />
-                    <Text variant="headingMd" as="h2">D. Dynamic OTP Verification Policy</Text>
+                    <Text variant="headingMd" as="h2">D. WhatsApp Order Confirmation (OTP)</Text>
                   </InlineStack>
                   <Badge tone={otpVerificationEnabled ? "success" : undefined}>
-                    {otpVerificationEnabled ? "OTP Active" : "Disabled"}
+                    {otpVerificationEnabled ? "WhatsApp Active" : "Disabled"}
                   </Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Verify buyer purchase intent on suspicious or high-risk orders via automated 6-digit WhatsApp/SMS OTP before fulfillment.
+                  Verify buyer purchase intent on suspicious or high-risk orders via automated 6-digit WhatsApp message before packing.
                 </Text>
 
                 <BlockStack gap="300">
                   <Checkbox
-                    label="Enable Dynamic OTP Verification Policy"
+                    label="Send automated WhatsApp confirmation code on risky COD orders"
                     checked={otpVerificationEnabled}
                     onChange={setOtpVerificationEnabled}
-                    helpText="Orders flagged with high RTO risk will automatically trigger an OTP verification message."
+                    helpText="Orders flagged with high return risk will automatically receive a WhatsApp confirmation challenge."
                   />
 
                   {otpVerificationEnabled && (
@@ -536,23 +536,23 @@ export default function CODRulesRoute() {
                       <Grid columns={{ xs: 1, sm: 2 }}>
                         <Grid.Cell>
                           <Select
-                            label="Verification Trigger Threshold"
+                            label="When to send WhatsApp code"
                             options={[
-                              { label: "CRITICAL Risk Orders Only (>60% Risk)", value: "CRITICAL" },
-                              { label: "HIGH & CRITICAL Risk Orders (>40% Risk)", value: "HIGH" },
-                              { label: "MEDIUM, HIGH & CRITICAL Risk (>20% Risk)", value: "MEDIUM" },
+                              { label: "Very Risky Orders Only (>60% Risk)", value: "CRITICAL" },
+                              { label: "Medium & High Risk Orders (>40% Risk)", value: "HIGH" },
+                              { label: "All Flagged Orders (>20% Risk)", value: "MEDIUM" },
                             ]}
                             value={otpRiskThreshold}
                             onChange={setOtpRiskThreshold}
-                            helpText="Orders exceeding this risk score will require OTP verification."
+                            helpText="Orders above this return risk score will require WhatsApp confirmation."
                           />
                         </Grid.Cell>
                         <Grid.Cell>
                           <Checkbox
-                            label="Auto-bypass OTP for Verified Repeat Buyers"
+                            label="Skip confirmation for trusted repeat buyers"
                             checked={otpBypassLowRisk}
                             onChange={setOtpBypassLowRisk}
-                            helpText="Do not challenge loyal customers who have 2+ successful prepaid or delivered orders."
+                            helpText="Do not challenge loyal customers who have 2+ past successful deliveries."
                           />
                         </Grid.Cell>
                       </Grid>
@@ -571,14 +571,14 @@ export default function CODRulesRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <InlineStack gap="200" blockAlign="center">
                     <Icon source={FinanceIcon} />
-                    <Text variant="headingMd" as="h2">E. Partial Payment & COD Deposit Protection</Text>
+                    <Text variant="headingMd" as="h2">E. Flag Orders for Advance Deposit</Text>
                   </InlineStack>
                   <Badge tone={partialPaymentEnabled || codFeeEnabled ? "success" : undefined}>
-                    {partialPaymentEnabled || codFeeEnabled ? "Deposit Active" : "Standard COD"}
+                    {partialPaymentEnabled || codFeeEnabled ? "Tagging Active" : "Standard COD"}
                   </Badge>
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Require a non-refundable upfront deposit or add a small COD convenience fee to commit buyers and offset courier return risk.
+                  Automatically tags risky orders in Shopify as 'ProfitRx-Deposit-Required' so your fulfillment team can request an advance deposit before shipping.
                 </Text>
 
                 <Grid columns={{ xs: 1, sm: 2 }}>
@@ -587,21 +587,21 @@ export default function CODRulesRoute() {
                       <Box padding="400">
                         <BlockStack gap="300">
                           <Checkbox
-                            label="Require Partial Payment / Upfront Deposit"
+                            label="Tag high-risk orders for advance deposit follow-up"
                             checked={partialPaymentEnabled}
                             onChange={setPartialPaymentEnabled}
-                            helpText="Collect an advance deposit (e.g. ₹50 or shipping cost) via UPI before shipping COD."
+                            helpText="Applies the 'ProfitRx-Deposit-Required' tag in Shopify Admin so your team knows to collect an advance token before dispatch."
                           />
                           {partialPaymentEnabled && (
                             <TextField
-                              label="Deposit Amount (₹)"
+                              label="Suggested Deposit Amount (₹)"
                               type="number"
                               prefix="₹"
                               value={partialPaymentAmount}
                               onChange={setPartialPaymentAmount}
                               autoComplete="off"
                               placeholder="50"
-                              helpText="Deducted from the remaining COD balance due at delivery."
+                              helpText="Reference deposit amount noted for your customer support or dispatch team."
                             />
                           )}
                         </BlockStack>
@@ -661,11 +661,11 @@ export default function CODRulesRoute() {
             <Box padding="500">
               <InlineStack align="space-between" blockAlign="center">
                 <Text variant="bodyMd" as="p">
-                  Apply all Advanced Merchant Rules to your Shopify storefront.
+                  Apply all COD and RTO protection rules to your Shopify storefront.
                 </Text>
-                <div className="gg-mobile-full-width-btn">
+                <div>
                   <Button variant="primary" loading={isSaving} onClick={handleSaveRules}>
-                    Save All Rules →
+                    Save Rules
                   </Button>
                 </div>
               </InlineStack>
@@ -674,6 +674,32 @@ export default function CODRulesRoute() {
         </Layout.Section>
 
       </Layout>
+    </Page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let errorMessage = "An unexpected error occurred while loading COD protection rules.";
+
+  if (isRouteErrorResponse(error)) {
+    errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  }
+
+  return (
+    <Page title="COD Protection Rules">
+      <Card>
+        <Box padding="500">
+          <BlockStack gap="400">
+            <Banner tone="critical" title="Failed to Load COD Rules">
+              <p>{errorMessage}</p>
+            </Banner>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
+          </BlockStack>
+        </Box>
+      </Card>
     </Page>
   );
 }

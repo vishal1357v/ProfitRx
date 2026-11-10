@@ -246,16 +246,16 @@ export default function CustomersRoute() {
 
   return (
     <Page
-      title="Customer Intelligence"
-      subtitle="Customer lifetime value (LTV), cohort retention curves, and channel quality attribution."
+      title="Repeat Customer Value"
+      subtitle="See which customers buy repeatedly and which marketing channels bring loyal buyers vs one-time returners."
       secondaryActions={[
         {
-          content: "Marketing ROAS",
+          content: "Ad Spend vs Real Sales",
           url: "/app/roas",
         },
         {
-          content: "RTO Analytics",
-          url: "/app/rto",
+          content: "Where You Are Losing Money",
+          url: "/app/profit-leaks",
         },
       ]}
     >
@@ -266,34 +266,33 @@ export default function CustomersRoute() {
             <div
               style={{
                 padding: "16px 20px",
-                borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(37,99,235,0.08))",
+                borderRadius: "8px",
+                background: "rgba(124,58,237,0.06)",
                 border: "1px solid rgba(124,58,237,0.2)",
               }}
             >
               <InlineStack gap="200" blockAlign="center">
-                <span style={{ fontSize: 22 }}>{CHANNEL_META[bestChannel.channel]?.icon || "🏆"}</span>
                 <Text variant="bodyMd" as="p">
                   <strong>{bestChannel.channel}</strong> customers are worth{" "}
-                  <strong style={{ color: "var(--gg-accent-purple)" }}>{qualityMultiplier}x more</strong> than Website customers — LTV ₹
-                  {bestChannel.ltv.toLocaleString("en-IN")} vs ₹{websiteChannel!.ltv.toLocaleString("en-IN")}. Invest more in{" "}
-                  {bestChannel.channel} traffic.
+                  <strong>{qualityMultiplier}x more</strong> than Website customers — Lifetime spend ₹
+                  {bestChannel.ltv.toLocaleString("en-IN")} vs ₹{websiteChannel!.ltv.toLocaleString("en-IN")}. Focus your marketing budget on{" "}
+                  {bestChannel.channel}.
                 </Text>
               </InlineStack>
             </div>
           </Layout.Section>
         )}
 
-        {/* ── AI Channel Quality Cards ──────────────────── */}
+        {/* ── Channel Quality Cards ──────────────────── */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
                 <Text variant="headingMd" as="h2">
-                  🏆 AI Customer Quality Scores
+                  Customer Value by Marketing Channel
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Which AI channel brings the most valuable customers? Ranked by LTV, AOV, and repeat rate.
+                  Which marketing channel brings the most valuable repeat customers?
                 </Text>
               </BlockStack>
 
@@ -433,10 +432,10 @@ export default function CustomersRoute() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="100">
                   <Text variant="headingMd" as="h2">
-                    👤 Customer LTV Directory
+                    Customer Lifetime Value Directory
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Individual customer lifetime value, order counts, and acquisition channel attribution.
+                    Individual customer repeat orders, average cart size, and where they came from.
                   </Text>
                 </BlockStack>
               </InlineStack>
@@ -455,7 +454,7 @@ export default function CustomersRoute() {
               ) : (
                 <DataTable
                   columnContentTypes={["text", "text", "text", "text", "numeric", "numeric", "numeric"]}
-                  headings={["Customer Name", "Email", "Cohort", "Source Channel", "Orders", "AOV", "Lifetime Value (LTV)"]}
+                  headings={["Customer Name", "Email", "Month Joined", "Source Channel", "Orders", "Avg Order", "Total Lifetime Spend"]}
                   rows={customerRows}
                 />
               )}

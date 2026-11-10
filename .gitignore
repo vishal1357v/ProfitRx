@@ -32,5 +32,6 @@ database.sqlite
 .env*
 /scratch/
 /.agents/
+/screenshots/
 
 

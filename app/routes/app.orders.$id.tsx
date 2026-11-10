@@ -43,11 +43,223 @@ import { OrderDecisionCard } from "../components/decision/OrderDecisionCard";
 export const headers = (headersArgs: any) => boundary.headers(headersArgs);
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
   const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
   const host = url.searchParams.get("host") || "";
   const orderId = params.id;
+
+  if (isPreview) {
+    return {
+      order: {
+        id: orderId || "849201",
+        orderNumber: 1042,
+        totalPrice: 2499,
+        subtotalPrice: 2400,
+        totalTax: 99,
+        shippingPrice: 0,
+        discountAmount: 0,
+        isCOD: true,
+        gateway: "Cash on Delivery",
+        financialStatus: "pending",
+        fulfillmentStatus: "unfulfilled",
+        channelAttribution: "Website",
+        customerName: "Priya Sharma",
+        customerEmail: "priya.sharma@example.com",
+        city: "Meerut",
+        province: "Uttar Pradesh",
+        pincode: "250001",
+        createdAt: new Date().toISOString(),
+        cogsAtTimeOfOrder: 1200,
+        riskScore: 78,
+        riskLevel: "HIGH",
+        riskReasons: [
+          { reason: "High historical RTO rate (42%) in Meerut 250001", impact: 45 },
+          { reason: "Customer has 1 previous returned order", impact: 33 },
+        ],
+        merchantRecommendation: "Send WhatsApp OTP to verify customer commitment before dispatch.",
+        protectionMode: "BALANCED",
+        executionStatus: "PENDING_REVIEW",
+        lineItems: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "sli-1",
+            productId: "prod-1",
+            title: "Matte Velvet Lipstick (Ruby Red)",
+            variantTitle: "Ruby Red / 3.5g",
+            quantity: 2,
+            unitPrice: 999,
+          },
+          {
+            id: "li-2",
+            shopifyLineItemId: "sli-2",
+            productId: "prod-2",
+            title: "Hydrating Primer (50ml)",
+            variantTitle: "50ml",
+            quantity: 1,
+            unitPrice: 501,
+          },
+        ],
+      },
+      intelligence: {
+        riskScore: 78,
+        riskLevel: "HIGH",
+        riskReasons: [
+          { reason: "High historical RTO rate (42%) in Meerut 250001", impact: 45 },
+          { reason: "Customer has 1 previous returned order", impact: 33 },
+        ],
+        decision: "REQUIRE_OTP",
+        expectedValue: -140,
+        hasRealCogs: true,
+        cogsUsed: 1200,
+        forwardShipping: 90,
+        returnShipping: 180,
+        profitIfDelivered: 820,
+        lossIfRto: 180,
+        evidenceQuality: 92,
+        economicJustification: "OTP verification is economically justified to prevent ₹180 reverse courier loss.",
+        protectionMode: "BALANCED",
+        executionStatus: "PENDING_REVIEW",
+      },
+      economics: {
+        revenue: { value: 2499, state: "ACTUAL", source: "Shopify Order" },
+        customerPaidShipping: { value: 0, state: "ACTUAL", source: "Free Shipping" },
+        tax: { value: 99, state: "ACTUAL", source: "GST 5%" },
+        cogs: { value: 1200, state: "ESTIMATED", source: "COGS Catalog" },
+        forwardShipping: { value: 90, state: "ESTIMATED", source: "Courier Default" },
+        returnShipping: { value: 180, state: "ESTIMATED", source: "Courier RTO Rate" },
+        packaging: { value: 15, state: "ESTIMATED", source: "Store Settings" },
+        codFee: { value: 40, state: "ESTIMATED", source: "Payment Gateway" },
+        gatewayFee: { value: 0, state: "ACTUAL", source: "COD" },
+        deliveredProfit: { value: 820, state: "PROJECTED", source: "Calculated" },
+        rtoLossExposure: { value: 180, state: "PROJECTED", source: "Calculated" },
+        expectedValue: { value: -140, state: "ACTUARIAL", source: "Risk Weighted" },
+        expectedROI: { value: -5.6, state: "PROJECTED", source: "Calculated" },
+        expectedLoss: { value: 140, state: "PROJECTED", source: "Calculated" },
+        deliveryProbability: 0.22,
+        rtoProbability: 0.78,
+        dataCompleteness: {
+          hasActualCogs: true,
+          hasActualShipping: true,
+          hasWeight: true,
+          warnings: [],
+        },
+      },
+      evidence: {
+        addressScore: 85,
+        hasRealCogs: true,
+        cogsSource: "COGS Catalog",
+        shippingSource: "Courier Rate Card",
+        pincode: "250001",
+        province: "Uttar Pradesh",
+        city: "Meerut",
+      },
+      executionLogs: [
+        {
+          id: "log-1",
+          step: "ORDER_EVALUATED",
+          status: "SUCCESS",
+          message: "Risk score calculated: 78 (High). Action recommended: REQUIRE_OTP.",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      overrideHistory: [],
+      learningRecords: [],
+      decisionCard: {
+        order: {
+          id: orderId || "849201",
+          orderNumber: 1042,
+          totalPrice: 2499,
+          subtotalPrice: 2400,
+          totalTax: 99,
+          shippingPrice: 0,
+          isCOD: true,
+          gateway: "Cash on Delivery",
+          fulfillmentStatus: "unfulfilled",
+          financialStatus: "pending",
+          customerName: "Priya Sharma",
+          city: "Meerut",
+          province: "Uttar Pradesh",
+          pincode: "250001",
+          createdAt: new Date().toISOString(),
+          currency: "INR",
+        },
+        economics: {
+          grossOrderValue: 2499,
+          customerPaidShipping: 0,
+          tax: 99,
+          cogs: 1200,
+          cogsState: "ESTIMATED",
+          cogsSource: "COGS Catalog",
+          forwardShipping: 90,
+          returnShipping: 180,
+          packaging: 15,
+          codFee: 40,
+          gatewayFee: 0,
+          deliveredContribution: 820,
+          rtoLossExposure: 180,
+          expectedContribution: -140,
+          expectedContributionState: "ACTUARIAL",
+          currency: "INR",
+          currencyMatch: true,
+          dataCompleteness: {
+            hasActualCogs: true,
+            hasActualShipping: true,
+            hasWeight: true,
+            currencyMatch: true,
+            warnings: [],
+          },
+        },
+        risk: {
+          riskScore: 78,
+          riskBand: "HIGH" as const,
+          confidence: 92,
+          customerSignals: {
+            totalOrders: 2,
+            successfulDeliveries: 1,
+            rtoCount: 1,
+            isRepeatCustomer: true,
+            hasDeliveryTrackRecord: true,
+          },
+          pincodeHistory: {
+            pincode: "250001",
+            city: "Meerut",
+            province: "Uttar Pradesh",
+            rtoRate: 42,
+            totalOrders: 145,
+            isBlocked: false,
+          },
+          riskFactors: [
+            { key: "pincode_risk", contribution: 45, explanation: "42% RTO return rate in Meerut 250001" },
+            { key: "customer_refusal", contribution: 33, explanation: "1 previous delivery refusal on file" },
+          ],
+          primaryReason: "High RTO risk in Meerut and prior customer delivery return",
+          isFlagged: true,
+        },
+        recommendation: {
+          action: "VERIFY" as const,
+          actionLabel: "Send WhatsApp OTP",
+          tone: "warning" as const,
+          explanation: "Buyer has a previous return in a high-RTO delivery zone.",
+          economicJustification: "Sending WhatsApp OTP avoids ~₹180 reverse courier freight exposure on high return risk.",
+        },
+        decisionState: {
+          initialRecommendation: "VERIFY",
+          currentAction: "REQUIRE_OTP",
+          isOverridden: false,
+          executionStatus: "PENDING_REVIEW",
+          decisionDate: new Date().toISOString(),
+        },
+      },
+      settings: {
+        protectionMode: "BALANCED",
+      },
+      shop: "glam-aura-india.myshopify.com",
+      host: host || Buffer.from("admin.shopify.com/store/glam-aura-india").toString("base64"),
+    };
+  }
+
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
 
   if (!orderId) {
     return redirect(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`);
@@ -183,21 +395,21 @@ export default function OrderIntelligenceRoute() {
   return (
     <Page
       backAction={{
-        content: "Operations",
+        content: "Orders to Check",
         onAction: () => navigate(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`),
       }}
-      title={`Order Intelligence: #${order.orderNumber}`}
-      subtitle={`Evaluated under Protection Mode: ${order.protectionMode}`}
+      title={`Order Check: #${order.orderNumber}`}
+      subtitle="Estimated net profit and courier return risk check for this order."
       compactTitle
       titleMetadata={
         <InlineStack gap="200" blockAlign="center">
           <Badge tone={order.isCOD ? "attention" : "success"}>{order.isCOD ? "COD Order" : "Prepaid"}</Badge>
-          <Badge tone={riskTone}>{`${intelligence.riskLevel} RISK`}</Badge>
+          <Badge tone={riskTone}>{`${intelligence.riskLevel === "HIGH" ? "High Return Risk" : intelligence.riskLevel === "CRITICAL" ? "Very High Risk" : "Safe"}`}</Badge>
           {getStatusBadge(order.executionStatus)}
         </InlineStack>
       }
       primaryAction={{
-        content: "Override Decision",
+        content: "Change Action",
         icon: EditIcon,
         onAction: () => setIsOverrideModalOpen(true),
       }}
@@ -211,11 +423,11 @@ export default function OrderIntelligenceRoute() {
 
         {/* Override History Banner if Overridden */}
         {overrideHistory.length > 0 && (
-          <Banner tone="info" title="Merchant Decision Override Active">
+          <Banner tone="info" title="Merchant Action Override Active">
             <BlockStack gap="100">
               {overrideHistory.map((h, i) => (
                 <Text variant="bodySm" as="p" key={i}>
-                  Overridden from <strong>{h.previousDecision}</strong> to <strong>{h.newDecision}</strong> by {h.actor} on{" "}
+                  Changed from <strong>{h.previousDecision}</strong> to <strong>{h.newDecision}</strong> by {h.actor} on{" "}
                   {new Date(h.timestamp).toLocaleString()} — <em>"{h.reason}"</em>
                 </Text>
               ))}
@@ -229,11 +441,11 @@ export default function OrderIntelligenceRoute() {
             <InlineStack gap="150" blockAlign="center">
               <Icon source={InfoIcon} tone="warning" />
               <Text variant="bodySm" as="p">
-                <strong>Data Quality Notice:</strong>{" "}
+                <strong>Cost Notice:</strong>{" "}
                 {!economics.dataCompleteness.hasActualCogs &&
-                  "Profit is calculated using store default COGS % because this SKU has no custom cost configured. "}
+                  "Profit is calculated using default cost % because this item has no making/buying price in Product Costs. "}
                 {!economics.dataCompleteness.hasActualShipping &&
-                  "Shipping cost is based on store default freight rates."}
+                  "Shipping cost is based on standard freight rates."}
               </Text>
             </InlineStack>
           </Banner>
@@ -251,22 +463,22 @@ export default function OrderIntelligenceRoute() {
                 />
               )}
 
-              {/* SECTION 5: TRUTHFUL EXECUTION TIMELINE */}
+              {/* Execution Timeline */}
               <Card>
                 <BlockStack gap="300">
                   <InlineStack align="space-between" blockAlign="center">
                     <Text variant="headingMd" as="h2">
-                      Truthful Execution Timeline
+                      What ProfitRx Did With This Order
                     </Text>
-                    <Badge>{`${executionLogs.length} Events Persisted`}</Badge>
+                    <Badge>{`${executionLogs.length} Events`}</Badge>
                   </InlineStack>
 
                   {executionLogs.length === 0 ? (
                     <EmptyState
-                      heading="No execution logs for this order"
+                      heading="No check logs for this order"
                       image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
                     >
-                      <p>Pipeline logs will appear here when webhook evaluation triggers.</p>
+                      <p>Activity logs will appear here when an incoming order is verified.</p>
                     </EmptyState>
                   ) : (
                     <BlockStack gap="200">
@@ -335,7 +547,7 @@ export default function OrderIntelligenceRoute() {
               <Card>
                 <BlockStack gap="200">
                   <Text variant="headingSm" as="h3">
-                    Line Items ({order.lineItems.length})
+                    Items ({order.lineItems.length})
                   </Text>
                   <Divider />
                   {order.lineItems.map((item) => (
@@ -366,10 +578,10 @@ export default function OrderIntelligenceRoute() {
                   </Text>
                   <Divider />
                   <Button fullWidth onClick={() => setIsOverrideModalOpen(true)}>
-                    Override Recommendation
+                    Change What to Do with Order
                   </Button>
                   <Button fullWidth variant="plain" onClick={() => navigate(`/app/operations?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`)}>
-                    Back to Operations Queue
+                    Back to Orders to Check
                   </Button>
                 </BlockStack>
               </Card>
@@ -382,9 +594,9 @@ export default function OrderIntelligenceRoute() {
       <Modal
         open={isOverrideModalOpen}
         onClose={() => setIsOverrideModalOpen(false)}
-        title={`Override Decision for #${order.orderNumber}`}
+        title={`Change What to Do for #${order.orderNumber}`}
         primaryAction={{
-          content: "Save Override",
+          content: "Save Action",
           onAction: handleConfirmOverride,
           loading: isSubmitting,
         }}
@@ -397,38 +609,37 @@ export default function OrderIntelligenceRoute() {
       >
         <Modal.Section>
           <BlockStack gap="400">
-            <Banner tone="warning">
+            <Banner tone="info">
               <Text variant="bodySm" as="p">
-                Original ProfitRx Recommendation: <strong>{intelligence.decision}</strong>.
-                Manual overrides are recorded in the audit trail and used for learning model refinement.
+                ProfitRx Recommended Action: <strong>{intelligence.decision === "REQUIRE_OTP" || intelligence.decision === "OTP_VERIFY" ? "Confirm WhatsApp" : intelligence.decision === "ALLOW_COD" ? "Allow Normal COD" : intelligence.decision}</strong>.
               </Text>
             </Banner>
 
             <Select
-              label="New Decision"
+              label="Select Action"
               options={[
-                { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                { label: "Dispatch WhatsApp/SMS OTP Verification", value: "OTP_VERIFY" },
-                { label: "Require Partial Payment / Upfront Deposit", value: "PARTIAL_PAYMENT" },
-                { label: "Require Full Prepaid Payment", value: "PREPAID_ONLY" },
-                { label: "Block COD (Hold/Cancel Order)", value: "BLOCK_COD" },
+                { label: "Allow COD — Ship normally", value: "ALLOW_COD" },
+                { label: "Send WhatsApp / SMS OTP verification code", value: "OTP_VERIFY" },
+                { label: "Ask for advance UPI deposit", value: "PARTIAL_PAYMENT" },
+                { label: "Require full prepaid payment", value: "PREPAID_ONLY" },
+                { label: "Hold / Block order (Do not dispatch)", value: "BLOCK_COD" },
               ]}
               value={overrideAction}
               onChange={setOverrideAction}
               helpText={
                 overrideAction === "OTP_VERIFY"
-                  ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS."
+                  ? "Sends a 6-digit confirmation code via WhatsApp to confirm the buyer really wants the item."
                   : overrideAction === "PARTIAL_PAYMENT"
-                  ? "Requires an advance deposit via UPI before fulfillment."
+                  ? "Asks for a ₹100-₹200 UPI advance deposit before dispatching."
                   : undefined
               }
             />
 
             <TextField
-              label="Reason for Override"
+              label="Why are you making this change?"
               value={overrideReason}
               onChange={setOverrideReason}
-              placeholder="e.g. Customer verified address and intent via phone call"
+              placeholder="e.g. Called customer on phone, confirmed they are ready with cash"
               autoComplete="off"
               multiline={3}
             />
@@ -442,13 +653,13 @@ export default function OrderIntelligenceRoute() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const navigate = useNavigate();
-  let errorMessage = "An unexpected error occurred while loading order intelligence.";
+  let errorMessage = "An unexpected error occurred while checking this order.";
   let isNotFound = false;
 
   if (isRouteErrorResponse(error)) {
     if (error.status === 404) {
       isNotFound = true;
-      errorMessage = "The requested order could not be found or does not belong to this shop.";
+      errorMessage = "The requested order could not be found or does not belong to this store.";
     } else {
       errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
     }
@@ -458,18 +669,18 @@ export function ErrorBoundary() {
 
   return (
     <Page
-      title={isNotFound ? "Order Not Found" : "Order Intelligence Error"}
-      backAction={{ content: "Back to Operations", onAction: () => navigate("/app/operations") }}
+      title={isNotFound ? "Order Not Found" : "Order Check Error"}
+      backAction={{ content: "Back to Orders to Check", onAction: () => navigate("/app/operations") }}
     >
       <Card>
         <Box padding="500">
           <BlockStack gap="400">
-            <Banner tone={isNotFound ? "warning" : "critical"} title={isNotFound ? "Order Not Found" : "Failed to Load Order Intelligence"}>
+            <Banner tone={isNotFound ? "warning" : "critical"} title={isNotFound ? "Order Not Found" : "Failed to Load Order Check"}>
               <p>{errorMessage}</p>
             </Banner>
             <InlineStack gap="200">
               <Button variant="primary" onClick={() => navigate("/app/operations")}>
-                Return to Operations Queue
+                Return to Orders to Check
               </Button>
               {!isNotFound && (
                 <Button onClick={() => window.location.reload()}>Retry</Button>

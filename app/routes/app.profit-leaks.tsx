@@ -32,8 +32,63 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (isPreview) {
     const shop = "glam-aura-india.myshopify.com";
     const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
-    const data = await ProfitLeaksApplicationService.getProfitLeaksData(shop);
-    return { ...data, shop, host };
+    return {
+      leaks: {
+        rtoLoss: 8200,
+        shippingLoss: 2400,
+        discountLoss: 1800,
+        codFailureLoss: 1200,
+        totalLeak: 13600,
+        rtoTrend: 4.2,
+        shippingTrend: -1.5,
+        discountTrend: 2.1,
+      },
+      trend: [
+        { date: "Day 1", rto: 1200, shipping: 300, discount: 200 },
+        { date: "Day 2", rto: 1400, shipping: 400, discount: 250 },
+        { date: "Day 3", rto: 1100, shipping: 350, discount: 220 },
+        { date: "Day 4", rto: 1600, shipping: 450, discount: 300 },
+        { date: "Day 5", rto: 1300, shipping: 400, discount: 280 },
+        { date: "Day 6", rto: 1800, shipping: 500, discount: 350 },
+      ],
+      cogsTransparency: {
+        isEstimated: false,
+        configuredProductCount: 14,
+        defaultCogsPct: 40,
+      },
+      affectedOrders: [
+        {
+          id: "gid://shopify/Order/849201",
+          orderNumber: 1482,
+          totalPrice: 6499,
+          leakAmount: 1420,
+          leakType: "rto" as const,
+          reason: "High-value COD order returned to origin in Siwan (841301)",
+          createdAt: "Today",
+        },
+        {
+          id: "gid://shopify/Order/849195",
+          orderNumber: 1481,
+          totalPrice: 2250,
+          leakAmount: 450,
+          leakType: "shipping" as const,
+          reason: "Courier freight overage (charged ₹180 vs flat ₹60 shipping)",
+          createdAt: "Yesterday",
+        },
+        {
+          id: "gid://shopify/Order/849180",
+          orderNumber: 1475,
+          totalPrice: 1999,
+          leakAmount: 350,
+          leakType: "discount" as const,
+          reason: "Stacked coupon discount exceeded product contribution margin",
+          createdAt: "2 days ago",
+        },
+      ],
+      hasData: true,
+      shop,
+      host,
+    };
   }
 
   const { session, billing } = await authenticate.admin(request);
@@ -181,7 +236,6 @@ function LeakTrendChart({ data }: { data: TrendItem[] }) {
 
 // ── Insight Cards ─────────────────────────────────────────
 function LeakInsight({
-  icon,
   title,
   amount,
   trend,
@@ -190,7 +244,6 @@ function LeakInsight({
   actionUrl,
   actionText,
 }: {
-  icon: string;
   title: string;
   amount: number;
   trend: number;
@@ -199,49 +252,41 @@ function LeakInsight({
   actionUrl?: string;
   actionText?: string;
 }) {
-  const toneColors = { critical: "var(--gg-accent-red)", warning: "var(--gg-accent-amber)", info: "var(--gg-accent-blue)" };
-  const color = toneColors[tone];
   return (
-    <div
-      className={`gg-rec-card gg-rec-card--${tone === "info" ? "success" : tone}`}
-      style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%" }}
-    >
+    <Card>
       <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="start">
-          <InlineStack gap="150" blockAlign="center">
-            <span style={{ fontSize: 20 }}>{icon}</span>
-            <Text variant="headingSm" as="h3">
-              {title}
-            </Text>
-          </InlineStack>
+        <InlineStack align="space-between" blockAlign="center">
+          <Text variant="headingSm" as="h3">
+            {title}
+          </Text>
           {trend !== 0 && (
-            <span className={trend > 0 ? "gg-trend-down" : "gg-trend-up"}>
-              {trend > 0 ? `▲ +${trend}% this week` : `▼ ${Math.abs(trend)}% this week`}
-            </span>
+            <Badge tone={trend > 0 ? "critical" : "success"}>
+              {trend > 0 ? `+${trend}%` : `${trend}%`}
+            </Badge>
           )}
         </InlineStack>
         <Divider />
-        <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 24, color, letterSpacing: "-0.03em" }}>
+        <Text variant="headingLg" as="p" tone={tone === "critical" ? "critical" : undefined}>
           ₹{amount.toLocaleString("en-IN")}
-        </span>
+        </Text>
         <Text variant="bodySm" as="p" tone="subdued">
           {detail}
         </Text>
-      </BlockStack>
 
-      {actionUrl && (
-        <div style={{ marginTop: "16px" }}>
-          <Button
-            variant={tone === "critical" ? "primary" : "secondary"}
-            tone={tone === "critical" ? "critical" : undefined}
-            size="slim"
-            url={actionUrl}
-          >
-            {actionText || "Fix This Leak →"}
-          </Button>
-        </div>
-      )}
-    </div>
+        {actionUrl && (
+          <Box paddingBlockStart="100">
+            <Button
+              variant={tone === "critical" ? "primary" : "secondary"}
+              tone={tone === "critical" ? "critical" : undefined}
+              size="slim"
+              url={actionUrl}
+            >
+              {actionText || "Review Issue"}
+            </Button>
+          </Box>
+        )}
+      </BlockStack>
+    </Card>
   );
 }
 
@@ -249,9 +294,9 @@ export default function ProfitLeaksRoute() {
   const { leaks, trend, cogsTransparency, affectedOrders, hasData, shop, host } = useLoaderData<typeof loader>();
 
   const donutSegments = [
-    { value: leaks.rtoLoss, color: "#ef4444", label: "RTO & COD Failure" },
-    { value: leaks.shippingLoss, color: "#f59e0b", label: "Shipping Loss" },
-    { value: leaks.discountLoss, color: "#7c3aed", label: "Discount Loss" },
+    { value: leaks.rtoLoss, color: "#ef4444", label: "Returned Parcels (RTO)" },
+    { value: leaks.shippingLoss, color: "#f59e0b", label: "Excess Shipping Fees" },
+    { value: leaks.discountLoss, color: "#7c3aed", label: "Heavy Discounts" },
   ].filter((s) => s.value > 0);
 
   const affectedRows = affectedOrders.map((o) => {
@@ -270,9 +315,9 @@ export default function ProfitLeaksRoute() {
         key={`badge-${o.id}`}
         tone={o.leakType === "rto" ? "critical" : o.leakType === "shipping" ? "warning" : "attention"}
       >
-        {o.leakType === "rto" ? "RTO Loss" : o.leakType === "shipping" ? "Shipping Overage" : "Discount Leak"}
+        {o.leakType === "rto" ? "Returned Parcel" : o.leakType === "shipping" ? "Courier Overage" : "Heavy Discount"}
       </Badge>,
-      <span key={`loss-${o.id}`} style={{ color: "var(--gg-accent-red)", fontWeight: 700 }}>
+      <span key={`loss-${o.id}`} style={{ color: "var(--p-color-text-critical)", fontWeight: 700 }}>
         ₹{o.leakAmount.toLocaleString("en-IN")}
       </span>,
       o.reason,
@@ -282,15 +327,15 @@ export default function ProfitLeaksRoute() {
 
   return (
     <Page
-      title="Profit Leaks Diagnostic"
-      subtitle="Pinpoint financial margin leakage from RTO returns, freight overages, and discount erosion."
+      title="Where You Are Losing Money"
+      subtitle="See where profit is leaking out of your business: returned parcels, excess courier freight, and heavy discounts."
       secondaryActions={[
         {
-          content: "RTO Analytics",
+          content: "Courier Return Reports",
           url: "/app/rto",
         },
         {
-          content: "COGS Catalog",
+          content: "Product Costs",
           url: "/app/cogs",
         },
       ]}
@@ -301,55 +346,39 @@ export default function ProfitLeaksRoute() {
           <Layout.Section>
             <Banner
               tone="warning"
-              title="COGS Fallback Active (Estimated Profit Margins)"
-              action={{ content: "Configure COGS Catalog", url: "/app/cogs" }}
+              title="Estimated Product Costs Active"
+              action={{ content: "Enter Product Costs", url: "/app/cogs" }}
             >
               <p>
                 {cogsTransparency.estimationReason ||
-                  "Some margins are estimated using default store percentage. Add exact product costs in the COGS Catalog for exact precision."}
+                  "Some margins are calculated using estimated costs. Enter your making/buying cost in Product Costs so your profit calculations reflect actual product margins."}
               </p>
             </Banner>
           </Layout.Section>
         )}
 
-        {/* ── Headline Banner ───────────────────────────── */}
+        {/* ── Headline Metric Card ───────────────────────────── */}
         <Layout.Section>
-          <div
-            style={{
-              padding: "20px 24px",
-              borderRadius: "var(--gg-radius-lg)",
-              background: "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(124,58,237,0.06))",
-              border: "1px solid rgba(239,68,68,0.2)",
-            }}
-          >
-            <InlineStack align="space-between" blockAlign="center">
+          <Card>
+            <InlineStack align="space-between" blockAlign="center" wrap>
               <BlockStack gap="100">
-                <Text variant="headingLg" as="h2">
-                  🚨 Total Profit Leak This Period
+                <Text variant="headingMd" as="h2">
+                  Total Money Lost to Leaks
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  All-time money lost to RTO failures, shipping overage, and discount abuse
+                  Money lost to courier return charges, shipping overages, and heavy discounts
                 </Text>
               </BlockStack>
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontWeight: 900,
-                    fontSize: 40,
-                    color: "var(--gg-accent-red)",
-                    letterSpacing: "-0.04em",
-                    lineHeight: 1,
-                  }}
-                >
+              <BlockStack gap="050" align="end">
+                <Text variant="heading2xl" as="p" tone="critical">
                   ₹{leaks.totalLeak.toLocaleString("en-IN")}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif", marginTop: 4 }}>
-                  total recoverable profit leak
-                </div>
-              </div>
+                </Text>
+                <Text variant="bodyXs" as="span" tone="subdued">
+                  money you can save with ProfitRx
+                </Text>
+              </BlockStack>
             </InlineStack>
-          </div>
+          </Card>
         </Layout.Section>
 
         {/* ── Donut + Insights ──────────────────────────── */}
@@ -359,7 +388,7 @@ export default function ProfitLeaksRoute() {
               <Card>
                 <BlockStack gap="300">
                   <Text variant="headingMd" as="h2">
-                    Leak Breakdown
+                    Where the Money Went
                   </Text>
                   {hasData ? (
                     <DonutChart segments={donutSegments} />
@@ -374,68 +403,62 @@ export default function ProfitLeaksRoute() {
               <Grid columns={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
                 <Grid.Cell>
                   <LeakInsight
-                    icon="📦"
-                    title="RTO & COD Failures"
+                    title="Returned Parcels (RTO)"
                     amount={leaks.rtoLoss}
                     trend={leaks.rtoTrend}
-                    detail="Orders returned before delivery or failed COD collection. Direct shipment waste."
+                    detail="Orders returned by customer or courier delivery failed. Pure courier fees burned."
                     tone="critical"
                     actionUrl="/app/rto"
-                    actionText="View in RTO Analytics →"
+                    actionText="View Returns"
                   />
                 </Grid.Cell>
                 <Grid.Cell>
                   <LeakInsight
-                    icon="🚚"
-                    title="Shipping Loss"
+                    title="Excess Shipping Fees"
                     amount={leaks.shippingLoss}
                     trend={leaks.shippingTrend}
-                    detail="Shipping costs above default order baseline. Negotiate volume rates with logistics partners."
+                    detail="Courier charged more freight than you collected from the customer. Check weight slabs."
                     tone="warning"
                     actionUrl="/app/settings"
-                    actionText="Logistics Rules →"
+                    actionText="Courier Settings"
                   />
                 </Grid.Cell>
                 <Grid.Cell>
                   <LeakInsight
-                    icon="🏷️"
-                    title="Discount Losses"
+                    title="Heavy Discounts"
                     amount={leaks.discountLoss}
                     trend={leaks.discountTrend}
-                    detail="Revenue sacrificed through discount codes and automatic checkout discounts."
+                    detail="Profit lost through big coupons that gave away too much margin."
                     tone="warning"
                     actionUrl="/app/cogs"
-                    actionText="COGS & Margin Rules →"
+                    actionText="Check Product Margins"
                   />
                 </Grid.Cell>
                 <Grid.Cell>
-                  <div className="gg-kpi-card" style={{ height: "100%" }}>
+                  <Card>
                     <BlockStack gap="200">
-                      <InlineStack gap="150" blockAlign="center">
-                        <span style={{ fontSize: 18 }}>💡</span>
-                        <Text variant="headingSm" as="h3">
-                          Recovery Actions
-                        </Text>
-                      </InlineStack>
+                      <Text variant="headingSm" as="h3">
+                        How to Stop These Losses
+                      </Text>
                       <Divider />
                       <BlockStack gap="150">
                         {[
-                          "Block high-RTO pincodes for COD",
-                          "Add prepaid incentive discount",
-                          "Verify high-risk COD orders by OTP",
-                          "Set max discount cap of 10%",
-                          "Negotiate bulk shipping with courier partners",
+                          "Block high-return pincodes for Cash on Delivery",
+                          "Offer 5% discount to pay via UPI prepaid",
+                          "Send WhatsApp OTP to verify intent",
+                          "Cap maximum coupon discount at 10%",
+                          "Check courier weight slabs to avoid freight penalties",
                         ].map((action, idx) => (
-                          <div key={idx} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                            <span style={{ color: "var(--gg-accent-green)", fontWeight: 700, flexShrink: 0 }}>✓</span>
-                            <span style={{ fontSize: 12, color: "var(--gg-text-secondary)", fontFamily: "'Inter', sans-serif", lineHeight: 1.5 }}>
+                          <InlineStack key={idx} gap="100" blockAlign="start">
+                            <Badge tone="success">✓</Badge>
+                            <Text variant="bodySm" as="span">
                               {action}
-                            </span>
-                          </div>
+                            </Text>
+                          </InlineStack>
                         ))}
                       </BlockStack>
                     </BlockStack>
-                  </div>
+                  </Card>
                 </Grid.Cell>
               </Grid>
             </Grid.Cell>
@@ -448,10 +471,10 @@ export default function ProfitLeaksRoute() {
             <BlockStack gap="300">
               <BlockStack gap="100">
                 <Text variant="headingMd" as="h2">
-                  📉 30-Day Profit Leak Trend
+                  30-Day Money Lost Trend
                 </Text>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Stacked view of daily losses — identify patterns and spikes
+                  Daily money lost to returned parcels, excess shipping, and discounts
                 </Text>
               </BlockStack>
               <LeakTrendChart data={trend} />
@@ -466,10 +489,10 @@ export default function ProfitLeaksRoute() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="050">
                   <Text variant="headingMd" as="h2">
-                    🎯 Top Orders Impacted by Profit Leaks
+                    Recent Orders Where You Lost Money
                   </Text>
                   <Text variant="bodySm" as="p" tone="subdued">
-                    Click any order to inspect AI risk scores, execution history, and decision reasoning in Order Intelligence
+                    Select an order to inspect return risk, breakdown, and cost details
                   </Text>
                 </BlockStack>
               </InlineStack>
@@ -477,7 +500,7 @@ export default function ProfitLeaksRoute() {
               {affectedRows.length > 0 ? (
                 <DataTable
                   columnContentTypes={["text", "numeric", "text", "numeric", "text", "text"]}
-                  headings={["Order (Click to View Detail)", "Order Total", "Leak Category", "Leak Amount", "Impact Reason", "Date"]}
+                  headings={["Order #", "Order Value (₹)", "Leak Type", "Money Lost (₹)", "Reason", "Date"]}
                   rows={affectedRows}
                 />
               ) : (
@@ -495,7 +518,7 @@ export default function ProfitLeaksRoute() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = "An unexpected error occurred while diagnosing profit leaks.";
+  let errorMessage = "An unexpected error occurred while checking profit leaks.";
 
   if (isRouteErrorResponse(error)) {
     errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
@@ -504,7 +527,7 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Profit Leak Detection Engine">
+    <Page title="Where You Are Losing Money">
       <Card>
         <Box padding="500">
           <BlockStack gap="400">

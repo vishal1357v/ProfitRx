@@ -300,18 +300,27 @@ export class DashboardApplicationService {
       const d = o.createdAt ? (o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)) : new Date();
       const dateStr = d.toISOString().split("T")[0];
       if (dailyStats[dateStr]) {
-        const totalPrice = Number(o.totalPrice) || 0;
-        const totalTax = Number(o.totalTax) || 0;
-        const shippingPrice = Number(o.shippingPrice) || 0;
-        const c =
-          (o.cogsAtTimeOfOrder ?? cogsMap[o.productId || ""]) ??
-          ((totalPrice * settings.defaultCOGSPct) / 100);
-        const f = totalTax + shippingPrice;
-        const p = totalPrice - c - f;
-        dailyStats[dateStr].revenue += totalPrice;
-        dailyStats[dateStr].profit += p;
+        const cleanId = o.productId || "";
+        const hasCogs = cogsMap[cleanId] !== undefined;
+        const fallbackCost = hasCogs ? cogsMap[cleanId] : ((Number(o.totalPrice) || 0) * (settings.defaultCOGSPct / 100));
+        const orderCogs = (o.cogsAtTimeOfOrder !== null && o.cogsAtTimeOfOrder !== undefined && !isNaN(o.cogsAtTimeOfOrder))
+          ? o.cogsAtTimeOfOrder
+          : fallbackCost;
+
+        const { profit } = ProfitService.calculateOrderProfit(o, orderCogs, settings);
+
+        const isRto = o.fulfillmentStatus === "RTO";
+        if (!isRto) {
+          dailyStats[dateStr].revenue += Number(o.totalPrice) || 0;
+        }
+        dailyStats[dateStr].profit += profit;
       }
     });
+
+    for (const key of Object.keys(dailyStats)) {
+      dailyStats[key].revenue = Math.round(dailyStats[key].revenue * 100) / 100;
+      dailyStats[key].profit = Math.round(dailyStats[key].profit * 100) / 100;
+    }
 
     const chartData = Object.values(dailyStats);
 
@@ -372,20 +381,46 @@ export class DashboardApplicationService {
     };
     const lastSyncTime = orders.length > 0 ? (orders[0].createdAt ? new Date(orders[0].createdAt).toISOString() : new Date().toISOString()) : null;
 
-    const blockedCodOrders = orders.filter((o: any) => 
-      o.isCOD && (
-        (o.fulfillmentStatus || "").toLowerCase().includes("block") ||
-        (o.merchantRecommendation || "").toLowerCase().includes("block") ||
-        (o.merchantRecommendation || "").toLowerCase().includes("prepaid") ||
-        o.riskLevel === "CRITICAL" ||
-        o.riskLevel === "HIGH"
-      )
-    );
-    const blockedCodCount = blockedCodOrders.length;
-    const avgRtoLoss = settings.defaultForwardShipping + settings.defaultReturnShipping;
-    const totalRtoSavings = blockedCodCount * avgRtoLoss;
-    const monthlySubscriptionCost = planName === "Pro" ? 6000 : planName === "Growth" ? 3000 : planName === "Starter" ? 1500 : 0;
-    const netRoiSavings = totalRtoSavings - monthlySubscriptionCost;
+    // Honest avoided loss tracking:
+    // Only count orders where ProfitRx or merchant actually restricted COD (BLOCK_COD, PREPAID_ONLY, or blocked fulfillment)
+    // AND the order was actually stopped (cancelled, voided, restocked) before dispatch.
+    // Delivered orders or orders fulfilled normally CANNOT be claimed as RTO savings.
+    const actuallyBlockedOrders = orders.filter((o: any) => {
+      const isCod = o.isCOD || isCodGateway(o.gateway);
+      if (!isCod) return false;
+
+      const rec = (o.merchantRecommendation || "").toUpperCase();
+      const status = (o.fulfillmentStatus || "").toLowerCase();
+      const finStatus = (o.financialStatus || "").toLowerCase();
+
+      const wasRestricted =
+        rec.includes("BLOCK") ||
+        rec.includes("PREPAID") ||
+        status.includes("block");
+
+      if (!wasRestricted) return false;
+
+      // Must NOT be delivered or fulfilled
+      const isDelivered = status === "delivered" || finStatus === "paid";
+      if (isDelivered) return false;
+
+      // Must be held, cancelled, voided, or restocked
+      const isCancelledOrHeld =
+        finStatus === "voided" ||
+        status.includes("cancel") ||
+        status.includes("restock") ||
+        status.includes("block");
+
+      return isCancelledOrHeld;
+    });
+
+    const blockedCodCount = actuallyBlockedOrders.length;
+    const avgRtoFreightPackaging = settings.defaultForwardShipping + settings.defaultReturnShipping + (settings.defaultPackaging || 10);
+    const totalRtoSavings = blockedCodCount * avgRtoFreightPackaging;
+
+    // Actual plan monthly cost in INR (using canonical exchange rate ₹96 = $1 USD: Starter $19 = ₹1824, Growth $39 = ₹3744, Pro $79 = ₹7584)
+    const monthlySubscriptionCost = planName === "Pro" ? 7584 : planName === "Growth" ? 3744 : planName === "Starter" ? 1824 : 0;
+    const netRoiSavings = totalRtoSavings > 0 ? Math.max(0, totalRtoSavings - monthlySubscriptionCost) : 0;
 
     return {
       shop, host, revenue, profit, margin: Math.round(margin * 10) / 10,

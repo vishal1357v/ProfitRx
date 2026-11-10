@@ -2,6 +2,7 @@ import { OrderRepository } from "../../infrastructure/repositories/order.reposit
 import { SettingsRepository } from "../../infrastructure/repositories/settings.repository";
 import { CustomerRepository } from "../../infrastructure/repositories/customer.repository";
 import { PincodeRepository } from "../../infrastructure/repositories/pincode.repository";
+import { CodOrderRepository } from "../../infrastructure/repositories/cod-order.repository";
 import {
   DecisionRecordRepository,
   DecisionRecordSnapshot,
@@ -575,18 +576,21 @@ export class DecisionEngineApplicationService {
         if (cust?.phone) phone = cust.phone;
       }
       if (!phone) {
-        const storeSettings = await SettingsRepository.getByShop(shop);
-        if (storeSettings?.whatsappPhone) phone = storeSettings.whatsappPhone;
+        const codOrder = await CodOrderRepository.findByOrderId(shop, cleanOrderId);
+        if (codOrder?.phone) phone = codOrder.phone;
       }
 
+      // CRITICAL (OPS-01): NEVER fall back to storeSettings.whatsappPhone (merchant's phone).
+      // Customer OTP must strictly be sent to customer contact or fail gracefully.
       if (phone) {
         const otpResult = await CODManagementService.createCODOrderVerification(shop, cleanOrderId, phone);
         executionSuccess = otpResult.success;
         executionMessage = otpResult.success
-          ? `Dispatched verification OTP challenge to ${phone}.`
+          ? `Dispatched verification OTP challenge to customer at ${phone}.`
           : `OTP verification warning: ${otpResult.message}`;
       } else {
-        executionMessage = "Order marked for verification; awaiting customer phone contact.";
+        executionSuccess = false;
+        executionMessage = "Customer phone number is missing from order. Cannot dispatch verification OTP.";
       }
     }
 

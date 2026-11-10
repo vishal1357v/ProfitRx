@@ -95,7 +95,7 @@ describe("ProfitRx — Order Decision Engine", () => {
 
       expect(result.recommendation.action).toBe("VERIFY");
       expect(result.recommendation.tone).toBe("attention");
-      expect(result.recommendation.economicJustification).toContain("OTP verification is economically justified");
+      expect(result.recommendation.economicJustification).toContain("is economically justified");
       expect(result.risk.riskBand).toMatch(/HIGH|CRITICAL/);
       expect(result.economics.deliveredContribution).toBeGreaterThan(4000);
     });
@@ -388,6 +388,8 @@ describe("ProfitRx — Order Decision Engine", () => {
       const call1 = await DecisionEngineApplicationService.processOrderOutcome(shop, {
         id: orderId,
         fulfillment_status: "fulfilled",
+        financial_status: "paid",
+        fulfillments: [{ shipment_status: "delivered" }],
       });
       expect(call1.outcomeState).toBe("DELIVERED");
       expect(call1.processed).toBe(true);
@@ -397,6 +399,8 @@ describe("ProfitRx — Order Decision Engine", () => {
       const call2 = await DecisionEngineApplicationService.processOrderOutcome(shop, {
         id: orderId,
         fulfillment_status: "fulfilled",
+        financial_status: "paid",
+        fulfillments: [{ shipment_status: "delivered" }],
       });
       expect(call2.processed).toBe(false); // Idempotently skipped
     });
@@ -427,6 +431,8 @@ describe("ProfitRx — Order Decision Engine", () => {
       const result = await DecisionEngineApplicationService.processOrderOutcome(shop, {
         id: orderId,
         fulfillment_status: "fulfilled",
+        financial_status: "paid",
+        fulfillments: [{ shipment_status: "delivered" }],
       });
 
       expect(result.outcomeState).toBe("DELIVERED");

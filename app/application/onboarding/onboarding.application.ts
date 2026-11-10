@@ -137,6 +137,6 @@ export class OnboardingApplicationService {
    * Mark onboarding complete.
    */
   static async completeOnboarding(shop: string): Promise<void> {
-    await SettingsRepository.updateOnboarding(shop, 7, true);
+    await SettingsRepository.updateOnboarding(shop, 3, true);
   }
 }

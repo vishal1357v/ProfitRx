@@ -108,45 +108,45 @@ export default function BillingPage() {
   const planInfoMap: Record<string, { name: string; price: string; color: string; includes: string[]; lacks: string[] }> = {
     FREE: {
       name: "14-Day Free Trial",
-      price: "$0/mo",
+      price: "₹0/mo",
       color: "info",
-      includes: ["14-day full access trial", "Real Profit Dashboard", "Store Health Score"],
-      lacks: ["Select a paid plan to lock in subscription features after trial"],
+      includes: ["14-day free access", "Net Profit Live Dashboard", "Basic Courier Return Reports"],
+      lacks: ["Select a paid plan to keep protecting orders after trial"],
     },
     STARTER: {
       name: "Starter Plan",
-      price: "$19 USD/mo",
+      price: "$19 USD/mo (~₹1,599)",
       color: "info",
-      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Store Health Score", "Weekly WhatsApp Digest", "Product Cost Tracking (COGS)", "GST Compliance Reports", "Basic RTO Insights", "CSV Data Export"],
-      lacks: ["COD Risk Score", "RTO Pincode Heatmap", "Profit Leaks & COD Shield", "LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "API Access"],
+      includes: ["Up to 500 orders/mo", "Net Profit Live Dashboard", "Product Cost Tracking (Making/Buying cost)", "Weekly WhatsApp Return Digest", "Courier Return Reports", "Download CSV Data"],
+      lacks: ["WhatsApp OTP Verification", "High Return Pincode Protection", "Advance Deposit Tagging Rules", "Ad Spend vs Real Sales Tracking"],
     },
     GROWTH: {
       name: "Growth Plan",
-      price: "$39 USD/mo",
+      price: "$39 USD/mo (~₹3,299)",
       color: "attention",
-      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "COD Risk Score (Pre-shipment prediction)", "RTO Pincode Heatmap", "Profit Leak Recommendations", "COD Shield & OTP Verification", "Advanced Email Alerts", "AI Profit Recommendations"],
-      lacks: ["LTV & Cohort Analysis", "ROAS & Ad Spend Sync", "Multi-store Support", "API Access"],
+      includes: ["Up to 2,000 orders/mo", "Everything in Starter", "WhatsApp Order Confirmation (OTP)", "High Return Pincode Protection", "Advance Deposit Tagging Rules", "Where You Are Losing Money Reports", "Instant WhatsApp Alerts on Risky Orders"],
+      lacks: ["Ad Spend vs Real Sales Tracking", "Customer Repeat Buyer History", "Multi-store Support"],
     },
     PRO: {
       name: "Pro Plan",
-      price: "$79 USD/mo",
+      price: "$79 USD/mo (~₹6,599)",
       color: "success",
-      includes: ["Unlimited orders/mo", "Everything in Growth", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "Customer Intelligence", "Multi-store Support", "API Access for Custom Integrations", "Priority Support & Dedicated Onboarding"],
+      includes: ["Unlimited orders/mo", "Everything in Growth", "Ad Spend vs Real Sales Tracking (Meta & Google)", "Frequent Returners & Delivery History Directory", "Multi-store Support", "Priority WhatsApp Support & Dedicated Setup"],
       lacks: [],
     },
     // Legacy aliases
     BASIC: {
       name: "Starter Plan",
-      price: "$19 USD/mo",
+      price: "$19 USD/mo (~₹1,599)",
       color: "info",
-      includes: ["Up to 500 orders/mo", "Real Profit Dashboard", "Product Cost Tracking", "GST Reports", "Basic RTO Insights"],
-      lacks: ["COD Risk Score", "RTO Heatmap", "LTV & Cohort Analysis", "ROAS Sync"],
+      includes: ["Up to 500 orders/mo", "Net Profit Live Dashboard", "Product Cost Tracking", "Courier Return Reports"],
+      lacks: ["WhatsApp OTP Verification", "High Return Pincode Protection", "Ad Spend vs Real Sales Tracking"],
     },
     ADVANCE: {
       name: "Pro Plan",
-      price: "$79 USD/mo",
+      price: "$79 USD/mo (~₹6,599)",
       color: "success",
-      includes: ["Unlimited orders/mo", "LTV & Cohort Retention Analysis", "Blended ROAS & Ad Spend Sync", "API Access"],
+      includes: ["Unlimited orders/mo", "Everything in Growth", "Ad Spend vs Real Sales Tracking"],
       lacks: [],
     },
   };
@@ -171,7 +171,7 @@ export default function BillingPage() {
       <Layout>
         {isTrialActive && (
           <Layout.Section>
-            <Banner tone="info" title="🎉 Active 14-Day Free Trial Mode">
+            <Banner tone="info" title="Active 14-Day Free Trial Mode">
               <p>You are currently on a 14-day free trial. Your trial ends in <strong>{trialDaysRemaining} days</strong> ({trialEndsAt ? new Date(trialEndsAt).toLocaleDateString() : ""}). You can explore all capabilities, configure shipping rules, and protect COD profits risk-free.</p>
             </Banner>
           </Layout.Section>
@@ -179,94 +179,88 @@ export default function BillingPage() {
 
         <Layout.Section>
           {/* Value Delivered ROI Card */}
-          <div style={{
-            padding: "20px 24px",
-            borderRadius: "var(--gg-radius-lg)",
-            background: "linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.02))",
-            border: "1px solid rgba(16,185,129,0.3)",
-            marginBottom: "20px"
-          }}>
-            <InlineStack align="space-between" blockAlign="center">
+          <Card>
+            <InlineStack align="space-between" blockAlign="center" wrap>
               <BlockStack gap="100">
                 <InlineStack gap="150" blockAlign="center">
                   <Icon source={FinanceIcon} tone="success" />
-                  <Text variant="headingLg" as="h2">Value Delivered This Month</Text>
-                    {totalRtoSavings > 0 && <Badge tone="success">Profit Protected</Badge>}
+                  <Text variant="headingMd" as="h2">Estimated Courier Losses Prevented</Text>
+                  {totalRtoSavings > 0 && <Badge tone="success">Estimated Exposure Avoided</Badge>}
                 </InlineStack>
                 <Text variant="bodySm" as="p" tone="subdued">
-                  Estimated shipping losses avoided by blocking high-risk COD orders.
+                  Estimated courier freight charges avoided on risky orders that were restricted or cancelled.
                 </Text>
               </BlockStack>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 900, fontSize: 32, color: "var(--gg-accent-green)", letterSpacing: "-0.03em" }}>
-                  ~₹{totalRtoSavings.toLocaleString("en-IN")} Protected
-                </div>
-                <div style={{ fontSize: 12, color: "var(--gg-text-muted)", fontFamily: "'Inter', sans-serif" }}>
-                  (Modeled estimate from blocked orders)
-                </div>
-              </div>
+              <BlockStack gap="050" align="end">
+                <Text variant="heading2xl" as="p" tone="success">
+                  ~₹{totalRtoSavings.toLocaleString("en-IN")}
+                </Text>
+                <Text variant="bodyXs" as="span" tone="subdued">
+                  (Estimated freight on restricted orders)
+                </Text>
+              </BlockStack>
             </InlineStack>
-          </div>
+          </Card>
         </Layout.Section>
 
         {/* Plan Header Card */}
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 1, md: 3, lg: 3 }}>
             <Grid.Cell columnSpan={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
-              <div className="gg-card-glow" style={{ padding: "24px", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(25, 20, 45, 0.4)", backdropFilter: "blur(20px)" }}>
-                <BlockStack gap="400">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <Text variant="bodySm" as="p" tone="subdued">CURRENT TIERS & LIMITS</Text>
-                      <InlineStack gap="150" blockAlign="center">
-                        <Text variant="headingXl" as="h2">{planInfo.name}</Text>
-                        <Badge tone={planInfo.color as any}>{status.toUpperCase()}</Badge>
-                        {isTestStore && <Badge tone="info">Development Store (Test Charges Active)</Badge>}
-                      </InlineStack>
-                    </BlockStack>
-                    <div style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <Card>
+                <Box padding="400">
+                  <BlockStack gap="400">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <Text variant="bodySm" as="p" tone="subdued">CURRENT PLAN & USAGE</Text>
+                        <InlineStack gap="150" blockAlign="center">
+                          <Text variant="headingXl" as="h2">{planInfo.name}</Text>
+                          <Badge tone={planInfo.color as any}>{status.toUpperCase()}</Badge>
+                          {isTestStore && <Badge tone="info">Development Store (Test Charges Active)</Badge>}
+                        </InlineStack>
+                      </BlockStack>
                       <Text variant="heading2xl" as="p">{planInfo.price}</Text>
-                    </div>
-                  </InlineStack>
+                    </InlineStack>
 
-                  <Divider />
+                    <Divider />
 
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between">
-                      <Text variant="bodyMd" as="p" fontWeight="medium">Monthly Sync Volume</Text>
-                      <Text variant="bodyMd" as="p" fontWeight="bold">
-                        {ordersUsed.toLocaleString()} / {limitText} ({usedPercent}%)
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between">
+                        <Text variant="bodyMd" as="p" fontWeight="medium">Monthly Order Sync Volume</Text>
+                        <Text variant="bodyMd" as="p" fontWeight="bold">
+                          {ordersUsed.toLocaleString()} / {limitText} ({usedPercent}%)
+                        </Text>
+                      </InlineStack>
+                      {orderLimit && (
+                        <BlockStack gap="100">
+                          <ProgressBar progress={usedPercent} tone={progressTone as any} />
+                          {usedPercent >= 90 && (
+                            <Banner tone="critical">
+                              You are about to reach your order limit. Upgrade your plan to prevent automated synchronization failures.
+                            </Banner>
+                          )}
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+
+                    <Divider />
+
+                    <InlineStack align="space-between" blockAlign="center" wrap>
+                      <Text variant="bodyXs" as="span" tone="subdued">
+                        Billing Provider: <strong>{billingProvider}</strong>
+                      </Text>
+                      {shopifyChargeId && (
+                        <Text variant="bodyXs" as="span" tone="subdued">
+                          Shopify Subscription ID: <code style={{ fontSize: 11 }}>{shopifyChargeId.replace("gid://shopify/AppSubscription/", "")}</code>
+                        </Text>
+                      )}
+                      <Text variant="bodyXs" as="span" tone="subdued">
+                        Last Verified: {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Real-time"}
                       </Text>
                     </InlineStack>
-                    {orderLimit && (
-                      <BlockStack gap="100">
-                        <ProgressBar progress={usedPercent} tone={progressTone as any} />
-                        {usedPercent >= 90 && (
-                          <Banner tone="critical">
-                            You are about to reach your order limit. Upgrade your plan to prevent automated synchronization failures.
-                          </Banner>
-                        )}
-                      </BlockStack>
-                    )}
                   </BlockStack>
-
-                  <Divider />
-
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text variant="bodyXs" as="span" tone="subdued">
-                      Billing Provider: <strong>{billingProvider}</strong>
-                    </Text>
-                    {shopifyChargeId && (
-                      <Text variant="bodyXs" as="span" tone="subdued">
-                        Shopify Subscription ID: <code style={{ fontSize: 11 }}>{shopifyChargeId.replace("gid://shopify/AppSubscription/", "")}</code>
-                      </Text>
-                    )}
-                    <Text variant="bodyXs" as="span" tone="subdued">
-                      Last Verified: {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : "Real-time"}
-                    </Text>
-                  </InlineStack>
-                </BlockStack>
-              </div>
+                </Box>
+              </Card>
             </Grid.Cell>
 
             <Grid.Cell>
@@ -339,7 +333,7 @@ export default function BillingPage() {
                       {planInfo.includes.map((feat, idx) => (
                         <InlineStack gap="150" key={idx} blockAlign="center">
                           <Icon source={CheckIcon} tone="success" />
-                          <span style={{ fontSize: 13, color: "var(--gg-text-primary)" }}>{feat}</span>
+                          <Text variant="bodySm" as="span">{feat}</Text>
                         </InlineStack>
                       ))}
                     </BlockStack>
@@ -358,7 +352,7 @@ export default function BillingPage() {
                         {planInfo.lacks.map((feat, idx) => (
                           <InlineStack gap="150" key={idx} blockAlign="center">
                             <Icon source={XIcon} tone="critical" />
-                            <span style={{ fontSize: 13, color: "var(--gg-text-muted)" }}>{feat}</span>
+                            <Text variant="bodySm" tone="subdued" as="span">{feat}</Text>
                           </InlineStack>
                         ))}
                       </BlockStack>

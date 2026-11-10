@@ -20,6 +20,46 @@ import { authenticate } from "../shopify.server";
 import { HealthApplicationService } from "../application/health/health.application";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const isPreview = url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true";
+
+  if (isPreview) {
+    return {
+      healthStatus: {
+        status: "HEALTHY" as const,
+        emoji: "🟢" as const,
+        headline: "Store margins and COD return metrics are within target parameters.",
+        drivers: [
+          { label: "COGS Coverage", status: "good" as const, detail: "94% of active variants have unit cost configured" },
+          { label: "RTO Loss Exposure", status: "good" as const, detail: "Courier return loss rate stable at 8.2%" },
+          { label: "COD Protection", status: "good" as const, detail: "High-risk OTP verification active for unserviceable zones" },
+        ],
+      },
+      qualityScores: [
+        {
+          channel: "Website (Direct)",
+          orders: 540,
+          revenue: 680000,
+          aov: 1259,
+          ltv: 2450,
+          repeatRate: 26.4,
+          qualityScore: 84,
+          customers: 410,
+        },
+        {
+          channel: "Instagram Ads",
+          orders: 420,
+          revenue: 490000,
+          aov: 1166,
+          ltv: 1850,
+          repeatRate: 18.2,
+          qualityScore: 72,
+          customers: 345,
+        },
+      ],
+    };
+  }
+
   const { session } = await authenticate.admin(request);
   return HealthApplicationService.getHealthData(session.shop);
 };

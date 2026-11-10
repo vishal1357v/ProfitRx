@@ -248,6 +248,11 @@ export default function OperationsRoute() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [paymentFilter, setPaymentFilter] = useState("ALL");
   const [missingCogsOnly, setMissingCogsOnly] = useState(false);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+
+  const toggleOrderExpand = (orderId: string) => {
+    setExpandedOrders((prev) => ({ ...prev, [orderId]: !prev[orderId] }));
+  };
 
   // Quick Action Modal State
   const [activeModalOrder, setActiveModalOrder] = useState<OperationOrderDTO | null>(null);
@@ -330,11 +335,11 @@ export default function OperationsRoute() {
       case "LOW":
         return <Badge tone="success">Low Risk</Badge>;
       case "MEDIUM":
-        return <Badge tone="warning">Medium</Badge>;
+        return <Badge tone="warning">Medium Risk</Badge>;
       case "HIGH":
-        return <Badge tone="critical">High Risk</Badge>;
+        return <Badge tone="critical">High Return Risk</Badge>;
       case "CRITICAL":
-        return <Badge tone="critical">Critical</Badge>;
+        return <Badge tone="critical">Critical Risk</Badge>;
       default:
         return <Badge>Unknown</Badge>;
     }
@@ -343,11 +348,11 @@ export default function OperationsRoute() {
   const getExecutionBadge = (status: string) => {
     switch (status) {
       case "SUCCESS":
-        return <Badge tone="success">Success</Badge>;
+        return <Badge tone="success">Confirmed</Badge>;
       case "PENDING_MERCHANT_REVIEW":
-        return <Badge tone="warning">Needs Review</Badge>;
+        return <Badge tone="warning">Needs Check</Badge>;
       case "ADVISORY_ONLY":
-        return <Badge tone="info">Advisory Only</Badge>;
+        return <Badge tone="info">Advice Only</Badge>;
       case "FAILED":
         return <Badge tone="critical">Failed</Badge>;
       case "RETRYING":
@@ -360,15 +365,16 @@ export default function OperationsRoute() {
   const getRecommendationBadge = (rec: string) => {
     switch (rec) {
       case "ALLOW_COD":
-        return <Badge tone="success">Allow COD</Badge>;
+        return <Badge tone="success">Safe to Ship</Badge>;
       case "OTP_VERIFY":
-        return <Badge tone="attention">OTP Verify</Badge>;
+        return <Badge tone="attention">Confirm WhatsApp</Badge>;
       case "PREPAID_ONLY":
-        return <Badge tone="warning">Require Prepaid</Badge>;
+      case "FORCE_PREPAID":
+        return <Badge tone="warning">Require Advance</Badge>;
       case "BLOCK_COD":
-        return <Badge tone="critical">Block COD</Badge>;
+        return <Badge tone="critical">Hold Order</Badge>;
       case "REVIEW":
-        return <Badge tone="info">Review</Badge>;
+        return <Badge tone="info">Check Order</Badge>;
       default:
         return <Badge>{rec}</Badge>;
     }
@@ -407,18 +413,16 @@ export default function OperationsRoute() {
       const inspectUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`;
 
       return [
-        // 1. Order
-        <BlockStack gap="050" key={`${order.id}-num`}>
-          <Text variant="bodyMd" fontWeight="bold" as="span">
-            #{order.orderNumber}
-          </Text>
-          <Text variant="bodyXs" tone="subdued" as="span">
-            {order.age}
-          </Text>
-        </BlockStack>,
-
-        // 2. Customer
+        // 1. Order & Customer
         <BlockStack gap="050" key={`${order.id}-cust`}>
+          <InlineStack gap="100" blockAlign="center">
+            <Text variant="bodyMd" fontWeight="bold" as="span">
+              #{order.orderNumber}
+            </Text>
+            <Text variant="bodyXs" tone="subdued" as="span">
+              • {order.age}
+            </Text>
+          </InlineStack>
           <Text variant="bodySm" fontWeight="semibold" as="span">
             {order.customerName || "Customer"}
           </Text>
@@ -427,81 +431,221 @@ export default function OperationsRoute() {
           </Text>
         </BlockStack>,
 
-        // 3. Payment
-        <Box key={`${order.id}-pay`}>
-          {order.isCOD ? <Badge tone="attention">COD</Badge> : <Badge tone="info">Prepaid</Badge>}
-        </Box>,
+        // 2. Payment & Value
+        <BlockStack gap="050" key={`${order.id}-pay`}>
+          <InlineStack gap="100" blockAlign="center">
+            {order.isCOD ? <Badge tone="attention">COD</Badge> : <Badge tone="info">Prepaid</Badge>}
+            <Text variant="bodyMd" fontWeight="bold" as="span">
+              ₹{Math.round(order.totalPrice).toLocaleString("en-IN")}
+            </Text>
+          </InlineStack>
+          <Text variant="bodyXs" tone="subdued" as="span">
+            {order.gateway || (order.isCOD ? "Cash on Delivery" : "Online Payment")}
+          </Text>
+        </BlockStack>,
 
-        // 4. Order Value
-        <Text variant="bodyMd" fontWeight="semibold" as="span" key={`${order.id}-val`}>
-          ₹{Math.round(order.totalPrice).toLocaleString("en-IN")}
-        </Text>,
+        // 3. Return Risk
+        <BlockStack gap="050" key={`${order.id}-risk`}>
+          <InlineStack gap="100" blockAlign="center">
+            {getRiskBadge(order.riskLevel)}
+            <Text variant="bodyXs" tone="subdued" as="span">
+              {Math.round(order.riskScore)}% risk
+            </Text>
+          </InlineStack>
+          {order.attentionReason ? (
+            <Text variant="bodyXs" tone="critical" as="span">
+              {order.attentionReason}
+            </Text>
+          ) : (
+            <Text variant="bodyXs" tone="subdued" as="span">
+              Confidence: {Math.round(order.confidence * 100)}%
+            </Text>
+          )}
+        </BlockStack>,
 
-        // 5. Expected Profit
-        <BlockStack gap="050" key={`${order.id}-profit`}>
+        // 4. Profit & Return Loss
+        <BlockStack gap="050" key={`${order.id}-outcome`}>
           <Text
-            variant="bodyMd"
+            variant="bodySm"
             tone={order.expectedProfit >= 0 ? "success" : "critical"}
             fontWeight="bold"
             as="span"
           >
-            {order.expectedProfit >= 0 ? `+₹${Math.round(order.expectedProfit)}` : `-₹${Math.abs(Math.round(order.expectedProfit))}`}
+            {order.expectedProfit >= 0 ? `+₹${Math.round(order.expectedProfit).toLocaleString("en-IN")}` : `-₹${Math.abs(Math.round(order.expectedProfit)).toLocaleString("en-IN")}`}
+            <Text variant="bodyXs" tone="subdued" as="span"> if delivered</Text>
           </Text>
+          {order.rtoExposure > 0 ? (
+            <Text variant="bodyXs" tone="critical" as="span">
+              -₹{Math.round(order.rtoExposure).toLocaleString("en-IN")} if returned
+            </Text>
+          ) : (
+            <Text variant="bodyXs" tone="subdued" as="span">
+              No return courier fee
+            </Text>
+          )}
+        </BlockStack>,
+
+        // 5. ProfitRx Advice
+        <BlockStack gap="050" key={`${order.id}-rec`}>
+          <Box>{getRecommendationBadge(order.merchantRecommendation)}</Box>
           <Text variant="bodyXs" tone="subdued" as="span">
-            {order.expectedProfitState === "ACTUAL" ? "Actual SKU" : "Estimated"}
+            {order.merchantRecommendation === "FORCE_PREPAID" || order.merchantRecommendation === "PREPAID_ONLY"
+              ? "Ask for advance"
+              : order.merchantRecommendation === "OTP_VERIFY"
+              ? "Send WhatsApp code"
+              : order.merchantRecommendation === "BLOCK_COD"
+              ? "Do not ship"
+              : "Safe to ship"}
           </Text>
         </BlockStack>,
 
-        // 6. RTO Exposure
-        <Text variant="bodyMd" tone={order.rtoExposure > 0 ? "critical" : "subdued"} fontWeight="semibold" as="span" key={`${order.id}-rto`}>
-          ₹{Math.round(order.rtoExposure).toLocaleString("en-IN")}
-        </Text>,
-
-        // 7. Risk
-        <BlockStack gap="050" key={`${order.id}-risk`}>
-          {getRiskBadge(order.riskLevel)}
-          <Text variant="bodyXs" tone="subdued" as="span">
-            {Math.round(order.riskScore)}% risk
-          </Text>
-        </BlockStack>,
-
-        // 8. Confidence
-        <Text variant="bodySm" tone="subdued" as="span" key={`${order.id}-conf`}>
-          {Math.round(order.confidence * 100)}%
-        </Text>,
-
-        // 9. Recommendation
-        <Box key={`${order.id}-rec`}>{getRecommendationBadge(order.merchantRecommendation)}</Box>,
-
-        // 10. Protection Mode
-        <Badge key={`${order.id}-mode`}>
-          {order.protectionMode}
-        </Badge>,
-
-        // 11. Execution Status
-        <Box key={`${order.id}-exec`}>{getExecutionBadge(order.executionStatus)}</Box>,
-
-        // 12. Inspect & Quick Actions
+        // 6. Actions
         <InlineStack gap="100" wrap={false} key={`${order.id}-actions`}>
-          <Button
-            size="micro"
-            variant="primary"
-            onClick={() => navigate(inspectUrl)}
-            icon={ViewIcon}
-          >
-            Inspect
-          </Button>
           {order.needsAttention && (
             <Button
               size="micro"
+              variant="primary"
               tone="critical"
               onClick={() => handleOpenActionModal(order)}
             >
-              Review
+              {order.merchantRecommendation === "OTP_VERIFY" ? "Confirm" : "Review"}
             </Button>
           )}
+          <Button
+            size="micro"
+            onClick={() => navigate(inspectUrl)}
+            icon={ViewIcon}
+          >
+            Details
+          </Button>
         </InlineStack>,
       ];
+    });
+  };
+
+  const renderMobileCards = (ordersToRender: OperationOrderDTO[]) => {
+    return ordersToRender.map((order) => {
+      const cleanId = String(order.id).replace("gid://shopify/Order/", "");
+      const inspectUrl = `/app/orders/${encodeURIComponent(cleanId)}?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`;
+      const isExpanded = Boolean(expandedOrders[order.id]);
+
+      return (
+        <div
+          className={`prx-mobile-order-card ${order.needsAttention ? "prx-card-needs-attention" : ""}`}
+          key={`mob-${order.id}`}
+        >
+          {/* Summary Row (90-110px) */}
+          <div className="prx-mobile-card-summary">
+            <div className="prx-mobile-card-header">
+              <InlineStack gap="100" blockAlign="center">
+                <Text variant="bodyMd" fontWeight="bold" as="span">
+                  #{order.orderNumber}
+                </Text>
+                <Text variant="bodyXs" tone="subdued" as="span">
+                  • {order.age}
+                </Text>
+                {order.isCOD ? <Badge tone="attention">COD</Badge> : <Badge tone="info">Prepaid</Badge>}
+              </InlineStack>
+              <Text variant="bodyMd" fontWeight="bold" as="span">
+                ₹{Math.round(order.totalPrice).toLocaleString("en-IN")}
+              </Text>
+            </div>
+
+            <div className="prx-mobile-card-meta">
+              <Text variant="bodySm" fontWeight="semibold" as="span">
+                {order.customerName || "Customer"}
+              </Text>
+              <span>•</span>
+              <Text variant="bodyXs" tone="subdued" as="span">
+                {order.city ? `${order.city}, ${order.pincode || ""}` : order.pincode || "Location N/A"}
+              </Text>
+            </div>
+
+            <div className="prx-mobile-card-bottom-row">
+              <InlineStack gap="100" blockAlign="center">
+                {getRiskBadge(order.riskLevel)}
+                <Text variant="bodyXs" tone="subdued" as="span">
+                  {Math.round(order.riskScore)}% risk
+                </Text>
+              </InlineStack>
+
+              {order.needsAttention ? (
+                <Button
+                  size="slim"
+                  variant="primary"
+                  tone="critical"
+                  onClick={() => handleOpenActionModal(order)}
+                >
+                  {order.merchantRecommendation === "OTP_VERIFY" ? "Confirm WhatsApp" : "Check Order"}
+                </Button>
+              ) : (
+                <Button size="slim" onClick={() => navigate(inspectUrl)}>
+                  Check
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Tap-to-expand details toggle */}
+          <button
+            type="button"
+            className="prx-mobile-expand-toggle"
+            onClick={() => toggleOrderExpand(order.id)}
+            aria-expanded={isExpanded}
+          >
+            <span>{isExpanded ? "Hide Details" : "View Economics & Details"}</span>
+            <span>{isExpanded ? "▲" : "▼"}</span>
+          </button>
+
+          {/* Expanded Drawer */}
+          {isExpanded && (
+            <div className="prx-mobile-card-details">
+              <div className="prx-mobile-card-economics">
+                <div>
+                  <span style={{ color: "var(--p-color-text-subdued)", display: "block" }}>If Delivered</span>
+                  <span style={{ fontWeight: 600, color: order.expectedProfit >= 0 ? "var(--p-color-text-success)" : "var(--p-color-text-critical)" }}>
+                    {order.expectedProfit >= 0 ? `+₹${Math.round(order.expectedProfit)}` : `-₹${Math.abs(Math.round(order.expectedProfit))}`}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: "var(--p-color-text-subdued)", display: "block" }}>If Returned</span>
+                  <span style={{ fontWeight: 600, color: "var(--p-color-text-critical)" }}>
+                    -₹{Math.round(order.rtoExposure)}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: "var(--p-color-text-subdued)", display: "block" }}>Net Expected</span>
+                  <span style={{ fontWeight: 600, color: order.expectedValue >= 0 ? "var(--p-color-text-success)" : "var(--p-color-text-critical)" }}>
+                    {order.expectedValue >= 0 ? `+₹${Math.round(order.expectedValue)}` : `-₹${Math.abs(Math.round(order.expectedValue))}`}
+                  </span>
+                </div>
+              </div>
+
+              {order.attentionReason && (
+                <Banner tone="warning">
+                  <Text variant="bodyXs" as="p">
+                    {order.attentionReason}
+                  </Text>
+                </Banner>
+              )}
+
+              <InlineStack align="space-between" blockAlign="center">
+                <Text variant="bodyXs" tone="subdued" as="span">Recommendation:</Text>
+                <div>{getRecommendationBadge(order.merchantRecommendation)}</div>
+              </InlineStack>
+
+              <div className="prx-mobile-card-actions">
+                <Button size="slim" onClick={() => navigate(inspectUrl)}>
+                  View Full Order
+                </Button>
+                <Button size="slim" onClick={() => handleOpenActionModal(order)}>
+                  Change Action
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
     });
   };
 
@@ -558,8 +702,8 @@ export default function OperationsRoute() {
 
   return (
     <Page
-      title="Merchant Control Center"
-      subtitle="Real-time COD risk evaluation, financial protection queue, and verified execution."
+      title="Orders to Check"
+      subtitle="Check incoming COD orders for return risk and confirm customer intent before packing parcels."
       compactTitle
       primaryAction={{
         content: "Sync Orders",
@@ -817,11 +961,11 @@ export default function OperationsRoute() {
                       onClick={() => setMissingCogsOnly(!missingCogsOnly)}
                       size="slim"
                     >
-                      Missing COGS Only
+                      Missing Product Cost Only
                     </Button>
                   </InlineStack>
 
-                  {/* Primary DataTable */}
+                  {/* Primary DataTable & Mobile Responsive Cards */}
                   {filteredOrders.length === 0 ? (
                     <EmptyState
                       heading={selectedTab === 0 ? "Nothing needs attention" : "No orders found"}
@@ -834,37 +978,32 @@ export default function OperationsRoute() {
                       </p>
                     </EmptyState>
                   ) : (
-                    <DataTable
-                      columnContentTypes={[
-                        "text",
-                        "text",
-                        "text",
-                        "numeric",
-                        "numeric",
-                        "numeric",
-                        "text",
-                        "text",
-                        "text",
-                        "text",
-                        "text",
-                        "text",
-                      ]}
-                      headings={[
-                        "Order",
-                        "Customer",
-                        "Payment",
-                        "Amount",
-                        "Expected Profit",
-                        "RTO Exposure",
-                        "Risk",
-                        "Confidence",
-                        "Recommendation",
-                        "Mode",
-                        "Status",
-                        "Action",
-                      ]}
-                      rows={renderOrderRows(filteredOrders)}
-                    />
+                    <>
+                      <div className="prx-operations-desktop-table">
+                        <DataTable
+                          columnContentTypes={[
+                            "text",
+                            "text",
+                            "text",
+                            "text",
+                            "text",
+                            "text",
+                          ]}
+                          headings={[
+                            "Order & Customer",
+                            "Payment",
+                            "Return Risk",
+                            "Profit / Return Loss",
+                            "Suggested Action",
+                            "Action",
+                          ]}
+                          rows={renderOrderRows(filteredOrders)}
+                        />
+                      </div>
+                      <div className="prx-operations-mobile-cards">
+                        {renderMobileCards(filteredOrders)}
+                      </div>
+                    </>
                   )}
                 </BlockStack>
               )}
@@ -936,37 +1075,45 @@ export default function OperationsRoute() {
               <Banner tone="info">
                 <BlockStack gap="100">
                   <Text variant="bodyMd" as="p">
-                    ProfitRx Recommended Action: <strong>{activeModalOrder.merchantRecommendation}</strong>.
+                    <strong>Suggested Action:</strong> {
+                      activeModalOrder.merchantRecommendation === "OTP_VERIFY"
+                        ? "Send WhatsApp confirmation code to verify customer address before packing."
+                        : activeModalOrder.merchantRecommendation === "FORCE_PREPAID" || activeModalOrder.merchantRecommendation === "PREPAID_ONLY"
+                        ? "Ask for UPI advance payment because of high return risk."
+                        : activeModalOrder.merchantRecommendation === "BLOCK_COD"
+                        ? "Hold fulfillment. Customer or location has a high return history."
+                        : "Safe to ship normally."
+                    }
                   </Text>
                   {activeModalOrder.attentionReason && (
-                    <Text variant="bodySm" as="p">
-                      <strong>Flagged Reason:</strong> {activeModalOrder.attentionReason}
+                    <Text variant="bodySm" as="p" tone="subdued">
+                      <strong>Why flagged:</strong> {activeModalOrder.attentionReason}
                     </Text>
                   )}
                 </BlockStack>
               </Banner>
 
-              {/* Economic Summary Box */}
+              {/* Order Profit & Loss Box */}
               <Box padding="300" background="bg-surface-secondary" borderRadius="150">
                 <BlockStack gap="150">
                   <Text variant="bodyXs" fontWeight="bold" tone="subdued" as="span">
-                    ORDER DECISION ECONOMICS
+                    ORDER PROFIT & LOSS BREAKDOWN
                   </Text>
                   <InlineStack align="space-between">
-                    <Text variant="bodySm" as="span">Gross Order Value:</Text>
+                    <Text variant="bodySm" as="span">Order Amount:</Text>
                     <Text variant="bodySm" fontWeight="semibold" as="span">₹{Math.round(activeModalOrder.totalPrice).toLocaleString("en-IN")}</Text>
                   </InlineStack>
                   <InlineStack align="space-between">
-                    <Text variant="bodySm" as="span">Estimated Contribution if Delivered:</Text>
+                    <Text variant="bodySm" as="span">Profit if delivered:</Text>
                     <Text variant="bodySm" fontWeight="semibold" tone="success" as="span">+₹{Math.round(activeModalOrder.expectedProfit).toLocaleString("en-IN")}</Text>
                   </InlineStack>
                   <InlineStack align="space-between">
-                    <Text variant="bodySm" as="span">Financial Exposure if Returned (RTO):</Text>
+                    <Text variant="bodySm" as="span">Courier loss if returned:</Text>
                     <Text variant="bodySm" fontWeight="semibold" tone="critical" as="span">-₹{Math.round(activeModalOrder.rtoExposure).toLocaleString("en-IN")}</Text>
                   </InlineStack>
                   <Divider />
                   <InlineStack align="space-between">
-                    <Text variant="bodySm" fontWeight="bold" as="span">Net Expected Payoff ($EV$):</Text>
+                    <Text variant="bodySm" fontWeight="bold" as="span">Estimated Outcome:</Text>
                     <Text variant="bodySm" fontWeight="bold" tone={activeModalOrder.expectedValue >= 0 ? "success" : "critical"} as="span">
                       {activeModalOrder.expectedValue >= 0 ? "+₹" : "-₹"}
                       {Math.abs(Math.round(activeModalOrder.expectedValue)).toLocaleString("en-IN")}
@@ -976,34 +1123,34 @@ export default function OperationsRoute() {
               </Box>
 
               <Select
-                label="Selected Decision Action"
+                label="Action to Apply"
                 options={[
-                  { label: "Allow COD (Fulfill Normally)", value: "ALLOW_COD" },
-                  { label: "Dispatch WhatsApp/SMS OTP Verification", value: "OTP_VERIFY" },
-                  { label: "Require Partial Payment / Upfront Deposit", value: "PARTIAL_PAYMENT" },
-                  { label: "Require Full Prepaid Payment", value: "PREPAID_ONLY" },
-                  { label: "Block COD (Hold/Cancel Order)", value: "BLOCK_COD" },
+                  { label: "Allow COD — Ship normally without restrictions", value: "ALLOW_COD" },
+                  { label: "Verify Customer — Send WhatsApp / SMS OTP code", value: "OTP_VERIFY" },
+                  { label: "Tag for Advance Deposit — Flag order for deposit follow-up", value: "PARTIAL_PAYMENT" },
+                  { label: "Request Full Payment — Contact buyer to convert to prepaid", value: "PREPAID_ONLY" },
+                  { label: "Hold Order — Do not dispatch this order", value: "BLOCK_COD" },
                 ]}
                 value={selectedAction}
                 onChange={setSelectedAction}
                 helpText={
                   selectedAction === "OTP_VERIFY"
-                    ? "Dispatches a live 6-digit confirmation challenge via WhatsApp or SMS (~₹10 estimated verification cost)."
+                    ? "Sends a 6-digit confirmation code via WhatsApp or SMS (~₹10 verification fee) before order is packed."
                     : selectedAction === "PARTIAL_PAYMENT"
-                    ? "Requires an advance deposit via UPI before fulfillment."
+                    ? "Requests an advance deposit via UPI link to confirm genuine customer intent."
                     : selectedAction === "PREPAID_ONLY"
-                    ? "Tags order as ProfitRx-Prepaid-Required to hold fulfillment until advance payment is collected (existing order gateway is immutable via Shopify API)."
+                    ? "Tags order as ProfitRx-Prepaid-Required to hold dispatch until payment link is settled."
                     : selectedAction === "BLOCK_COD"
-                    ? "Tags order as ProfitRx-COD-Blocked to hold fulfillment or cancel (checkout COD blocking before order creation is handled by Shopify Function)."
-                    : "Removes restriction tags and clears order for normal courier fulfillment."
+                    ? "Tags order as ProfitRx-COD-Blocked so warehouse staff do not dispatch."
+                    : "Clears any restriction tags and marks order as approved for regular courier dispatch."
                 }
               />
 
               <TextField
-                label="Reason / Notes for Override"
+                label="Reason or notes (optional)"
                 value={actionReason}
                 onChange={setActionReason}
-                placeholder="e.g. Customer verified address via phone"
+                placeholder="e.g. Spoke with customer on call, confirmed delivery address"
                 autoComplete="off"
                 multiline={2}
               />

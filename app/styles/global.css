@@ -1375,3 +1375,143 @@ nav[aria-label="App navigation"] > a {
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
   }
 }
+
+/* ============================================================
+   OPERATIONS QUEUE RESPONSIVE VIEWS & ACCORDIONS
+   ============================================================ */
+.prx-operations-desktop-table {
+  display: block;
+}
+
+.prx-operations-mobile-cards {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .prx-operations-desktop-table {
+    display: none !important;
+  }
+
+  .prx-operations-mobile-cards {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .prx-mobile-order-card {
+    background: var(--p-color-bg-surface, #ffffff);
+    border: 1px solid var(--p-color-border-subdued, #e1e3e5);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: border-color 0.15s ease;
+  }
+
+  .prx-mobile-order-card.prx-card-needs-attention {
+    border-left: 4px solid var(--p-color-border-critical, #d72c0d);
+  }
+
+  .prx-mobile-card-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .prx-mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .prx-mobile-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--p-color-text-subdued, #6d7175);
+  }
+
+  .prx-mobile-card-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .prx-mobile-expand-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-top: 1px solid var(--p-color-border-subdued, #e1e3e5);
+    padding: 8px 4px 2px 4px;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--p-color-text-subdued, #6d7175);
+    cursor: pointer;
+    min-height: 36px;
+  }
+
+  .prx-mobile-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 6px;
+  }
+
+  .prx-mobile-card-economics {
+    background: var(--p-color-bg-surface-secondary, #f6f6f7);
+    padding: 8px 10px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  .prx-mobile-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .prx-mobile-card-actions > * {
+    flex: 1;
+  }
+}
+
+/* Progressive Disclosure Accordions */
+.prx-accordion-summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--gg-surface-2, #f6f8fa);
+  border-radius: 8px;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  list-style: none;
+}
+
+.prx-accordion-summary::-webkit-details-marker {
+  display: none;
+}
+
+.prx-accordion-details {
+  border: 1px solid var(--gg-border, rgba(31, 35, 40, 0.1));
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.prx-accordion-content {
+  padding: 14px;
+}
+

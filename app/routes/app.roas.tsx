@@ -34,7 +34,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (isPreview) {
     const shop = "glam-aura-india.myshopify.com";
     const host = Buffer.from(`admin.shopify.com/store/glam-aura-india`).toString("base64");
-    return RoasAnalyticsApplicationService.getRoasAnalytics(shop, host);
+    return {
+      hasAccess: true,
+      shop,
+      host,
+      roas: {
+        totalRevenue: 248500,
+        totalAdSpend: 42000,
+        blendedROAS: 5.9,
+        trueCACRaw: 380,
+        profitAdjustedROAS: 2.8,
+        byChannel: [
+          { channel: "Meta Ads", spend: 28000, revenue: 172000, roas: 6.1 },
+          { channel: "Google Ads", spend: 14000, revenue: 76500, roas: 5.5 },
+        ],
+      },
+      connectedPlatforms: [
+        { platform: "meta", name: "Meta Ads", isConnected: true, accountId: "act_8849201", lastSyncedAt: "10m ago" },
+        { platform: "google", name: "Google Ads", isConnected: false, accountId: "", lastSyncedAt: null },
+      ],
+      adSpendRecords: [
+        { id: "1", month: "2026-11", channel: "Meta", amount: 28000 },
+        { id: "2", month: "2026-11", channel: "Google", amount: 14000 },
+      ],
+      revenueChart: [
+        { date: "Day 1", revenue: 38000 },
+        { date: "Day 2", revenue: 42000 },
+        { date: "Day 3", revenue: 39500 },
+        { date: "Day 4", revenue: 45000 },
+        { date: "Day 5", revenue: 41000 },
+        { date: "Day 6", revenue: 43000 },
+      ],
+    };
   }
 
   const { session, billing } = await authenticate.admin(request);
@@ -162,14 +193,14 @@ export default function ROASRoute() {
 
   if (!hasAccess) {
     return (
-      <Page title="📈 Ad Spend Sync & Blended ROAS">
+      <Page title="Ad Spend Sync & Blended ROAS">
         <Layout>
           <Layout.Section>
-            <Banner tone="info" title="🔒 Pro Plan Feature Required">
+            <Banner tone="info" title="Pro Plan Feature Required">
               <p>Ad Spend Sync and Blended ROAS analytics require a Pro plan upgrade.</p>
               <div style={{ marginTop: "12px" }}>
                 <Button url={`/app/pricing?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}&change_plan=true`} variant="primary">
-                  Upgrade to Pro Tier →
+                  Upgrade to Pro Tier
                 </Button>
               </div>
             </Banner>
@@ -250,16 +281,16 @@ export default function ROASRoute() {
 
   return (
     <Page
-      title="Marketing ROAS"
-      subtitle="Blended ROAS, customer acquisition costs (CAC), and channel spend tracking."
+      title="Ad Spend vs Real Sales"
+      subtitle="Track what you spend on Facebook and Google Ads vs how much cash you actually collect from delivered orders."
       secondaryActions={[
         {
-          content: "Customer Intelligence",
-          url: "/app/customers",
+          content: "Where You Are Losing Money",
+          url: "/app/profit-leaks",
         },
         {
-          content: "Profit Leaks",
-          url: "/app/profit-leaks",
+          content: "Product Costs",
+          url: "/app/cogs",
         },
       ]}
     >
@@ -269,7 +300,7 @@ export default function ROASRoute() {
           <Layout.Section>
             <Banner
               tone="warning"
-              title="📢 No Ad Spend Data Synchronized"
+              title="No Ad Spend Recorded"
               action={{
                 content: "Connect Ad Accounts",
                 onAction: () => {
@@ -277,7 +308,7 @@ export default function ROASRoute() {
                 },
               }}
             >
-              <p>No ad spend data available. Connect your ad accounts or log manual spend below to see ROAS.</p>
+              <p>Connect your ad accounts or enter your monthly marketing spend below to see sales return per rupee spent.</p>
             </Banner>
           </Layout.Section>
         )}
@@ -290,10 +321,10 @@ export default function ROASRoute() {
                 <InlineStack align="space-between" blockAlign="center">
                   <BlockStack gap="050">
                     <Text variant="headingMd" as="h2">
-                      🔗 Connected Ad Accounts (Auto-Sync)
+                      Connected Ad Accounts
                     </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Connect your ad platforms once. ProfitRx automatically pulls daily spend, clicks, and impressions.
+                      Connect your ad platforms. ProfitRx pulls your daily marketing spend automatically.
                     </Text>
                   </BlockStack>
                 </InlineStack>
@@ -301,21 +332,14 @@ export default function ROASRoute() {
                 <Grid columns={{ xs: 1, sm: 3, md: 3, lg: 3 }}>
                   {connectedPlatforms.map((p: any) => (
                     <Grid.Cell key={p.platform}>
-                      <div
-                        style={{
-                          padding: "16px",
-                          borderRadius: "10px",
-                          border: p.isConnected ? "1px solid rgba(16,185,129,0.3)" : "1px solid var(--gg-border)",
-                          background: p.isConnected ? "rgba(16,185,129,0.06)" : "var(--gg-surface-2)",
-                        }}
-                      >
+                      <Card>
                         <BlockStack gap="200">
                           <InlineStack align="space-between" blockAlign="center">
                             <Text variant="headingSm" as="h3">
                               {p.name}
                             </Text>
                             <Badge tone={p.isConnected ? "success" : "attention"}>
-                              {p.isConnected ? "Connected ✅" : "Not Connected"}
+                              {p.isConnected ? "Connected" : "Not Connected"}
                             </Badge>
                           </InlineStack>
 
@@ -340,7 +364,7 @@ export default function ROASRoute() {
                             </Button>
                           )}
                         </BlockStack>
-                      </div>
+                      </Card>
                     </Grid.Cell>
                   ))}
                 </Grid>
@@ -393,23 +417,12 @@ export default function ROASRoute() {
         {/* ── ROAS Insight Banner ───────────────────────── */}
         {roas.totalAdSpend > 0 && platformROAS > roas.blendedROAS && (
           <Layout.Section>
-            <div
-              style={{
-                padding: "16px 20px",
-                borderRadius: "var(--gg-radius-lg)",
-                background: "linear-gradient(135deg, rgba(245,158,11,0.12), rgba(124,58,237,0.06))",
-                border: "1px solid rgba(245,158,11,0.25)",
-              }}
-            >
-              <InlineStack gap="200" blockAlign="center">
-                <span style={{ fontSize: 22 }}>⚠️</span>
-                <Text variant="bodyMd" as="p">
-                  Your platform-reported ROAS is <strong>{platformROAS}x</strong> — but your{" "}
-                  <strong style={{ color: "var(--gg-accent-amber)" }}>true blended ROAS is {roas.blendedROAS}x</strong>. Ad platforms
-                  over-attribute conversions. ProfitRx uses real Shopify revenue.
-                </Text>
-              </InlineStack>
-            </div>
+            <Banner tone="warning" title="Ad Platforms Overstate Returns">
+              <p>
+                Meta / Google reports your return as <strong>{platformROAS}x</strong> — but your real delivered return is{" "}
+                <strong>{roas.blendedROAS}x</strong>. Ad platforms take credit for orders that are cancelled or returned before delivery.
+              </p>
+            </Banner>
           </Layout.Section>
         )}
 
@@ -417,48 +430,35 @@ export default function ROASRoute() {
         <Layout.Section>
           <Grid columns={{ xs: 2, sm: 2, md: 5, lg: 5 }}>
             {[
-              { icon: "💹", label: "Total Revenue", value: `₹${(roas.totalRevenue / 1000).toFixed(1)}k`, color: "var(--gg-accent-blue)" },
+              { label: "Total Sales Collected", value: `₹${(roas.totalRevenue / 1000).toFixed(1)}k`, tone: "success" as const },
               {
-                icon: "💸",
                 label: "Total Ad Spend",
                 value: roas.totalAdSpend > 0 ? `₹${(roas.totalAdSpend / 1000).toFixed(1)}k` : "Not Set",
-                color: "var(--gg-text-primary)",
+                tone: undefined,
               },
-              { icon: "📊", label: "Blended ROAS", value: roas.totalAdSpend > 0 ? `${roas.blendedROAS}x` : "—", color: roasColor },
+              { label: "Sales per Rupee Spent", value: roas.totalAdSpend > 0 ? `${roas.blendedROAS}x` : "—", tone: roas.blendedROAS >= 3 ? "success" as const : "critical" as const },
               {
-                icon: "🎯",
-                label: "True CAC",
+                label: "Cost per Buyer (CAC)",
                 value: (roas.trueCACRaw ?? 0) > 0 ? `₹${(roas.trueCACRaw ?? 0).toLocaleString("en-IN")}` : "—",
-                color: "var(--gg-accent-amber)",
+                tone: undefined,
               },
               {
-                icon: "💰",
-                label: "Profit-Adj ROAS",
+                label: "Real Profit per Rupee",
                 value: roas.profitAdjustedROAS > 0 ? `${roas.profitAdjustedROAS}x` : "—",
-                color: roas.profitAdjustedROAS >= 1 ? "var(--gg-accent-green)" : "var(--gg-accent-red)",
+                tone: roas.profitAdjustedROAS >= 1 ? "success" as const : "critical" as const,
               },
             ].map((kpi) => (
               <Grid.Cell key={kpi.label}>
-                <div className="gg-kpi-card">
-                  <BlockStack gap="150">
-                    <InlineStack gap="100" blockAlign="center">
-                      <span style={{ fontSize: 16 }}>{kpi.icon}</span>
-                      <span className="gg-section-label">{kpi.label}</span>
-                    </InlineStack>
-                    <span
-                      style={{
-                        fontFamily: "'Outfit', sans-serif",
-                        fontWeight: 800,
-                        fontSize: 24,
-                        letterSpacing: "-0.03em",
-                        color: kpi.color,
-                        lineHeight: 1,
-                      }}
-                    >
+                <Card>
+                  <BlockStack gap="100">
+                    <Text variant="bodyXs" tone="subdued" as="span">
+                      {kpi.label}
+                    </Text>
+                    <Text variant="headingXl" as="p" tone={kpi.tone}>
                       {kpi.value}
-                    </span>
+                    </Text>
                   </BlockStack>
-                </div>
+                </Card>
               </Grid.Cell>
             ))}
           </Grid>
@@ -472,10 +472,10 @@ export default function ROASRoute() {
                 <BlockStack gap="300">
                   <BlockStack gap="100">
                     <Text variant="headingMd" as="h2">
-                      📈 30-Day Revenue Trend
+                      30-Day Sales Trend
                     </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Daily revenue used to compute true ROAS
+                      Daily collections from delivered customer orders
                     </Text>
                   </BlockStack>
                   <RevenueTrendChart data={revenueChart} />
@@ -485,22 +485,22 @@ export default function ROASRoute() {
                     <>
                       <Divider />
                       <Text variant="headingSm" as="h3">
-                        ROAS by Channel
+                        Sales Return by Ad Channel
                       </Text>
                       <div className="gg-overflow-x">
                         <table className="gg-table">
                           <thead>
                             <tr>
-                              <th>Channel</th>
+                              <th>Ad Platform</th>
                               <th>Ad Spend</th>
-                              <th>Revenue</th>
-                              <th>ROAS</th>
+                              <th>Delivered Sales</th>
+                              <th>Sales per Rupee</th>
                             </tr>
                           </thead>
                           <tbody>
                             {roas.byChannel.map((ch: any) => (
                               <tr key={ch.channel}>
-                                <td style={{ fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>{ch.channel}</td>
+                                <td style={{ fontWeight: 600 }}>{ch.channel}</td>
                                 <td>₹{(ch.spend ?? 0).toLocaleString("en-IN")}</td>
                                 <td>₹{(ch.revenue ?? 0).toLocaleString("en-IN")}</td>
                                 <td>
@@ -526,14 +526,11 @@ export default function ROASRoute() {
               <Card>
                 <BlockStack gap="300">
                   <BlockStack gap="100">
-                    <InlineStack gap="150" blockAlign="center">
-                      <span style={{ fontSize: 18 }}>💸</span>
-                      <Text variant="headingMd" as="h2">
-                        Log Ad Spend
-                      </Text>
-                    </InlineStack>
+                    <Text variant="headingMd" as="h2">
+                      Record Monthly Ad Spend
+                    </Text>
                     <Text variant="bodySm" as="p" tone="subdued">
-                      Enter your monthly ad spend by channel. We'll calculate true ROAS against Shopify revenue.
+                      Enter how much you spent on marketing. ProfitRx compares it against actual collected order cash.
                     </Text>
                   </BlockStack>
 
@@ -551,14 +548,14 @@ export default function ROASRoute() {
                         id="roas-month-field"
                       />
                       <Select
-                        label="Ad Channel"
+                        label="Ad Platform"
                         options={channelOptions}
                         value={channel}
                         onChange={setChannel}
                         id="roas-channel-select"
                       />
                       <TextField
-                        label="Total Spend (₹)"
+                        label="Total Spent (₹)"
                         type="number"
                         value={amount}
                         onChange={setAmount}
@@ -568,7 +565,7 @@ export default function ROASRoute() {
                         id="roas-amount-field"
                       />
                       <Button variant="primary" submit loading={isSubmitting} fullWidth id="save-ad-spend-btn">
-                        Save Ad Spend
+                        Save Marketing Spend
                       </Button>
                     </BlockStack>
                   </form>
@@ -680,7 +677,7 @@ export default function ROASRoute() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  let errorMessage = "An unexpected error occurred while analyzing marketing ROAS.";
+  let errorMessage = "An unexpected error occurred while analyzing marketing spend.";
 
   if (isRouteErrorResponse(error)) {
     errorMessage = `${error.status} ${error.statusText}: ${error.data}`;
@@ -689,14 +686,14 @@ export function ErrorBoundary() {
   }
 
   return (
-    <Page title="Marketing ROAS Intelligence">
+    <Page title="Ad Spend vs Real Sales">
       <Card>
         <Box padding="500">
           <BlockStack gap="400">
-            <Banner tone="critical" title="Failed to Load ROAS Intelligence">
+            <Banner tone="critical" title="Failed to Load Marketing Data">
               <p>{errorMessage}</p>
             </Banner>
-            <Button onClick={() => window.location.reload()}>Retry ROAS</Button>
+            <Button onClick={() => window.location.reload()}>Retry</Button>
           </BlockStack>
         </Box>
       </Card>

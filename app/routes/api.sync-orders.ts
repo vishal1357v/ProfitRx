@@ -7,6 +7,19 @@ import {
 } from "../utils/security.server";
 
 export async function action({ request }: ActionFunctionArgs) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("preview") === "true" || url.searchParams.get("demo") === "true") {
+    return Response.json({
+      success: true,
+      count: 42,
+      ordersFound: 42,
+      ordersImported: 42,
+      ordersUpdated: 0,
+      syncWindow: "Last 30 Days",
+      message: "Preview sync simulated successfully.",
+    });
+  }
+
   const ip = getClientIp(request);
   const { allowed, resetIn } = checkRateLimit(ip);
   if (!allowed) {
