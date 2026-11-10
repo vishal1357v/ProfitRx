@@ -120,7 +120,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const status = authErr.status;
       const isRedirect = status >= 300 && status < 400;
       const location = authErr.headers?.get("Location") || "";
-      const isExternalOAuth = location.includes("admin.shopify.com") || location.includes("accounts.shopify.com");
+      const isExternalOAuth =
+        location.includes("admin.shopify.com") ||
+        location.includes("accounts.shopify.com") ||
+        location.includes(".myshopify.com/admin/oauth") ||
+        location.includes("/oauth/authorize") ||
+        location.includes("/oauth/install");
       const isReauthHeader = authErr.headers?.has("X-Shopify-API-Request-Failure-Reauthorize") || authErr.headers?.has("X-Shopify-App-Redirect");
 
       // Pass-through intentional internal redirects (e.g. /auth/session-token) or App Bridge exit-iframe headers

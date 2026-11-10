@@ -15,6 +15,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return redirect(`/app/dashboard?host=${encodeURIComponent(host)}&shop=${encodeURIComponent(shop)}`);
   } catch (error) {
     if (error instanceof Response) {
+      const status = error.status;
+      const location = error.headers?.get("Location") || "";
+      const isOAuth =
+        location.includes("admin.shopify.com") ||
+        location.includes("accounts.shopify.com") ||
+        location.includes(".myshopify.com/admin/oauth") ||
+        location.includes("/oauth/authorize") ||
+        location.includes("/oauth/install");
+
+      if (isOAuth) {
+        const url = new URL(request.url);
+        const shop = url.searchParams.get("shop") || "";
+        const { escapeIframeAndRedirect } = await import("../utils/auth-redirect");
+        throw escapeIframeAndRedirect(location, shop);
+      }
+
       throw error;
     }
     console.error("OAuth error:", error);

@@ -218,16 +218,20 @@ const wrappedAuthenticateAdmin = (async (request: Request) => {
       const status = err.status;
       const location = err.headers.get("Location") || "";
 
-      // Intercept 302 redirects to admin.shopify.com or accounts.shopify.com inside embedded iframes.
-      // A raw 302 inside an iframe will hit X-Frame-Options: DENY on accounts.shopify.com and crash.
-      if (
-        status >= 300 &&
-        status < 400 &&
-        (location.includes("admin.shopify.com") || location.includes("accounts.shopify.com"))
-      ) {
+      // Intercept 302 redirects to external OAuth providers or Shopify OAuth endpoints inside embedded iframes.
+      // A raw 302 inside an iframe will hit X-Frame-Options: DENY on accounts.shopify.com and crash with
+      // "accounts.shopify.com refused to connect".
+      const isOAuthRedirect =
+        location.includes("admin.shopify.com") ||
+        location.includes("accounts.shopify.com") ||
+        location.includes(".myshopify.com/admin/oauth") ||
+        location.includes("/oauth/authorize") ||
+        location.includes("/oauth/install");
+
+      if (status >= 300 && status < 400 && isOAuthRedirect) {
         const url = new URL(request.url);
         const shop = url.searchParams.get("shop") || request.headers.get("x-shopify-shop-domain") || "";
-        console.warn(`[shopify.server.ts] Intercepted 3xx redirect to ${location} inside embedded iframe. Escaping iframe.`);
+        console.warn(`[shopify.server.ts] Intercepted 3xx OAuth redirect to ${location} inside embedded iframe. Escaping iframe.`);
         const { escapeIframeAndRedirect } = await import("./utils/auth-redirect");
         throw escapeIframeAndRedirect(location, shop);
       }

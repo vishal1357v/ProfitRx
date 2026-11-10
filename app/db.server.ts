@@ -8,7 +8,11 @@ if (typeof BigInt !== "undefined" && !(BigInt.prototype as any).toJSON) {
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeonHttp } from "@prisma/adapter-neon";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { neonConfig } from "@neondatabase/serverless";
 import pg from "pg";
+
+// Prevent Neon serverless from replacing endpoint subdomain with non-existent api.* hostname
+neonConfig.fetchEndpoint = (host) => `https://${host}/sql`;
 
 declare global {
   // eslint-disable-next-line no-var

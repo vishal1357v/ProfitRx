@@ -19,6 +19,9 @@ export function getShopifyInstallUrl(shop: string, apiKey?: string): string {
 }
 
 export function escapeIframeAndRedirect(destinationUrl: string, shop?: string): Response {
+  const key =
+    (typeof process !== "undefined" && process.env?.SHOPIFY_API_KEY) ||
+    "08f8a7442c2182a3a390f753591c06f3";
   const storeOrigin = shop ? `https://${shop} ` : "";
   const csp = `frame-ancestors ${storeOrigin}https://admin.shopify.com https://*.spin.dev https://admin.myshopify.io https://admin.shop.dev;`;
 
@@ -28,30 +31,40 @@ export function escapeIframeAndRedirect(destinationUrl: string, shop?: string): 
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Authorizing ProfitRx...</title>
-  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+  <script data-api-key="${key}" src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
   <script>
     (function() {
-      var dest = ${JSON.stringify(destinationUrl)};
-      // 1. Try Shopify App Bridge v4 open() via postMessage to Shopify Admin parent window
-      try {
-        if (window.shopify && typeof window.shopify.open === "function") {
-          window.shopify.open(dest, "_top");
-          return;
-        }
-      } catch (e) {}
+      function breakout() {
+        var dest = ${JSON.stringify(destinationUrl)};
+        // 1. Try Shopify App Bridge v4 open() via postMessage to Shopify Admin parent window
+        try {
+          if (window.shopify && typeof window.shopify.open === "function") {
+            window.shopify.open(dest, "_top");
+            return;
+          }
+        } catch (e) {}
 
-      // 2. Try window.top location navigation
-      try {
-        if (window.top && window.top !== window.self) {
-          window.top.location.href = dest;
-          return;
-        }
-      } catch (e) {}
+        // 2. Try window.open (intercepted by App Bridge v4 script to perform top-level navigation)
+        try {
+          if (typeof window.open === "function") {
+            window.open(dest, "_top");
+            return;
+          }
+        } catch (e) {}
 
-      // 3. IMPORTANT: NEVER fallback to window.location.href = dest!
-      // Navigating the iframe directly to accounts.shopify.com or admin.shopify.com
-      // causes "accounts.shopify.com refused to connect" because of X-Frame-Options: DENY.
-      // Instead, the merchant clicks the prominent breakout button below.
+        // 3. Try window.top location navigation
+        try {
+          if (window.top && window.top !== window.self) {
+            window.top.location.href = dest;
+            return;
+          }
+        } catch (e) {}
+      }
+
+      breakout();
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", breakout);
+      }
     })();
   </script>
 </head>
