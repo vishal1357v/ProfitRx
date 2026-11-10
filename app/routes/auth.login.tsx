@@ -10,7 +10,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { LoginErrorType } from "@shopify/shopify-app-react-router/server";
-import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect.server";
+import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -18,7 +18,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (shop) {
     const installUrl = getShopifyInstallUrl(shop);
-    throw escapeIframeAndRedirect(installUrl, shop);
+    return escapeIframeAndRedirect(installUrl, shop);
   }
 
   return {} as { shop?: LoginErrorType };
@@ -40,7 +40,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const installUrl = getShopifyInstallUrl(fullShop);
-  throw escapeIframeAndRedirect(installUrl, fullShop);
+  return escapeIframeAndRedirect(installUrl, fullShop);
 };
 
 export default function AuthLogin() {

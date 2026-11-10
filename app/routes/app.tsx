@@ -69,7 +69,7 @@ function RemixLink({ url, children, external, ...props }: any) {
 import { authenticate } from "../shopify.server";
 import { getFeatureList, getSubscription, normalizePlanName, PLAN_FEATURES } from "../services/feature-access.service";
 import { syncSubscriptionWithShopify } from "../services/subscription-sync.service";
-import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect.server";
+import { escapeIframeAndRedirect, getShopifyInstallUrl } from "../utils/auth-redirect";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   let url = new URL(request.url);
