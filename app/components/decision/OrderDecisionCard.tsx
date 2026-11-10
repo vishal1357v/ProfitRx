@@ -197,7 +197,7 @@ export function OrderDecisionCard({
                   <Badge tone={getRiskTone(risk.riskBand)}>{risk.riskBand}</Badge>
                 </InlineStack>
                 <Text variant="bodyXs" tone="subdued" as="span">
-                  Confidence: {Math.round(risk.confidence * 100)}%
+                  Confidence: {Math.round(risk.confidence > 1 ? risk.confidence : risk.confidence * 100)}%
                 </Text>
               </BlockStack>
             </Box>

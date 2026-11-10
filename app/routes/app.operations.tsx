@@ -458,7 +458,7 @@ export default function OperationsRoute() {
             </Text>
           ) : (
             <Text variant="bodyXs" tone="subdued" as="span">
-              Confidence: {Math.round(order.confidence * 100)}%
+              Confidence: {Math.round(order.confidence > 1 ? order.confidence : order.confidence * 100)}%
             </Text>
           )}
         </BlockStack>,
