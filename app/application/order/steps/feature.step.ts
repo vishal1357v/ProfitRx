@@ -57,11 +57,27 @@ export class FeatureStep implements PipelineStep<OrderPipelineData> {
     if (rawLineItems.length > 0) {
       for (const li of rawLineItems) {
         try {
-          await prisma.orderLineItem.create({
-            data: {
+          const lineItemIdStr = String(li.id || Date.now());
+          await prisma.orderLineItem.upsert({
+            where: {
+              shop_shopifyLineItemId: {
+                shop,
+                shopifyLineItemId: lineItemIdStr,
+              },
+            },
+            update: {
+              orderId,
+              productId: li.product_id ? String(li.product_id) : null,
+              title: li.title || "Product",
+              variantTitle: li.variant_title || null,
+              quantity: li.quantity || 1,
+              unitPrice: parseFloat(String(li.price || 0)),
+              originalUnitPrice: parseFloat(String(li.price || 0)),
+            },
+            create: {
               orderId,
               shop,
-              shopifyLineItemId: String(li.id || Date.now()),
+              shopifyLineItemId: lineItemIdStr,
               productId: li.product_id ? String(li.product_id) : null,
               title: li.title || "Product",
               variantTitle: li.variant_title || null,
@@ -71,7 +87,7 @@ export class FeatureStep implements PipelineStep<OrderPipelineData> {
             },
           });
         } catch (liErr) {
-          console.warn(`[FeatureStep] Could not insert line item for order ${orderId}:`, liErr);
+          console.warn(`[FeatureStep] Could not upsert line item for order ${orderId}:`, liErr);
         }
       }
     }

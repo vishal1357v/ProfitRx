@@ -221,6 +221,11 @@ async function main() {
       throw new Error(`Order ${testOrderGid} was not persisted in PostgreSQL orders table`);
     }
 
+    const execLog = dbOrder.executionLogs?.find((l) => l.step === "EXECUTION" || l.step === "DECISION");
+    const logData = (execLog?.data as any) || {};
+    const evVal = logData.decision?.recommendedExpectedValue ?? logData.decision?.baselineExpectedValue;
+    const expectedProfit = evVal !== undefined ? Number(evVal).toFixed(2) : "Calculated";
+
     console.log(`   • Persisted DB Order:`, {
       id: dbOrder.id,
       orderNumber: dbOrder.orderNumber,
@@ -229,12 +234,11 @@ async function main() {
       riskScore: dbOrder.riskScore,
       riskLevel: dbOrder.riskLevel,
       recommendation: dbOrder.merchantRecommendation,
-      protectionMode: (dbOrder as any).protectionMode,
-      expectedProfit: (dbOrder as any).expectedProfit,
-      rtoLossExposure: (dbOrder as any).rtoLossExposure,
+      expectedProfit: `₹${expectedProfit}`,
+      logsCount: dbOrder.executionLogs?.length ?? 0,
     });
 
-    return `Order evaluated: Risk=${dbOrder.riskScore}% (${dbOrder.riskLevel}), Recommendation=${dbOrder.merchantRecommendation}, Expected Profit=₹${(dbOrder as any).expectedProfit}`;
+    return `Order evaluated: Risk=${dbOrder.riskScore}% (${dbOrder.riskLevel}), Recommendation=${dbOrder.merchantRecommendation}, Expected Profit=₹${expectedProfit}`;
   });
 
   // ── STEP 4: OTP Verification Workflow ────────────────────────────────────────
